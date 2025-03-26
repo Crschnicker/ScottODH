@@ -1,0 +1,47 @@
+.estimate-list-container {
+  margin-bottom: 30px;
+}
+
+.estimate-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.estimate-list-actions {
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  width: 300px;
+  margin-right: 15px;
+}
+
+.estimate-table th,
+.estimate-table td {
+  vertical-align: middle;
+}
+
+@media (max-width: 768px) {
+  .estimate-list-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .estimate-list-actions {
+    margin-top: 10px;
+    width: 100%;
+  }
+  
+  .search-input {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+  
+  .add-estimate-btn {
+    width: 100%;
+  }
+}

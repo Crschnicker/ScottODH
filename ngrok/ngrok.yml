@@ -1,0 +1,11 @@
+version: "2"
+authtoken: 2lBPdGkvzURBbwH5ezQnr8EdwgK_2pXCgoEEERWaJAi7A4M28
+tunnels:
+  rclick-frontend:
+    proto: http
+    addr: 3000
+    domain: ScottOhd.ngrok.io
+  rclick-backend:
+    proto: http
+    addr: 5000
+    domain: ScottOhd-api.ngrok.io

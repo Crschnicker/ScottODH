@@ -1,0 +1,106 @@
+.dashboard-container {
+  padding: 20px 0;
+}
+
+.dashboard-title {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.dashboard-subtitle {
+  text-align: center;
+  color: #6c757d;
+  margin-bottom: 30px;
+}
+
+.dashboard-card {
+  text-align: center;
+  transition: transform 0.2s ease-in-out;
+  margin-bottom: 20px;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-icon-container {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin: 0 auto 15px;
+}
+
+.card-icon {
+  font-size: 30px;
+  color: white;
+}
+
+.estimates-icon {
+  background-color: #17a2b8;
+}
+
+.bids-icon {
+  background-color: #28a745;
+}
+
+.jobs-icon {
+  background-color: #fd7e14;
+}
+
+.schedule-icon {
+  background-color: #007bff;
+}
+
+.metric-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.metric-label {
+  font-size: 1rem;
+  color: #6c757d;
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recent-item {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.recent-item:last-child {
+  border-bottom: none;
+}
+
+.recent-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.recent-item-title {
+  font-weight: bold;
+}
+
+.recent-item-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9em;
+}
+
+.region-label {
+  background-color: #e9ecef;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+}

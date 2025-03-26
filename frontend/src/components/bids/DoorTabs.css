@@ -1,0 +1,64 @@
+.door-tabs-container {
+  margin-bottom: 20px;
+}
+
+.door-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.door-tab {
+  padding: 8px 15px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.door-tab.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.door-tab.active .duplicate-btn {
+  color: white;
+}
+
+.duplicate-btn {
+  padding: 0;
+  color: #6c757d;
+}
+
+.duplicate-btn:hover {
+  color: #0056b3;
+}
+
+.door-tab.active .duplicate-btn:hover {
+  color: #f8f9fa;
+}
+
+.add-door-btn {
+  align-self: center;
+}
+
+@media (max-width: 768px) {
+  .door-tabs {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .door-tab {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .add-door-btn {
+    width: 100%;
+  }
+}

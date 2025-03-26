@@ -1,0 +1,77 @@
+.job-details-container {
+  margin-bottom: 40px;
+}
+
+.job-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.info-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.info-label {
+  font-weight: bold;
+  min-width: 120px;
+}
+
+.status-value {
+  display: inline-block;
+}
+
+.door-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.door-number {
+  font-weight: bold;
+  margin-right: 10px;
+}
+
+.signature-container {
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  margin-bottom: 10px;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 200px;
+}
+
+@media (max-width: 768px) {
+  .job-details-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .job-actions {
+    margin-top: 15px;
+    display: flex;
+    width: 100%;
+  }
+  
+  .job-actions button {
+    flex: 1;
+  }
+  
+  .info-row {
+    flex-direction: column;
+    margin-bottom: 15px;
+  }
+  
+  .info-label {
+    margin-bottom: 5px;
+  }
+  
+  .status-buttons {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}

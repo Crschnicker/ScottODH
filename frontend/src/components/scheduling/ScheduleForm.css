@@ -1,0 +1,26 @@
+.schedule-form-container {
+  margin-bottom: 40px;
+}
+
+.selected-job-info {
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 0.25rem;
+  margin-bottom: 15px;
+}
+
+.job-number {
+  font-weight: bold;
+  color: #0056b3;
+  margin-right: 10px;
+}
+
+.customer-name {
+  font-weight: 500;
+}
+
+.job-address {
+  color: #6c757d;
+  font-size: 0.9em;
+  margin-top: 5px;
+}

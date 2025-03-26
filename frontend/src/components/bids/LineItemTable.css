@@ -1,0 +1,37 @@
+.line-item-table-container {
+  margin-bottom: 30px;
+}
+
+.cost-summary {
+  max-width: 400px;
+  margin-left: auto;
+  margin-top: 20px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  background-color: #f8f9fa;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.summary-row.total {
+  border-top: 1px solid #dee2e6;
+  margin-top: 10px;
+  padding-top: 10px;
+  font-weight: bold;
+}
+
+.new-item-row input {
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .cost-summary {
+    max-width: 100%;
+  }
+}

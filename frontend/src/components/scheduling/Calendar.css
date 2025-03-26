@@ -1,0 +1,77 @@
+.job-calendar-container {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.calendar-wrapper {
+  flex: 1;
+}
+
+.date-details {
+  flex: 1;
+  max-width: 400px;
+}
+
+.react-calendar {
+  width: 100%;
+  border: 1px solid #ddd;
+  font-family: inherit;
+  border-radius: 0.25rem;
+}
+
+.react-calendar__tile--active {
+  background: #007bff !important;
+  color: white;
+}
+
+.react-calendar__tile--now {
+  background: #f8f9fa;
+}
+
+.react-calendar__tile.has-jobs {
+  background-color: rgba(0, 123, 255, 0.1);
+  font-weight: bold;
+}
+
+.job-count-marker {
+  display: flex;
+  justify-content: center;
+  margin-top: 5px;
+}
+
+.scheduled-job-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.job-name {
+  font-weight: 500;
+}
+
+.job-number {
+  font-weight: bold;
+  margin-right: 10px;
+  color: #0056b3;
+}
+
+.job-address {
+  font-size: 0.85em;
+  color: #6c757d;
+}
+
+.region-badge {
+  margin-left: 8px;
+  font-size: 0.7em;
+}
+
+@media (max-width: 768px) {
+  .job-calendar-container {
+    flex-direction: column;
+  }
+  
+  .date-details {
+    max-width: 100%;
+  }
+}
