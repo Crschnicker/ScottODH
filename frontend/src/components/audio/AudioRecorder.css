@@ -1,0 +1,75 @@
+
+.audio-recorder-container {
+  margin-bottom: 20px;
+}
+
+.recording-controls {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.record-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  margin-left: 15px;
+}
+
+.recording-time {
+  font-family: monospace;
+  font-size: 1.2rem;
+  margin-right: 10px;
+}
+
+.pulse-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #dc3545;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+.upload-progress {
+  margin: 15px 0;
+}
+
+.recordings-list {
+  margin-top: 20px;
+}
+
+.recording-item {
+  margin-bottom: 10px;
+}
+
+.recording-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.duration {
+  color: #6c757d;
+  font-size: 0.9rem;
+}

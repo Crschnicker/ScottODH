@@ -9,7 +9,8 @@ const CustomerForm = ({ onCustomerCreated }) => {
     address: '',
     lockbox_location: '',
     contact_name: '',
-    phone: ''
+    phone: '',
+    email: ''
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +41,8 @@ const CustomerForm = ({ onCustomerCreated }) => {
         address: '',
         lockbox_location: '',
         contact_name: '',
-        phone: ''
+        phone: '',
+        email: ''
       });
       
       if (onCustomerCreated) {
@@ -94,7 +96,7 @@ const CustomerForm = ({ onCustomerCreated }) => {
           </Form.Group>
           
           <Form.Group className="mb-3">
-            <Form.Label>Point of Contact</Form.Label>
+            <Form.Label>Onsite Contact</Form.Label>
             <Form.Control
               type="text"
               name="contact_name"
@@ -112,6 +114,17 @@ const CustomerForm = ({ onCustomerCreated }) => {
               value={formData.phone}
               onChange={handleChange}
               placeholder="Enter phone number"
+            />
+          </Form.Group>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <Form.Control
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              placeholder="Enter email address"
             />
           </Form.Group>
           

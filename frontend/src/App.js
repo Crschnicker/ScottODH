@@ -14,6 +14,7 @@ import Estimates from './pages/Estimates';
 import Bids from './pages/Bids';
 import Jobs from './pages/Jobs';
 import Schedule from './pages/Schedule';
+import EstimateInProgress from './pages/EstimateInProgress';
 
 // CSS
 import './App.css';
@@ -29,6 +30,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/estimates" element={<Estimates />} />
+            <Route path="/estimates/:estimateId/progress" element={<EstimateInProgress />} />
             <Route path="/bids" element={<Bids />} />
             <Route path="/bids/:bidId" element={<Bids />} />
             <Route path="/jobs" element={<Jobs />} />

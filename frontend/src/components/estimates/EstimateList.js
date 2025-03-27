@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Badge, Form, InputGroup } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { FaSearch, FaPlus } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaMicrophone } from 'react-icons/fa';
 import { getEstimates } from '../../services/estimateService';
 import './EstimateList.css';
 
@@ -139,6 +139,15 @@ const EstimateList = ({ onCreateClick, onSelectEstimate }) => {
                       Select
                     </Button>
                   ) : null}
+                  
+                  <Link to={`/estimates/${estimate.id}/progress`} className="me-2">
+                    <Button 
+                      variant="outline-info" 
+                      size="sm"
+                    >
+                      <FaMicrophone /> Record
+                    </Button>
+                  </Link>
                   
                   <Link to={`/bids?estimateId=${estimate.id}`}>
                     <Button 

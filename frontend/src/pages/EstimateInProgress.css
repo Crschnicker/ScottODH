@@ -1,0 +1,51 @@
+
+.estimate-in-progress-container {
+  padding: 20px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.back-button {
+  margin-right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.customer-info-card,
+.audio-recorder-card,
+.audio-processor-card {
+  margin-bottom: 25px;
+}
+
+.submit-actions {
+  display: flex;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.submit-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 25px;
+}
+
+.submitting-indicator {
+  display: flex;
+  align-items: center;
+  margin-left: 15px;
+  gap: 8px;
+}

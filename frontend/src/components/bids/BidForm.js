@@ -100,17 +100,15 @@ const BidForm = () => {
       setSavingBid(false);
     }
   };
-  
   const handleGenerateReport = () => {
-    window.open(`/api/bids/${bid.id}/report`, '_blank');
+    window.open(`http://localhost:5000/api/bids/${bid.id}/report`, '_blank');
     toast.info('Report generated');
   };
   
   const handleGenerateProposal = () => {
-    window.open(`/api/bids/${bid.id}/proposal`, '_blank');
+    window.open(`http://localhost:5000/api/bids/${bid.id}/proposal`, '_blank');
     toast.info('Proposal generated');
   };
-  
   const handleApproveBid = async () => {
     try {
       const result = await approveBid(bid.id, {

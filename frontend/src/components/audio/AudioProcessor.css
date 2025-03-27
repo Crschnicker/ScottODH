@@ -1,0 +1,67 @@
+
+.audio-processor-container {
+  margin-bottom: 30px;
+}
+
+.process-controls {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.process-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.processing-status {
+  display: flex;
+  align-items: center;
+  margin-left: 15px;
+  gap: 8px;
+}
+
+.transcripts-section {
+  margin-bottom: 25px;
+}
+
+.transcript-text {
+  background-color: #f8f9fa;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.doors-section {
+  margin-top: 30px;
+}
+
+.door-card {
+  margin-bottom: 15px;
+}
+
+.door-description {
+  white-space: pre-wrap;
+}
+
+.door-details {
+  margin-top: 15px;
+}
+
+.door-edit-form .form-group {
+  margin-bottom: 15px;
+}
+
+.detail-input-group {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.door-edit-actions {
+  margin-top: 20px;
+  display: flex;
+}

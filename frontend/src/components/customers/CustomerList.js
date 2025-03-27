@@ -19,7 +19,8 @@ const CustomerList = ({ onSelectCustomer, onAddNewClick }) => {
       const filtered = customers.filter(customer => 
         customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (customer.contact_name && customer.contact_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (customer.phone && customer.phone.includes(searchTerm))
+        (customer.phone && customer.phone.includes(searchTerm)) ||
+        (customer.email && customer.email.toLowerCase().includes(searchTerm.toLowerCase()))
       );
       setFilteredCustomers(filtered);
     } else {
@@ -98,8 +99,9 @@ const CustomerList = ({ onSelectCustomer, onAddNewClick }) => {
           <thead>
             <tr>
               <th>Name</th>
-              <th>Contact</th>
+              <th>Onsite Contact</th>
               <th>Phone</th>
+              <th>Email</th>
               <th>Address</th>
               {onSelectCustomer && <th>Action</th>}
             </tr>
@@ -110,6 +112,7 @@ const CustomerList = ({ onSelectCustomer, onAddNewClick }) => {
                 <td>{customer.name}</td>
                 <td>{customer.contact_name || '-'}</td>
                 <td>{customer.phone || '-'}</td>
+                <td>{customer.email || '-'}</td>
                 <td>{customer.address || '-'}</td>
                 {onSelectCustomer && (
                   <td>
