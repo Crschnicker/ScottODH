@@ -1,12 +1,29 @@
-
 .audio-processor-container {
-  margin-bottom: 30px;
+  padding: 1rem;
 }
 
+/* Transcript section */
+.transcripts-section {
+  margin-bottom: 2rem;
+}
+
+.transcript-text {
+  background-color: #f9f9f9;
+  padding: 1rem;
+  border-radius: 4px;
+  border-left: 3px solid #6c757d;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+}
+
+/* Improved process controls */
 .process-controls {
+  margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .process-button {
@@ -18,50 +35,148 @@
 .processing-status {
   display: flex;
   align-items: center;
-  margin-left: 15px;
-  gap: 8px;
+  margin-left: 12px;
+  font-style: italic;
+  color: #555;
 }
 
-.transcripts-section {
-  margin-bottom: 25px;
+.processing-status .spinner-border {
+  margin-right: 8px;
 }
 
-.transcript-text {
-  background-color: #f8f9fa;
-  padding: 10px;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.doors-section {
-  margin-top: 30px;
-}
-
+/* Enhanced door cards */
 .door-card {
-  margin-bottom: 15px;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.door-card .card-header {
+  background-color: #f5f9ff;
+  font-weight: 600;
 }
 
 .door-description {
-  white-space: pre-wrap;
+  margin-bottom: 1rem;
+  color: #444;
 }
 
-.door-details {
-  margin-top: 15px;
+.door-details h6 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #2c3e50;
 }
 
-.door-edit-form .form-group {
-  margin-bottom: 15px;
+.door-details ul {
+  padding-left: 1.5rem;
+  margin-bottom: 0;
 }
 
+.door-details li {
+  margin-bottom: 0.25rem;
+  position: relative;
+}
+
+.door-details li:last-child {
+  margin-bottom: 0;
+}
+
+/* Detail tags for better visual organization */
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-tag {
+  display: inline-block;
+  background-color: #f1f7ff;
+  border: 1px solid #d2e3fc;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 0 4px 4px 0;
+  font-size: 0.875rem;
+}
+
+.detail-tag.dimension {
+  background-color: #e6f7ff;
+  border-color: #b3e0ff;
+}
+
+.detail-tag.type {
+  background-color: #fff7e6;
+  border-color: #ffe7ba;
+}
+
+.detail-tag.material {
+  background-color: #f6ffed;
+  border-color: #d9f7be;
+}
+
+.detail-tag.feature {
+  background-color: #f9f0ff;
+  border-color: #efdbff;
+}
+
+.detail-tag.labor {
+  background-color: #fff2f0;
+  border-color: #ffccc7;
+}
+
+.detail-tag.accessory {
+  background-color: #e6fffb;
+  border-color: #b5f5ec;
+}
+
+.detail-tag.note {
+  background-color: #fcffe6;
+  border-color: #eaff8f;
+}
+
+/* Detail input in edit mode */
 .detail-input-group {
   display: flex;
-  gap: 8px;
   margin-bottom: 8px;
+  gap: 8px;
+}
+
+.detail-input-group .form-control {
+  flex: 1;
 }
 
 .door-edit-actions {
-  margin-top: 20px;
+  margin-top: 1rem;
   display: flex;
+}
+
+/* Doors section */
+.doors-section {
+  margin-top: 2rem;
+}
+
+.doors-section h5 {
+  margin-bottom: 1rem;
+}
+
+/* Accordion styling */
+.accordion-item {
+  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: #f5f9ff;
+  color: #0d6efd;
+}
+
+.accordion-button:focus {
+  box-shadow: none;
+  border-color: rgba(13, 110, 253, 0.25);
+}
+
+/* Button spacing */
+.btn + .btn {
+  margin-left: 0.5rem;
 }

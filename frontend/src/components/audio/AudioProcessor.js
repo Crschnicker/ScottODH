@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
-import { Button, Alert, Spinner, Card, Accordion } from 'react-bootstrap';
-import { FaCog, FaEdit, FaCheck, FaTrash, FaPlus } from 'react-icons/fa';
-import { transcribeAudio, processAudio } from '../../services/audioService';
+import { Button, Alert, Spinner, Card, Accordion, Badge } from 'react-bootstrap';
+import { FaCog, FaEdit, FaCheck, FaTrash, FaPlus, FaRobot } from 'react-icons/fa';
+import { transcribeAudio, processAudio, processAudioWithAI } from '../../services/audioService';
 import './AudioProcessor.css';
 
 const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
@@ -40,22 +39,25 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
     }
   };
   
-  const handleProcessRecording = async (recordingId) => {
+  const handleProcessRecording = async (recordingId, useAI = true) => {
     if (!transcripts[recordingId]) {
       await handleTranscribe(recordingId);
     }
     
     setProcessing(true);
-    setProcessingStep('Processing doors...');
+    setProcessingStep(useAI ? 'Processing doors with AI...' : 'Processing doors...');
     
     try {
-      const response = await processAudio(recordingId);
+      // Use AI processing if requested, otherwise use regular processing
+      const response = useAI 
+        ? await processAudioWithAI(recordingId)
+        : await processAudio(recordingId);
       
       // Add the new doors to the list
       setDoors(prev => [...prev, ...response.doors]);
       
     } catch (err) {
-      setError('Failed to process doors from recording. Please try again.');
+      setError(`Failed to process doors from recording. ${err.response?.data?.error || 'Please try again.'}`);
       console.error('Error processing doors:', err);
       
       if (onError) {
@@ -67,7 +69,7 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
     }
   };
   
-  const handleProcessAll = async () => {
+  const handleProcessAll = async (useAI = true) => {
     setProcessing(true);
     setError(null);
     
@@ -83,8 +85,15 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
       // Then process all recordings
       const allDoors = [];
       for (const recording of recordings) {
-        setProcessingStep(`Processing doors from recording ${recording.id}...`);
-        const response = await processAudio(recording.id);
+        setProcessingStep(useAI 
+          ? `Processing doors from recording ${recording.id} with AI...` 
+          : `Processing doors from recording ${recording.id}...`);
+        
+        // Use AI processing if requested, otherwise use regular processing
+        const response = useAI 
+          ? await processAudioWithAI(recording.id)
+          : await processAudio(recording.id);
+        
         allDoors.push(...response.doors);
       }
       
@@ -97,7 +106,7 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
       }
       
     } catch (err) {
-      setError('An error occurred during processing. Please try again.');
+      setError(`An error occurred during processing. ${err.response?.data?.error || 'Please try again.'}`);
       console.error('Error in batch processing:', err);
       
       if (onError) {
@@ -175,14 +184,24 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
       {recordings.length > 0 && (
         <>
           <div className="process-controls">
-            <Button 
-              variant="primary" 
-              onClick={handleProcessAll} 
-              disabled={processing || recordings.length === 0}
-              className="process-button"
-            >
-              <FaCog /> Process All Recordings
-            </Button>
+            <div className="btn-group" role="group">
+              <Button 
+                variant="primary" 
+                onClick={() => handleProcessAll(true)} 
+                disabled={processing || recordings.length === 0}
+                className="process-button"
+              >
+                <FaRobot /> Process All with AI
+              </Button>
+              <Button 
+                variant="outline-primary" 
+                onClick={() => handleProcessAll(false)} 
+                disabled={processing || recordings.length === 0}
+                className="process-button"
+              >
+                <FaCog /> Process All (Basic)
+              </Button>
+            </div>
             
             {processing && (
               <div className="processing-status">
@@ -198,21 +217,26 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
               {recordings.map((recording) => (
                 <Accordion.Item key={recording.id} eventKey={recording.id.toString()}>
                   <Accordion.Header>
-                    Recording {recording.id}
-                    {!transcripts[recording.id] && (
-                      <Button 
-                        variant="outline-primary" 
-                        size="sm" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTranscribe(recording.id);
-                        }}
-                        disabled={processing}
-                        className="ms-2"
-                      >
-                        Transcribe
-                      </Button>
-                    )}
+                    <div className="d-flex w-100 justify-content-between align-items-center">
+                      <span>Recording {recording.id}</span>
+                      {!transcripts[recording.id] && (
+                        <span 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTranscribe(recording.id);
+                          }}
+                        >
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            disabled={processing}
+                            className="ms-2"
+                          >
+                            Transcribe
+                          </Button>
+                        </span>
+                      )}
+                    </div>
                   </Accordion.Header>
                   <Accordion.Body>
                     {transcripts[recording.id] ? (
@@ -220,15 +244,25 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
                         <div className="transcript-text">
                           {transcripts[recording.id]}
                         </div>
-                        <Button 
-                          variant="outline-primary" 
-                          size="sm" 
-                          onClick={() => handleProcessRecording(recording.id)}
-                          disabled={processing}
-                          className="mt-2"
-                        >
-                          <FaCog /> Process Doors
-                        </Button>
+                        <div className="mt-2">
+                          <Button 
+                            variant="primary" 
+                            size="sm" 
+                            onClick={() => handleProcessRecording(recording.id, true)}
+                            disabled={processing}
+                            className="me-2"
+                          >
+                            <FaRobot /> Process with AI
+                          </Button>
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm" 
+                            onClick={() => handleProcessRecording(recording.id, false)}
+                            disabled={processing}
+                          >
+                            <FaCog /> Process (Basic)
+                          </Button>
+                        </div>
                       </>
                     ) : (
                       <p>No transcript available. Click 'Transcribe' to generate.</p>
@@ -343,11 +377,33 @@ const AudioProcessor = ({ recordings, onProcessingComplete, onError }) => {
                     {door.details.length > 0 && (
                       <div className="door-details">
                         <h6>Details:</h6>
-                        <ul>
-                          {door.details.map((detail, index) => (
-                            <li key={index}>{detail}</li>
-                          ))}
-                        </ul>
+                        <div className="detail-tags">
+                          {door.details.map((detail, index) => {
+                            // Determine tag type for styling
+                            let tagClass = 'detail-tag';
+                            if (detail.toLowerCase().startsWith('dimensions:')) {
+                              tagClass += ' dimension';
+                            } else if (detail.toLowerCase().startsWith('type:')) {
+                              tagClass += ' type';
+                            } else if (detail.toLowerCase().startsWith('material:')) {
+                              tagClass += ' material';
+                            } else if (detail.toLowerCase().startsWith('feature:')) {
+                              tagClass += ' feature';
+                            } else if (detail.toLowerCase().startsWith('labor')) {
+                              tagClass += ' labor';
+                            } else if (detail.toLowerCase().startsWith('accessory:')) {
+                              tagClass += ' accessory';
+                            } else if (detail.toLowerCase().startsWith('notes:')) {
+                              tagClass += ' note';
+                            }
+                            
+                            return (
+                              <span key={index} className={tagClass}>
+                                {detail}
+                              </span>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </>

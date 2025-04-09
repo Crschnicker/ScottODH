@@ -75,9 +75,37 @@ const LineItemTable = ({ doorId, door, onUpdate }) => {
   const tax = (partsCost + hardwareCost) * 0.0875; // 8.75% tax rate
   const totalCost = partsCost + laborCost + hardwareCost + tax;
   
+  // Find location from line items if not directly on door object
+  const getDoorLocation = () => {
+    // First check if it's directly on the door object
+    if (door?.location) {
+      return `(${door.location})`;
+    }
+    
+    // Next, try to extract from the description if it exists
+    if (door?.description) {
+      const match = door.description.match(/^(.*?)\s+\(Door #\d+\)$/);
+      if (match && match[1]) {
+        return `(${match[1]})`;
+      }
+    }
+    
+    // Finally, look for location in line items
+    if (door?.line_items) {
+      for (const item of door.line_items) {
+        if (item.description && item.description.toLowerCase().startsWith('location:')) {
+          const location = item.description.split(':')[1].trim();
+          return `(${location})`;
+        }
+      }
+    }
+    
+    return '';
+  };
+  
   return (
     <div className="line-item-table-container">
-      <h5>Door #{door?.door_number} Items</h5>
+      <h5>Door #{door?.door_number} {getDoorLocation()} Items</h5>
       
       <Table striped bordered hover responsive>
         <thead>

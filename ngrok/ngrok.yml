@@ -5,6 +5,7 @@ tunnels:
     proto: http
     addr: 3000
     domain: ScottOhd.ngrok.io
+    host_header: localhost
   rclick-backend:
     proto: http
     addr: 5000

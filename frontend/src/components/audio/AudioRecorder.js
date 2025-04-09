@@ -1,256 +1,293 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { Button, Alert, Card, ProgressBar } from 'react-bootstrap';
-import { FaMicrophone, FaStop, FaTrash, FaPlay, FaPause } from 'react-icons/fa';
-import { uploadAudio, deleteAudioRecording } from '../../services/audioService';
+// AudioRecorder.js - With improved upload handling
+import React, { useState, useRef } from 'react';
+import { Button, Alert, Spinner, Form } from 'react-bootstrap';
+import { FaMicrophone, FaStop, FaCheck, FaUndo, FaUpload, FaVolumeUp } from 'react-icons/fa';
 import './AudioRecorder.css';
 
+// Import the iOS-specific component
+import IOSAudioRecorder from './IOSAudioRecorder';
+
 const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordings, setRecordings] = useState([]);
-  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
-  const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [error, setError] = useState(null);
+  // Detect if running on iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
   
+  // States for all devices
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingComplete, setRecordingComplete] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [audioUrl, setAudioUrl] = useState('');
+  
+  // Refs for all devices
+  const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const audioElementRef = useRef(null);
-  const timerIntervalRef = useRef(null);
   
-  useEffect(() => {
-    // Clean up when component unmounts
-    return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-      }
-      
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, []);
+  // If on iOS, render the iOS-specific component
+  if (isIOS) {
+    return (
+      <IOSAudioRecorder 
+        estimateId={estimateId}
+        onAudioUploaded={onAudioUploaded}
+        onError={onError}
+      />
+    );
+  }
   
+  // Regular implementation for non-iOS devices
   const startRecording = async () => {
+    setError(null);
+    
     try {
-      audioChunksRef.current = [];
-      setRecordingDuration(0);
-      setError(null);
-      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      // Set up media recorder
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
       
-      mediaRecorderRef.current.ondataavailable = (event) => {
+      mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
       
-      mediaRecorderRef.current.onstop = async () => {
-        // Convert to audio blob
+      mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const audioUrl = URL.createObjectURL(audioBlob);
-        
-        // Add to recordings array (temporarily until uploaded)
-        const tempRecording = {
-          id: `temp-${Date.now()}`,
-          url: audioUrl,
-          duration: recordingDuration,
-          blob: audioBlob,
-          isTemp: true
-        };
-        
-        setRecordings(prev => [...prev, tempRecording]);
-        
-        // Upload to server
-        await uploadRecording(tempRecording);
+        const url = URL.createObjectURL(audioBlob);
+        setSelectedFile(audioBlob);
+        setAudioUrl(url);
+        setIsRecording(false);
+        setRecordingComplete(true);
         
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
       
-      // Start recording
-      mediaRecorderRef.current.start();
+      // Request data every second instead of only at stop
+      mediaRecorder.start(1000);
       setIsRecording(true);
-      
-      // Start timer
-      timerIntervalRef.current = setInterval(() => {
-        setRecordingDuration(prev => prev + 1);
-      }, 1000);
-      
     } catch (err) {
-      setError('Could not access microphone. Please ensure you have granted permission.');
-      console.error('Error starting recording:', err);
+      console.error('Error accessing microphone:', err);
+      setError('Could not access microphone. Please try again or use the file upload option.');
+      if (onError) onError(err);
     }
   };
   
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
-      clearInterval(timerIntervalRef.current);
-      setIsRecording(false);
     }
   };
   
-  const uploadRecording = async (recording) => {
-    setIsUploading(true);
-    setUploadProgress(0);
+  const resetRecording = () => {
+    setSelectedFile(null);
+    setAudioUrl('');
+    setRecordingComplete(false);
+    setError(null);
+  };
+  
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    
+    if (!file) {
+      return;
+    }
+    
+    // Check if file is audio
+    if (!file.type.startsWith('audio/')) {
+      setError('Please select an audio file');
+      return;
+    }
+    
+    console.log('Selected file:', file);
+    
+    // Create a URL for preview
+    const url = URL.createObjectURL(file);
+    setSelectedFile(file);
+    setAudioUrl(url);
+    setRecordingComplete(true);
+  };
+  
+  const handleConfirmRecording = async () => {
+    if (!selectedFile) {
+      setError('No audio file selected. Please record or upload an audio file.');
+      return;
+    }
+    
+    // Check file size before upload
+    if (selectedFile.size === 0) {
+      setError('The audio file is empty. Please try recording again.');
+      return;
+    }
+    
+    setUploading(true);
+    setError(null);
     
     try {
-      const formData = new FormData();
-      formData.append('audio', recording.blob, 'recording.wav');
-      formData.append('estimate_id', estimateId);
-      
-      const response = await uploadAudio(formData, {
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(progress);
-        }
+      console.log('Using estimate ID:', estimateId);
+      console.log('Uploading audio:', {
+        size: selectedFile.size,
+        type: selectedFile.type,
+        name: selectedFile.name || 'recording.wav'
       });
       
-      // Update recordings list
-      setRecordings(prev => prev.map(rec => 
-        rec.id === recording.id 
-          ? { ...rec, id: response.data.id, isTemp: false, file_path: response.data.file_path }
-          : rec
-      ));
+      // Create FormData for upload
+      const formData = new FormData();
       
-      // Call the callback
+      // Create a proper file with name and type to ensure it's processed correctly
+      const fileToUpload = new File(
+        [selectedFile], 
+        selectedFile.name || 'recording.wav',
+        { type: selectedFile.type || 'audio/wav' }
+      );
+      
+      formData.append('audio', fileToUpload);
+      
+      // Convert estimateId to a string to ensure proper formatting
+      if (!estimateId) {
+        throw new Error('No estimate ID provided. Please ensure you are in a valid estimate context.');
+      }
+      
+      formData.append('estimate_id', String(estimateId));
+      
+      // Use the correct API endpoint
+      const apiUrl = 'https://scottohd-api.ngrok.io/api/audio/upload';
+      
+      // Upload using fetch
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
+      }
+      
+      const uploadedAudio = await response.json();
+      
+      // Reset for next recording
+      resetRecording();
+      
+      // Notify parent component
       if (onAudioUploaded) {
-        onAudioUploaded(response.data);
+        onAudioUploaded(uploadedAudio);
       }
-      
     } catch (err) {
-      setError('Failed to upload audio recording. Please try again.');
-      console.error('Error uploading recording:', err);
-      
-      if (onError) {
-        onError(err);
-      }
+      console.error('Error uploading audio:', err);
+      setError(`Failed to upload audio: ${err.message}. Please try again.`);
+      if (onError) onError(err);
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
   };
   
-  const deleteRecording = async (recordingId, isTemp) => {
-    try {
-      if (!isTemp) {
-        await deleteAudioRecording(recordingId);
-      }
-      
-      // Remove from list
-      setRecordings(prev => prev.filter(rec => rec.id !== recordingId));
-      
-    } catch (err) {
-      setError('Failed to delete audio recording.');
-      console.error('Error deleting recording:', err);
+  const playRecording = () => {
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audio.play().catch(err => {
+        console.error('Error playing audio preview:', err);
+        setError('Unable to play audio preview.');
+      });
     }
-  };
-  
-  const togglePlayback = (recording) => {
-    if (currentlyPlaying === recording.id) {
-      // Pause current playback
-      audioElementRef.current.pause();
-      setCurrentlyPlaying(null);
-    } else {
-      // Stop current playback if any
-      if (audioElementRef.current) {
-        audioElementRef.current.pause();
-      }
-      
-      // Start new playback
-      audioElementRef.current = new Audio(recording.url);
-      audioElementRef.current.play();
-      setCurrentlyPlaying(recording.id);
-      
-      // Reset when finished
-      audioElementRef.current.onended = () => {
-        setCurrentlyPlaying(null);
-      };
-    }
-  };
-  
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const secs = (seconds % 60).toString().padStart(2, '0');
-    return `${mins}:${secs}`;
   };
   
   return (
-    <div className="audio-recorder-container">
-      <div className="recording-controls">
-        {isRecording ? (
-          <Button 
-            variant="danger" 
-            onClick={stopRecording} 
-            className="record-button"
-          >
-            <FaStop /> Stop Recording
-          </Button>
-        ) : (
-          <Button 
-            variant="primary" 
-            onClick={startRecording} 
-            className="record-button"
-            disabled={isUploading}
-          >
-            <FaMicrophone /> Start Recording
-          </Button>
+    <div className="audio-recorder">
+      {error && <Alert variant="danger">{error}</Alert>}
+      
+      {/* Hidden file input */}
+      <Form.Control
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="audio/*"
+        style={{ display: 'none' }}
+      />
+      
+      <div className="controls">
+        {!isRecording && !recordingComplete && (
+          <>
+            <Button 
+              variant="primary" 
+              onClick={startRecording}
+              disabled={uploading}
+              className="control-button"
+            >
+              <FaMicrophone /> Start Recording
+            </Button>
+            
+            <Button 
+              variant="outline-secondary" 
+              onClick={() => fileInputRef.current?.click()}
+              className="ml-2"
+            >
+              <FaUpload /> Upload Audio
+            </Button>
+          </>
         )}
         
         {isRecording && (
-          <div className="recording-indicator">
-            <span className="recording-time">{formatTime(recordingDuration)}</span>
-            <div className="pulse-indicator"></div>
+          <Button 
+            variant="danger" 
+            onClick={stopRecording}
+            className="control-button recording"
+          >
+            <FaStop /> Stop Recording
+          </Button>
+        )}
+        
+        {recordingComplete && (
+          <div className="complete-controls">
+            {audioUrl && (
+              <Button 
+                variant="outline-secondary" 
+                onClick={playRecording}
+                className="mr-2"
+              >
+                <FaVolumeUp /> Preview
+              </Button>
+            )}
+            
+            <Button 
+              variant="outline-secondary" 
+              onClick={resetRecording}
+              className="mr-2"
+              disabled={uploading}
+            >
+              <FaUndo /> Reset
+            </Button>
+            
+            <Button 
+              variant="success" 
+              onClick={handleConfirmRecording}
+              disabled={uploading}
+            >
+              <FaCheck /> {uploading ? 'Processing...' : 'Confirm & Process'}
+            </Button>
+            
+            {uploading && (
+              <Spinner animation="border" size="sm" className="ml-2" />
+            )}
           </div>
         )}
       </div>
       
-      {error && <Alert variant="danger">{error}</Alert>}
-      
-      {isUploading && (
-        <div className="upload-progress">
-          <p>Uploading recording...</p>
-          <ProgressBar now={uploadProgress} label={`${uploadProgress}%`} />
+      {isRecording && (
+        <div className="recording-indicator">
+          <div className="recording-dot"></div>
+          <span>Recording...</span>
         </div>
       )}
       
-      {recordings.length > 0 && (
-        <div className="recordings-list">
-          <h5>Recordings</h5>
-          {recordings.map((recording) => (
-            <Card key={recording.id} className="recording-item">
-              <Card.Body className="d-flex justify-content-between align-items-center">
-                <div className="recording-info">
-                  {recording.isTemp ? 'Processing...' : `Recording ${recording.id}`}
-                  {recording.duration && <span className="duration"> ({formatTime(recording.duration)})</span>}
-                </div>
-                
-                <div className="recording-actions">
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm" 
-                    onClick={() => togglePlayback(recording)}
-                    disabled={recording.isTemp}
-                  >
-                    {currentlyPlaying === recording.id ? <FaPause /> : <FaPlay />}
-                  </Button>
-                  
-                  <Button 
-                    variant="outline-danger" 
-                    size="sm" 
-                    onClick={() => deleteRecording(recording.id, recording.isTemp)}
-                    disabled={isUploading}
-                  >
-                    <FaTrash />
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card>
-          ))}
+      {selectedFile && (
+        <div className="audio-info mt-2">
+          <small className="text-muted">
+            File: {selectedFile.name || 'recording.wav'} | 
+            Size: {(selectedFile.size / 1024).toFixed(2)} KB | 
+            Type: {selectedFile.type || 'audio/wav'}
+          </small>
         </div>
       )}
     </div>

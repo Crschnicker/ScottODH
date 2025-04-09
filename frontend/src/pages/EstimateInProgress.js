@@ -1,14 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Alert, Row, Col, Spinner } from 'react-bootstrap';
-import { FaArrowLeft, FaCheck, FaFileAlt } from 'react-icons/fa';
+import { Card, Button, Alert, Row, Col, Spinner, ListGroup } from 'react-bootstrap';
+import { FaArrowLeft, FaCheck, FaFileAlt, FaVolumeUp, FaTrash } from 'react-icons/fa';
 import AudioRecorder from '../components/audio/AudioRecorder';
-import AudioProcessor from '../components/audio/AudioProcessor';
 import { getEstimate } from '../services/estimateService';
 import { getCustomer } from '../services/customerService';
-import { getAudioRecordings } from '../services/audioService';
-import { createBid } from '../services/bidService';
+import { getAudioRecordings, transcribeAudio, processAudioWithAI, deleteAudio } from '../services/audioService';
+import { createBid, addDoorsToBid } from '../services/bidService'; // Import the addDoorsToBid function
 import './EstimateInProgress.css';
 
 const EstimateInProgress = () => {
@@ -23,6 +21,8 @@ const EstimateInProgress = () => {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [submissionProgress, setSubmissionProgress] = useState(''); // New state for progress updates
   
   useEffect(() => {
     loadData();
@@ -53,32 +53,164 @@ const EstimateInProgress = () => {
     }
   };
   
-  const handleAudioUploaded = (recording) => {
-    setRecordings(prev => [...prev, recording]);
+  const handleAudioUploaded = async (recording) => {
+    try {
+      setIsProcessing(true);
+      setError(null);
+      
+      // First add the recording to the list
+      setRecordings(prev => [...prev, recording]);
+      
+      // Step 1: Transcribe the audio
+      const transcribeResponse = await transcribeAudio(recording.id);
+      console.log('Transcription complete:', transcribeResponse);
+      
+      // Step 2: Process with AI
+      const processResponse = await processAudioWithAI(recording.id);
+      console.log('AI processing complete:', processResponse);
+      console.log('Doors extracted from AI processing:', JSON.stringify(processResponse.doors));
+      
+      // Step 3: Add doors from processing
+      if (processResponse.doors && processResponse.doors.length > 0) {
+        // Ensure each door has a proper description that includes the location
+        const processedDoors = processResponse.doors.map(door => {
+          // Make sure description is formatted correctly
+          let location = "";
+          if (door.details && door.details.length > 0) {
+            for (const detail of door.details) {
+              if (detail.startsWith("Location:")) {
+                location = detail.split("Location:")[1].trim();
+                console.log(`Found location in door detail: "${location}"`);
+                break;
+              }
+            }
+          }
+          
+          // If description doesn't already include location, update it
+          if (location && (!door.description || !door.description.includes(location))) {
+            console.log(`Updating door description to include location: Door #${door.door_number} (${location})`);
+            door.description = `Door #${door.door_number} (${location})`;
+          }
+          
+          return door;
+        });
+        
+        console.log('Setting doors state with processed doors:', JSON.stringify(processedDoors));
+        setDoors(prev => [...prev, ...processedDoors]);
+      }
+      
+      // Refresh recordings to get updated transcripts
+      const updatedRecordings = await getAudioRecordings(estimateId);
+      setRecordings(updatedRecordings);
+      
+    } catch (err) {
+      setError('Error processing audio: ' + (err.message || 'Unknown error'));
+      console.error('Error processing audio:', err);
+    } finally {
+      setIsProcessing(false);
+    }
   };
   
-  const handleProcessingComplete = (processedDoors) => {
-    setDoors(processedDoors);
+  // Reference to the current audio player
+  const [currentAudio, setCurrentAudio] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPlayingId, setCurrentPlayingId] = useState(null);
+  
+  const handlePlayAudio = (filePath, recordingId) => {
+    // If there's already audio playing, stop it
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    
+    // If we're clicking the same recording that's playing, just toggle pause/play
+    if (isPlaying && currentPlayingId === recordingId) {
+      currentAudio.pause();
+      setIsPlaying(false);
+      return;
+    }
+    
+    // Create audio element with correct path
+    // Ensure the path is correct - the API may be at a different path than the React app
+    const apiBasePath = window.location.origin; // Use the current origin
+    const audioPath = filePath.startsWith('http') 
+      ? filePath 
+      : `${apiBasePath}/${filePath.replace(/^\//, '')}`; // Remove leading slash if present
+    
+    console.log('Attempting to play audio from:', audioPath);
+    
+    const audio = new Audio(audioPath);
+    
+    // Add event listeners
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      setCurrentPlayingId(null);
+    });
+    
+    audio.addEventListener('error', (err) => {
+      console.error('Error playing audio:', err);
+      setError('Unable to play audio recording. Check the file path: ' + audioPath);
+      setIsPlaying(false);
+      setCurrentPlayingId(null);
+    });
+    
+    // Start playing
+    audio.play()
+      .then(() => {
+        setIsPlaying(true);
+        setCurrentAudio(audio);
+        setCurrentPlayingId(recordingId);
+      })
+      .catch(err => {
+        console.error('Error playing audio:', err);
+        setError('Unable to play audio recording. Error: ' + err.message);
+      });
   };
   
+  const handleDeleteRecording = async (recordingId) => {
+    try {
+      await deleteAudio(recordingId);
+      
+      // Update recordings list
+      const updatedRecordings = recordings.filter(rec => rec.id !== recordingId);
+      setRecordings(updatedRecordings);
+      
+    } catch (err) {
+      setError('Failed to delete recording. Please try again.');
+      console.error('Error deleting recording:', err);
+    }
+  };
+  
+  // UPDATED: handleSubmitToBid function to add doors to the bid
   const handleSubmitToBid = async () => {
     if (doors.length === 0) {
-      setError('No doors to submit. Please process recordings first.');
+      setError('No doors to submit. Please record and process audio first.');
       return;
     }
     
     setSubmitting(true);
     setError(null);
+    setSubmissionProgress('Creating bid...');
     
     try {
-      // Create a new bid
+      console.log('Starting bid submission process with doors:', doors);
+      
+      // Step 1: Create a new bid
       const bidResponse = await createBid(estimateId);
       const bidId = bidResponse.id;
+      console.log('Bid created successfully:', bidId);
       
-      // Create doors in the bid (This would need a new API endpoint)
-      // For now, we'll assume success
+      setSubmissionProgress(`Adding ${doors.length} doors to bid...`);
       
+      // Step 2: Add all the doors to the bid using our new function
+      const doorsResponse = await addDoorsToBid(bidId, doors);
+      
+      setSubmissionProgress('Finalizing bid...');
+      console.log('Doors added to bid:', doorsResponse);
+      
+      // Success!
       setSubmitSuccess(true);
+      setSubmissionProgress('Bid created successfully!');
       
       // Navigate to the bid page after a short delay
       setTimeout(() => {
@@ -86,8 +218,8 @@ const EstimateInProgress = () => {
       }, 2000);
       
     } catch (err) {
-      setError('Failed to submit to bid. Please try again.');
       console.error('Error submitting to bid:', err);
+      setError('Failed to submit to bid: ' + (err.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
@@ -145,7 +277,7 @@ const EstimateInProgress = () => {
       </Card>
       
       <Card className="audio-recorder-card">
-        <Card.Header>Record Audio</Card.Header>
+        <Card.Header>Record Door Information</Card.Header>
         <Card.Body>
           <p>
             Record audio notes for each door. Speak clearly and include dimensions, 
@@ -156,23 +288,77 @@ const EstimateInProgress = () => {
             onAudioUploaded={handleAudioUploaded}
             onError={(err) => setError(err.message || 'Error with audio recording')}
           />
+          
+          {isProcessing && (
+            <div className="processing-indicator mt-3">
+              <Spinner animation="border" size="sm" className="mr-2" />
+              <span>Processing recording... (transcribing and extracting door information)</span>
+            </div>
+          )}
         </Card.Body>
       </Card>
       
-      <Card className="audio-processor-card">
-        <Card.Header>Process Recordings</Card.Header>
-        <Card.Body>
-          <p>
-            Process your recordings to extract door information. You can review and edit 
-            the extracted information before submitting to a bid.
-          </p>
-          <AudioProcessor 
-            recordings={recordings}
-            onProcessingComplete={handleProcessingComplete}
-            onError={(err) => setError(err.message || 'Error processing recordings')}
-          />
-        </Card.Body>
-      </Card>
+      {recordings.length > 0 && (
+        <Card className="audio-recordings-card">
+          <Card.Header>Saved Recordings</Card.Header>
+          <Card.Body>
+            <ListGroup>
+              {recordings.map((recording, index) => (
+                <ListGroup.Item key={recording.id} className="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>Recording {index + 1}</strong>
+                    <p className="text-muted small mb-1">
+                      {new Date(recording.created_at).toLocaleString()}
+                    </p>
+                    {recording.transcript && (
+                      <div className="transcript-text mt-2 mb-2">
+                        <small><strong>Transcript:</strong> {recording.transcript}</small>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Button 
+                      variant="outline-primary" 
+                      size="sm" 
+                      className="mr-2"
+                      onClick={() => handlePlayAudio(recording.file_path, recording.id)}
+                    >
+                      <FaVolumeUp /> {isPlaying && currentPlayingId === recording.id ? 'Pause' : 'Play'}
+                    </Button>
+                    <Button 
+                      variant="outline-danger" 
+                      size="sm"
+                      onClick={() => handleDeleteRecording(recording.id)}
+                    >
+                      <FaTrash /> Delete
+                    </Button>
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          </Card.Body>
+        </Card>
+      )}
+      
+      {doors.length > 0 && (
+        <Card className="door-information-card">
+          <Card.Header>Extracted Door Information</Card.Header>
+          <Card.Body>
+            <ListGroup>
+              {doors.map((door) => (
+                <ListGroup.Item key={door.id}>
+                  <h5>{door.description}</h5>
+                  <ul>
+                    {door.details.map((detail, index) => (
+                      <li key={index}>{detail}</li>
+                    ))}
+                  </ul>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          </Card.Body>
+        </Card>
+      )}
       
       {doors.length > 0 && (
         <div className="submit-actions">
@@ -189,7 +375,9 @@ const EstimateInProgress = () => {
           {submitting && (
             <div className="submitting-indicator">
               <Spinner animation="border" size="sm" />
-              <span>Submitting...</span>
+              <span>
+                {submissionProgress || 'Submitting...'}
+              </span>
             </div>
           )}
         </div>

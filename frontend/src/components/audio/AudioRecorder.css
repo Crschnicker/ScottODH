@@ -1,75 +1,82 @@
+/* Add these styles to your AudioRecorder.css */
 
-.audio-recorder-container {
-  margin-bottom: 20px;
-}
-
-.recording-controls {
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.record-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.recording-indicator {
-  display: flex;
-  align-items: center;
-  margin-left: 15px;
-}
-
-.recording-time {
-  font-family: monospace;
+/* iOS recording timer */
+.ios-recorder .recording-timer {
+  text-align: center;
   font-size: 1.2rem;
-  margin-right: 10px;
+  font-weight: bold;
+  color: #dc3545;
+  margin: 10px 0;
+  font-family: monospace;
 }
 
-.pulse-indicator {
+/* Pulse animation for recording indicator */
+.ios-recorder .recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.ios-recorder .recording-dot {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
   background-color: #dc3545;
+  border-radius: 50%;
+  margin-right: 8px;
   animation: pulse 1.5s infinite;
+}
+
+/* Make the recording button more prominent */
+.ios-recorder .control-button.recording {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  animation: pulse 1.5s infinite;
+}
+
+/* iOS Permission warning */
+.ios-recorder .text-warning {
+  color: #f0ad4e;
+  background-color: rgba(240, 173, 78, 0.1);
+  padding: 8px;
+  border-radius: 4px;
+  display: block;
 }
 
 @keyframes pulse {
   0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-  }
-  
-  70% {
+    opacity: 1;
     transform: scale(1);
-    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Responsive layout for iOS */
+@media (max-width: 576px) {
+  .ios-recorder .controls {
+    display: flex;
+    flex-direction: column;
   }
   
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  .ios-recorder .control-button {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 12px;
+    font-size: 16px;
   }
-}
-
-.upload-progress {
-  margin: 15px 0;
-}
-
-.recordings-list {
-  margin-top: 20px;
-}
-
-.recording-item {
-  margin-bottom: 10px;
-}
-
-.recording-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.duration {
-  color: #6c757d;
-  font-size: 0.9rem;
+  
+  .ios-recorder .ml-2 {
+    margin-left: 0 !important;
+  }
+  
+  .ios-recorder .recording-timer {
+    font-size: 1.5rem;
+  }
 }

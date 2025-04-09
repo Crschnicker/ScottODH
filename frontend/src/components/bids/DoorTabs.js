@@ -37,7 +37,6 @@ const DoorTabs = ({ doors, activeDoorId, onTabChange, onDoorsChanged, bidId }) =
     }
   };
   
-  
   const openDuplicateModal = (doorId) => {
     setSourceDoorId(doorId);
     setTargetDoors('');
@@ -88,6 +87,34 @@ const DoorTabs = ({ doors, activeDoorId, onTabChange, onDoorsChanged, bidId }) =
     }
   };
   
+  // Function to get location from door object
+  const getDoorLocation = (door) => {
+    // First check if it's directly on the door object
+    if (door.location) {
+      return `(${door.location})`;
+    }
+    
+    // Next, try to extract from the description if it exists
+    if (door.description) {
+      const match = door.description.match(/^(.*?)\s+\(Door #\d+\)$/);
+      if (match && match[1]) {
+        return `(${match[1]})`;
+      }
+    }
+    
+    // If we have line items, check them for location
+    if (door.line_items) {
+      for (const item of door.line_items) {
+        if (item.description && item.description.toLowerCase().startsWith('location:')) {
+          const location = item.description.split(':')[1].trim();
+          return `(${location})`;
+        }
+      }
+    }
+    
+    return '';
+  };
+  
   return (
     <div className="door-tabs-container">
       <div className="door-tabs">
@@ -97,7 +124,7 @@ const DoorTabs = ({ doors, activeDoorId, onTabChange, onDoorsChanged, bidId }) =
             className={`door-tab ${door.id === activeDoorId ? 'active' : ''}`}
             onClick={() => onTabChange(door.id)}
           >
-            <span>Door #{door.door_number}</span>
+            <span>Door #{door.door_number} {getDoorLocation(door)}</span>
             <Button 
               variant="link" 
               size="sm" 

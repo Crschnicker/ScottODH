@@ -9,17 +9,24 @@ import calendar
 from flask import send_file
 from io import BytesIO
 import tempfile
-
+import openai
+from openai import OpenAI
 # ReportLab imports
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+import re
 
-# Initialize Flask app
 app = Flask(__name__)
-CORS(app)
+CORS(app, 
+     resources={r"/*": {"origins": "*"}}, 
+     supports_credentials=True,
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+     expose_headers=["Content-Disposition"]
+)
 
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///scott_overhead_doors.db'
@@ -65,6 +72,7 @@ class Door(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     bid_id = db.Column(db.Integer, db.ForeignKey('bid.id'), nullable=False)
     door_number = db.Column(db.Integer, nullable=False)
+    location = db.Column(db.String(100))  # Add this new field
     created_at = db.Column(db.DateTime, default=datetime.utcnow())
     line_items = db.relationship('LineItem', backref='door', lazy=True)
     
@@ -127,7 +135,331 @@ def generate_job_number():
     job_number = f"{month_code}{month_jobs + 1}{str(today.year)[2:]}"
     return job_number
 
+@app.route('/api/audio/<int:recording_id>/transcribe', methods=['POST'])
+def transcribe_audio(recording_id):
+    recording = AudioRecording.query.get_or_404(recording_id)
+    
+    if not os.path.exists(recording.file_path):
+        return jsonify({'error': 'Audio file not found'}), 404
+    
+    try:
+        # Set up the OpenAI client
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "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"))
+        
+        print(f"Processing audio file: {recording.file_path}")
+        file_size = os.path.getsize(recording.file_path)
+        file_ext = os.path.splitext(recording.file_path)[1].lower()
+        print(f"File size: {file_size} bytes, extension: {file_ext}")
+        
+        # Convert the file to a supported format using pydub if possible
+        try:
+            import tempfile
+            from pydub import AudioSegment
+            
+            # Create a temporary WAV file (most compatible format)
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            print(f"Converting audio to WAV format: {temp_path}")
+            sound = AudioSegment.from_file(recording.file_path)
+            sound.export(temp_path, format="wav")
+            
+            print(f"Conversion successful. File size: {os.path.getsize(temp_path)} bytes")
+            
+            # Open the temporary WAV file for transcription
+            with open(temp_path, "rb") as audio_file:
+                # Call the OpenAI API to transcribe the audio
+                print(f"Sending file to OpenAI API for transcription")
+                response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+                
+                # Extract the transcript text
+                transcript = response.text
+                
+                # Save transcript to database
+                recording.transcript = transcript
+                db.session.commit()
+                
+                # Clean up the temporary file
+                try:
+                    os.remove(temp_path)
+                except:
+                    pass
+                
+                return jsonify({
+                    'id': recording.id,
+                    'transcript': transcript
+                }), 200
+                
+        except ImportError:
+            print("pydub not available, trying direct transcription")
+            # Fallback to direct transcription if pydub is not available
+            with open(recording.file_path, "rb") as audio_file:
+                # Call the OpenAI API to transcribe the audio
+                print(f"Sending file directly to OpenAI API for transcription")
+                response = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file
+                )
+                
+                # Extract the transcript text
+                transcript = response.text
+                
+                # Save transcript to database
+                recording.transcript = transcript
+                db.session.commit()
+                
+                return jsonify({
+                    'id': recording.id,
+                    'transcript': transcript
+                }), 200
+                
+    except Exception as e:
+        # Log the detailed error
+        print(f"Transcription error for recording {recording_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/audio/<int:recording_id>/process-with-ai', methods=['POST'])
+def process_audio_with_ai(recording_id):
+    recording = AudioRecording.query.get_or_404(recording_id)
+    
+    if not recording.transcript:
+        return jsonify({'error': 'No transcript available. Please transcribe the audio first.'}), 400
+    
+    try:
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "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"))
+        
+        # Extract the first word/phrase which is likely the location
+        transcript = recording.transcript
+        first_location = None
+        
+        # Try to identify location from the first part of the transcript
+        # Look for comma or other common separators
+        location_split = transcript.split(',', 1)
+        if len(location_split) > 1:
+            first_location = location_split[0].strip()
+        else:
+            # If no comma, try to get the first phrase (could be "Front door" etc.)
+            words = transcript.split()
+            if len(words) >= 2:
+                # Check if first two words likely form a location description
+                first_location = ' '.join(words[0:2]).strip()
+            elif len(words) >= 1:
+                first_location = words[0].strip()
+        
+        # More general prompt about doors but emphasizing preserving the original location name
+        prompt = """
+        Analyze this transcript about door installations, repairs, or related work. Extract information about each door or door component mentioned.
+        
+        Transcript: {}
+        
+        Return a JSON array where each object represents a door or door-related task with these properties:
+        - door_number (number, default to 1 if not specified)
+        - location (string, IMPORTANT: use the EXACT location as mentioned in transcript, e.g. "Front door", "Back door", etc.)
+        - dimensions (object with width, height, unit if mentioned)
+        - type (string, like entry, garage, interior, etc.)
+        - material (string)
+        - components (array of strings - parts mentioned like plates, hardware, etc.)
+        - labor_description (string - description of work being done)
+        - notes (string - any other relevant details)
+        
+        If the transcript appears to be about a repair or work on a single door rather than multiple doors, create a single object with the relevant details.
+        
+        Only include properties that are explicitly mentioned in the transcript.
+        IMPORTANT: Do NOT make assumptions about the type of door - preserve the exact location terminology used in the transcript.
+        """.format(transcript)
+        
+        # Log the prompt for debugging
+        print(f"Sending prompt to OpenAI:\n{prompt}")
+        
+        # Call the OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that extracts structured information about door installations and repairs from audio transcripts. Always return a valid JSON array, even if there's only one door. ALWAYS preserve the exact location terminology from the transcript."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        
+        # Extract and log the content
+        content = response.choices[0].message.content
+        print(f"OpenAI response: {content}")
+        
+        # Parse the JSON response
+        try:
+            response_data = json.loads(content)
+            
+            # Handle different response formats
+            if isinstance(response_data, dict):
+                # Check if it has a door_number field (single door object)
+                if 'door_number' in response_data or 'components' in response_data or 'labor_description' in response_data:
+                    doors_data = [response_data]  # Convert single object to array
+                # Check if there's an array inside the response
+                else:
+                    for key, value in response_data.items():
+                        if isinstance(value, list):
+                            doors_data = value
+                            break
+                    else:
+                        # Couldn't find an array, use the whole object
+                        doors_data = [response_data]
+            elif isinstance(response_data, list):
+                doors_data = response_data
+            else:
+                # Fallback if the response is neither dict nor list
+                door = {
+                    'door_number': door_number,
+                    'location': location,  # Store the raw location
+                    'description': description,
+                    'details': details,
+                    'id': str(uuid.uuid4())
+                }
+            print(f"Parsed doors_data: {doors_data}")
+            
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {str(e)}")
+            print(f"Content that failed to parse: {content}")
+            
+            # Create a fallback structure
+            doors_data = [{
+                "door_number": 1,
+                "location": first_location or "Door",
+                "labor_description": "Door work described in recording",
+                "notes": transcript
+            }]
+        
+        # Process the doors data to match the frontend format
+        doors = []
+        for door_data in doors_data:
+            # Defensive programming - make sure door_data is a dict
+            if not isinstance(door_data, dict):
+                print(f"Warning: Expected dict but got {type(door_data)}: {door_data}")
+                continue
+                
+            door_number = door_data.get('door_number', 1)  # Default to 1
+            
+            # Create a list of details
+            details = []
+            
+            # Add location if available - PRIORITIZE this!
+            location = door_data.get('location', first_location)
+            if not location and 'type' in door_data:
+                # Fallback to 'type' if location not provided but we have a type
+                location = door_data.get('type')
+            
+            if location:
+                details.append(f"Location: {location}")
+            
+            # Add dimensions if available
+            dimensions = door_data.get('dimensions')
+            if dimensions and isinstance(dimensions, dict):
+                width = dimensions.get('width')
+                height = dimensions.get('height')
+                unit = dimensions.get('unit', 'inches')
+                if width and height:
+                    details.append(f"Dimensions: {width} x {height} {unit}")
+            
+            # Add type if available, but only if different from location
+            door_type = door_data.get('type')
+            if door_type and door_type.lower() != location.lower():
+                details.append(f"Type: {door_type}")
+            
+            # Add material if available
+            material = door_data.get('material')
+            if material:
+                details.append(f"Material: {material}")
+            
+            # Add components if available
+            components = door_data.get('components', [])
+            if components and isinstance(components, list):
+                details.append(f"Components: {', '.join(components)}")
+            
+            # Add labor description if available
+            labor_desc = door_data.get('labor_description')
+            if labor_desc:
+                details.append(f"Work Description: {labor_desc}")
+            
+            # Add notes if available
+            notes = door_data.get('notes')
+            if notes:
+                details.append(f"Notes: {notes}")
+            
+            # Create the door object with location-based description
+            description = f"Door #{door_number}"
+            if location:
+                description = f"{location} (Door #{door_number})"
+                
+            door = {
+                'door_number': door_number,
+                'description': description,
+                'details': details,
+                'id': str(uuid.uuid4())
+            }
+            
+            doors.append(door)
+        
+        # If no doors were identified or all entries were invalid, create a generic one
+        if not doors:
+            doors = [{
+                'door_number': 1,
+                'description': first_location or f"Door work from recording {recording_id}",
+                'details': [f"Work description: {transcript}"],
+                'id': str(uuid.uuid4())
+            }]
+        
+        return jsonify({
+            'recording_id': recording.id,
+            'doors': doors
+        }), 200
+        
+    except Exception as e:
+        print(f"AI processing error: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Always return a valid response even on error
+        doors = [{
+            'door_number': 1,
+            'description': first_location or f"Door work from recording {recording_id}",
+            'details': [f"Work description: {transcript}"],
+            'id': str(uuid.uuid4())
+        }]
+        
+        return jsonify({
+            'recording_id': recording.id,
+            'doors': doors,
+            'error': str(e)  # Include the error for debugging
+        }), 200  # Return 200 even on error to prevent frontend crashes
+    
+    
+    # Add this route to your Flask app to serve audio files
+
+
+@app.route('/uploads/<path:filename>', methods=['GET'])
+def serve_audio(filename):
+    """
+    Serve uploaded audio files
+    """
+    return send_from_directory(UPLOAD_FOLDER, filename)
+    
+# You may also need to add a route to handle the path generated by the frontend
+@app.route('/api/uploads/<path:filename>', methods=['GET'])
+def serve_audio_api(filename):
+    """
+    Serve uploaded audio files through the API path
+    """
+    return send_from_directory(UPLOAD_FOLDER, filename)
+    
+    
 # API Routes - Customers
 @app.route('/api/customers', methods=['GET'])
 def get_customers():
@@ -321,9 +653,16 @@ def get_bid(bid_id):
         
         door_total = door_parts_cost + door_labor_cost + door_hardware_cost
         
+        # Create a description that includes the location
+        description = f"Door #{door.door_number}"
+        if door.location:
+            description = f"{door.location} (Door #{door.door_number})"
+        
         doors_data.append({
             'id': door.id,
             'door_number': door.door_number,
+            'location': door.location,  # Include location in response
+            'description': description,  # Include formatted description
             'line_items': line_items,
             'parts_cost': door_parts_cost,
             'labor_cost': door_labor_cost,
@@ -351,7 +690,7 @@ def get_bid(bid_id):
         'customer_address': bid.estimate.customer.address,
         'customer_contact': bid.estimate.customer.contact_name,
         'customer_phone': bid.estimate.customer.phone,
-        'customer_email': bid.estimate.customer.email,  # Added email
+        'customer_email': bid.estimate.customer.email,
         'status': bid.status,
         'doors': doors_data,
         'total_parts_cost': total_parts_cost,
@@ -361,7 +700,6 @@ def get_bid(bid_id):
         'total_cost': total_cost,
         'created_at': bid.created_at
     })
-
 @app.route('/api/bids/<int:bid_id>/doors', methods=['POST'])
 def add_door(bid_id):
     bid = Bid.query.get_or_404(bid_id)
@@ -376,9 +714,16 @@ def add_door(bid_id):
     # Override with provided door number if specified
     door_number = data.get('door_number', next_door_number)
     
+    # Get location from request data
+    location = data.get('location', '')
+    
+    # Log the location for debugging
+    print(f"Adding door #{door_number} with location: {location}")
+    
     door = Door(
         bid_id=bid_id,
-        door_number=door_number
+        door_number=door_number,
+        location=location  # Store the location
     )
     db.session.add(door)
     db.session.commit()
@@ -387,9 +732,9 @@ def add_door(bid_id):
         'id': door.id,
         'bid_id': door.bid_id,
         'door_number': door.door_number,
+        'location': door.location,  # Include location in response
         'created_at': door.created_at
     }), 201
-
 @app.route('/api/doors/<int:door_id>/line-items', methods=['POST'])
 def add_line_item(door_id):
     door = Door.query.get_or_404(door_id)
@@ -1135,13 +1480,32 @@ UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# Fixed audio upload route in Flask server
+
 @app.route('/api/audio/upload', methods=['POST'])
 def upload_audio():
+    print("Request received for audio upload")
+    print("Form data:", request.form)
+    print("Files:", request.files)
+    
     if 'audio' not in request.files:
+        print("Error: No audio file found in request.files")
         return jsonify({'error': 'No audio file provided'}), 400
     
     audio_file = request.files['audio']
     estimate_id = request.form.get('estimate_id')
+    
+    print(f"Audio file: {audio_file.filename}, Content Type: {audio_file.content_type}")
+    
+    # Check if the file is empty - use seek/tell to properly check content length
+    audio_file.seek(0, os.SEEK_END)
+    file_length = audio_file.tell()
+    audio_file.seek(0)  # Reset the file pointer
+    
+    print(f"File size calculated: {file_length} bytes")
+    
+    if file_length == 0:
+        return jsonify({'error': 'Audio file is empty. Please try recording again.'}), 400
     
     if not estimate_id:
         return jsonify({'error': 'Estimate ID is required'}), 400
@@ -1151,27 +1515,68 @@ def upload_audio():
     if not estimate:
         return jsonify({'error': 'Estimate not found'}), 404
     
-    # Generate a filename and save the audio file
-    filename = f"{uuid.uuid4()}.wav"
+    # Make sure the upload directory exists
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    
+    # Determine the correct file extension based on content type
+    file_ext = 'wav'  # Default
+    content_type = audio_file.content_type.lower()
+    
+    if 'mp4' in content_type or 'aac' in content_type or 'm4a' in content_type:
+        file_ext = 'mp4'
+    elif 'webm' in content_type:
+        file_ext = 'webm'
+    elif 'ogg' in content_type:
+        file_ext = 'ogg'
+    
+    # Use the file extension from the original filename if it exists
+    if audio_file.filename and '.' in audio_file.filename:
+        original_ext = audio_file.filename.split('.')[-1].lower()
+        if original_ext in ['mp4', 'm4a', 'aac', 'webm', 'ogg', 'wav']:
+            file_ext = original_ext
+    
+    # Generate a filename with the correct extension
+    filename = f"{uuid.uuid4()}.{file_ext}"
     file_path = os.path.join(UPLOAD_FOLDER, filename)
-    audio_file.save(file_path)
     
-    # Create a record in the database
-    recording = AudioRecording(
-        estimate_id=estimate_id,
-        file_path=file_path,
-        created_at=datetime.utcnow()
-    )
-    db.session.add(recording)
-    db.session.commit()
+    try:
+        # Save the audio file
+        audio_file.save(file_path)
+        
+        # Verify the file was saved and is not empty
+        if os.path.getsize(file_path) < 100:  # Check if file is less than 100 bytes
+            os.remove(file_path)  # Delete the empty file
+            return jsonify({'error': 'Saved audio file is too small. Please try recording again.'}), 400
+            
+        print(f"Audio file saved to {file_path} with size {os.path.getsize(file_path)} bytes")
+        
+        # Create a record in the database
+        recording = AudioRecording(
+            estimate_id=estimate_id,
+            file_path=file_path,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(recording)
+        db.session.commit()
+        
+        # Make the file_path relative to be used in URLs
+        relative_path = file_path.replace('\\', '/')
+        if not relative_path.startswith('/'):
+            relative_path = '/' + relative_path
+        
+        return jsonify({
+            'id': recording.id,
+            'estimate_id': recording.estimate_id,
+            'file_path': relative_path,
+            'created_at': recording.created_at
+        }), 201
+        
+    except Exception as e:
+        print(f"Error saving file: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Error saving file: {str(e)}'}), 500
     
-    return jsonify({
-        'id': recording.id,
-        'estimate_id': recording.estimate_id,
-        'file_path': recording.file_path,
-        'created_at': recording.created_at
-    }), 201
-
 @app.route('/api/audio/<int:recording_id>', methods=['GET'])
 def get_audio(recording_id):
     recording = AudioRecording.query.get_or_404(recording_id)
@@ -1198,33 +1603,7 @@ def delete_audio(recording_id):
     
     return jsonify({'status': 'success', 'message': 'Recording deleted'}), 200
 
-@app.route('/api/audio/<int:recording_id>/transcribe', methods=['POST'])
-def transcribe_audio(recording_id):
-    recording = AudioRecording.query.get_or_404(recording_id)
-    
-    if not os.path.exists(recording.file_path):
-        return jsonify({'error': 'Audio file not found'}), 404
-    
-    try:
-        # Note: In a real application, you would implement speech-to-text here
-        # For demo purposes, we'll just set a dummy transcript
-        # You would use a library like SpeechRecognition or a service like Google Speech-to-Text
-        
-        # Dummy transcript for demonstration
-        transcript = """Door number 1 is a 10 by 8 standard steel door with windows on the top section. 
-        Door number 2 needs to be replaced completely, it's 12 by 10 insulated with a keypad entry.
-        Door number 3 is 8 by 7 with a new opener and two remotes."""
-        
-        # Save transcript to database
-        recording.transcript = transcript
-        db.session.commit()
-        
-        return jsonify({
-            'id': recording.id,
-            'transcript': transcript
-        }), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/audio/<int:recording_id>/process', methods=['POST'])
 def process_audio(recording_id):
