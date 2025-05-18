@@ -1,47 +1,589 @@
-.customer-list-container {
-  margin-bottom: 30px;
+/* CustomerList.css - Enhanced styling for the customer list component (Corrected) */
+
+/**
+ * Main card container styling (Optional - applied to container holding the component)
+ */
+ .customer-list-card {
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  border: none;
+  margin-bottom: 1.5rem;
+  /* Removed overflow: hidden; If needed, apply carefully to specific elements */
+  transition: all 0.3s ease;
 }
 
+.customer-list-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+/**
+ * Header section styling (Assumed applied within the React component's Card.Header)
+ */
 .customer-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
 }
 
-.customer-list-actions {
+/* Styling for a title if you use one */
+.card-title {
   display: flex;
   align-items: center;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.count-badge {
+  font-weight: 500;
+  font-size: 0.75rem;
+  padding: 0.35em 0.65em;
+}
+
+.list-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/**
+ * Search container and form controls (Applied via React Bootstrap classes/structure)
+ */
+.search-container {
+  /* Styles for a custom search container div if used */
+  /* display: flex; */
+  /* gap: 1rem; */
+  /* align-items: center; */
+  /* margin-bottom: 1.25rem; */
+}
+
+.search-input-group {
+  /* Applied by Bootstrap */
+  /* flex-grow: 1; */
+  /* box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); */
+  /* border-radius: 4px; */
+  /* overflow: hidden; */ /* Be cautious with overflow */
 }
 
 .search-input {
-  width: 300px;
-  margin-right: 15px;
+  /* Applied by Bootstrap Form.Control */
+  /* border-left: none; */
+  /* padding-left: 0; */
+  /* background-color: #fff; */
 }
 
+.search-icon {
+  /* Applied by Bootstrap InputGroup.Text */
+  /* background-color: #fff; */
+  /* border-right: none; */
+  /* color: #6c757d; */
+}
+
+.clear-search {
+  /* Style for the clear button if needed */
+  /* border: none; */
+  /* background: transparent; */
+  /* color: #6c757d; */
+  /* display: flex; */
+  /* align-items: center; */
+  /* justify-content: center; */
+  /* padding: 0 0.75rem; */
+}
+
+.clear-search:hover {
+  /* color: #343a40; */
+  /* background: transparent; */
+}
+
+.add-customer-btn {
+  /* Applied by Bootstrap Button */
+  /* display: flex; */
+  /* align-items: center; */
+  /* white-space: nowrap; */
+  /* background-color: #2c3e50; */
+  /* border-color: #2c3e50; */
+  /* transition: all 0.2s; */
+}
+
+.add-customer-btn:hover {
+  /* background-color: #1a2636; */
+  /* border-color: #1a2636; */
+}
+
+.button-icon {
+  margin-right: 0.5rem;
+}
+
+/**
+ * CORRECTED Table styling
+ */
+.customer-table, .nested-table {
+  margin-bottom: 0; /* Keep */
+  border-collapse: separate; /* Keep if needed for border styling */
+  border-spacing: 0; /* Keep */
+  width: 100%; /* Let table fill the responsive container */
+  table-layout: auto; /* Let browser determine column widths */
+  /* REMOVED: max-width: 100vw; */
+  /* REMOVED: table-layout: fixed; */
+  /* REMOVED: overflow-x: auto; (Handled by div.table-responsive wrapper) */
+}
+
+/* General Cell Styling - REMOVE problematic properties */
 .customer-table th,
-.customer-table td {
+.customer-table td,
+.nested-table th,
+.nested-table td {
+  padding: 0.75rem 1rem; /* Keep default padding */
+  vertical-align: middle; /* Keep */
+  /* REMOVED: overflow: hidden; */
+  /* REMOVED: text-overflow: ellipsis; */
+  /* REMOVED: white-space: nowrap; */
+  /* REMOVED: max-width: 120px; */
+}
+
+/* Header Cell Specifics */
+.customer-table th,
+.nested-table th {
+  background-color: #f8f9fa; /* Keep */
+  color: #495057; /* Keep */
+  font-weight: 600; /* Keep */
+  border-top: none; /* Keep */
+  white-space: nowrap; /* Keep headers on one line if desired */
+  text-align: left; /* Default alignment, adjust if needed */
+}
+
+/* Body Cell Specifics */
+.customer-table td,
+.nested-table td {
+  border-top: 1px solid #f0f0f0; /* Lighter border */
+  white-space: normal; /* Allow text wrapping in data cells */
+}
+
+/* Action Column Specifics - Corrected */
+.action-column {
+  text-align: right; /* Align content (the button div) to the right */
+  width: auto; /* Let it size based on content */
+  min-width: 180px; /* ADJUST AS NEEDED - Provide enough space for buttons */
+  /* REMOVED: max-width: 1%; */
+  white-space: nowrap; /* Keep buttons themselves on one line if column has space */
+  padding-left: 0.5rem !important;  /* Reduced padding for more button space */
+  padding-right: 0.5rem !important;
+}
+
+/* Flex container inside action cells (defined in React using d-flex etc.) */
+/* You might add styles here if Bootstrap classes aren't enough */
+.action-column > div {
+   /* Example: Ensure it fills the cell if needed */
+   /* width: 100%; */
+}
+
+/* Row styling */
+.selectable-row { /* Add this class in React if rows are selectable */
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.selectable-row:hover {
+  background-color: rgba(77, 171, 247, 0.05); /* Subtle hover */
+}
+
+.customer-row.expanded-row { /* Style for the main row when expanded */
+  background-color: #eef; /* Example highlight */
+}
+
+.expanded-details-row > td { /* The TD containing the nested content */
+  padding: 0 !important;
+  border-top: none;
+}
+
+.nested-content { /* The div inside the expanded TD */
+   padding: 1rem;
+   background-color: #f8f9fa; /* Light background for contrast */
+}
+
+/**
+ * Empty state styling
+ */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: #6c757d;
+}
+
+.empty-state-action {
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+/**
+ * Loading state
+ */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.loading-state p {
+  margin-top: 1rem;
+  font-weight: 500;
+}
+
+/**
+ * Error state
+ */
+.error-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.05);
+  border-radius: 6px;
+}
+
+.error-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+/**
+ * Animation for refresh icon
+ */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/**
+ * Footer styling (If used)
+ */
+.list-footer {
+  background-color: #f8f9fa;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0.75rem 1.25rem;
+}
+
+/**
+ * Responsive styles for different screen sizes
+ */
+@media (max-width: 991.98px) {
+  .hide-md {
+    /* Class to hide elements on medium screens and below */
+    display: none !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .hide-sm {
+     /* Class to hide elements on small screens and below */
+    display: none !important;
+  }
+
+  /* Adjust search/action layout for mobile */
+  .search-container { /* If you use a custom container */
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .add-customer-btn { /* If you use a custom button class */
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Responsive table transformation for mobile */
+  /* Hide table header */
+  .customer-table thead {
+    border: none;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .customer-table tr {
+    border-bottom: 1px solid #f0f0f0;
+    display: block;
+    margin-bottom: 1rem;
+    background-color: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+  }
+
+  .customer-table tr:hover {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  .customer-table td {
+    border-bottom: 1px solid #f8f9fa; /* Light border between "fields" */
+    display: block;
+    font-size: 0.9rem;
+    text-align: right; /* Value aligned to the right */
+    position: relative;
+    padding: 0.75rem 1rem 0.75rem 45%; /* Space for label */
+    white-space: normal; /* Ensure wrapping */
+     /* REMOVED: overflow: hidden; */
+     /* REMOVED: max-width: ...; */
+  }
+
+  .customer-table td:last-child {
+    border-bottom: 0;
+  }
+
+  /* Data label injection */
+  .customer-table td::before {
+    content: attr(data-label); /* Get label from data-label attribute */
+    font-weight: 600;
+    position: absolute;
+    left: 1rem;
+    width: 40%; /* Adjust width as needed */
+    white-space: nowrap; /* Keep label itself on one line */
+    overflow: hidden;     /* Hide overflow for label if needed */
+    text-overflow: ellipsis; /* Add ellipsis to long labels */
+    text-align: left;
+    color: #495057;
+  }
+
+  /* Adjust action column for mobile card view */
+  .action-column {
+    text-align: right; /* Align buttons right */
+    padding: 0.75rem 1rem !important; /* Consistent padding */
+    min-width: auto; /* Remove desktop min-width */
+    border-bottom: 0; /* Often the last item */
+  }
+
+  .action-column::before {
+    display: none; /* Don't show a "Action" label */
+  }
+
+   .action-column > div {
+     justify-content: flex-end; /* Align buttons to the right */
+     gap: 0.5rem; /* Increase gap slightly for touch */
+  }
+
+  /* Card footer adjustments if used */
+  .list-footer {
+    text-align: center;
+  }
+
+  .list-footer .d-flex { /* If footer contains flex items */
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/**
+ * Mobile optimizations for touch targets
+ */
+@media (max-width: 767.98px) {
+  .btn {
+    padding: 0.5rem 0.75rem; /* Slightly larger padding */
+    min-height: 40px; /* Minimum touch height */
+  }
+
+  .form-control, .form-select { /* Include selects */
+    min-height: 40px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+}
+
+/**
+ * Desktop optimizations for wide screens (REMOVED problematic rules)
+ */
+@media (min-width: 1200px) {
+  /* Add any specific large-screen overrides here if necessary */
+  /* Example: increase padding slightly */
+  /* .customer-table th, .customer-table td { padding: 1rem 1.25rem; } */
+
+  /* REMOVED the problematic width: 100vw rules */
+}
+
+/** Ensure table responsive wrapper works **/
+.table-responsive {
+    overflow-x: auto; /* Ensure this is present */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    width: 100%; /* Take full width of its container */
+}
+/* Enhanced Site Styling */
+
+/* Expanded row styling improvements */
+.expanded-details-row > td {
+  padding: 0 !important;
+  border-top: none;
+  background-color: #f8f9fa;
+}
+
+/* Nested content container improvements */
+.nested-content {
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 0 0 8px 8px;
+  box-shadow: inset 0 3px 6px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Sites section title styling */
+.nested-content h5 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* Nested table wrapper improvements */
+.nested-table-wrapper {
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  overflow: hidden; /* Keep the border-radius clean */
+  margin-bottom: 1rem;
+}
+
+/* Nested table styling */
+.nested-table {
+  margin-bottom: 0;
+}
+
+/* Nested table header styling */
+.nested-table thead th {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background-color: #eef1f5;
+  color: #495057;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+/* Nested table cell styling */
+.nested-table tbody td {
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #f0f0f0;
   vertical-align: middle;
 }
 
-@media (max-width: 768px) {
-  .customer-list-header {
-    flex-direction: column;
-    align-items: flex-start;
+/* Alternate row coloring for better readability */
+.nested-table tbody tr:nth-of-type(odd) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Hover effect on site rows */
+.nested-table tbody tr:hover {
+  background-color: rgba(77, 171, 247, 0.05);
+}
+
+/* Action column in nested table */
+.nested-table .action-column {
+  width: auto;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+/* No sites message styling */
+.nested-content .text-muted {
+  background-color: white;
+  padding: 1.5rem;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-style: italic;
+}
+
+/* Loading indicator in the nested content */
+.nested-content .loading-state {
+  padding: 2rem;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Error alert styling in the nested content */
+.nested-content .alert {
+  margin-bottom: 0.5rem;
+}
+
+/* Site form card styling */
+.nested-content .card {
+  border: none;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+.nested-content .card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eaeaea;
+}
+
+/* Form action buttons alignment */
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Enhanced mobile view for nested tables */
+@media (max-width: 767.98px) {
+  .nested-content {
+    padding: 1rem;
   }
   
-  .customer-list-actions {
-    margin-top: 10px;
-    width: 100%;
+  .nested-table thead {
+    display: none;
   }
   
-  .search-input {
-    width: 100%;
-    margin-right: 0;
-    margin-bottom: 10px;
+  .nested-table tbody tr {
+    display: block;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid #eaeaea;
+    padding: 0.5rem 0;
   }
   
-  .add-customer-btn {
-    width: 100%;
+  .nested-table tbody td {
+    display: block;
+    text-align: right;
+    padding: 0.5rem 1rem 0.5rem 45%;
+    position: relative;
+    font-size: 0.85rem;
+    border: none;
+  }
+  
+  .nested-table tbody td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 1rem;
+    width: 40%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    text-align: left;
+  }
+  
+  .nested-table .action-column {
+    padding: 0.5rem 1rem !important;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  
+  .nested-table .action-column::before {
+    display: none;
   }
 }

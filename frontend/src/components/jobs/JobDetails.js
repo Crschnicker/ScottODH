@@ -1,12 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Row, Col, Badge, ListGroup, Modal, Form } from 'react-bootstrap';
-import { FaEdit, FaCheckCircle } from 'react-icons/fa';
+import { Card, Button, Row, Col, ListGroup, Modal, Form, Alert, Spinner } from 'react-bootstrap';
+import { FaCheckCircle, FaCalendarAlt, FaArrowLeft, FaMapMarkerAlt, FaUserAlt, FaPhoneAlt, FaGlobe, FaTools, FaBoxOpen, FaInfo } from 'react-icons/fa';
 import SignatureCanvas from 'react-signature-canvas';
 import { toast } from 'react-toastify';
 import { getJob, updateJobStatus, completeDoor } from '../../services/jobService';
 import './JobDetails.css';
 
+/**
+ * Enhanced JobDetails Component
+ * 
+ * Displays comprehensive job information with a modern UI
+ * and improved mobile responsiveness
+ */
 const JobDetails = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,27 +22,40 @@ const JobDetails = () => {
   const [photo, setPhoto] = useState(null);
   const [video, setVideo] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
   
   const { jobId } = useParams();
   const navigate = useNavigate();
   let sigCanvas = null;
   
-  useEffect(() => {
-    loadJob();
-  }, [jobId]);
-  
-  const loadJob = async () => {
+  /**
+   * Load job details from API
+   */
+  const loadJob = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
       const data = await getJob(jobId);
       setJob(data);
-    } catch (error) {
-      console.error('Error loading job:', error);
-      toast.error('Error loading job details');
+    } catch (err) {
+      console.error('Error loading job:', err);
+      setError('Failed to load job details. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId]);
   
+  /**
+   * Load job data on component mount
+   */
+  useEffect(() => {
+    loadJob();
+  }, [loadJob]);
+  
+  /**
+   * Handle job status change
+   */
   const handleStatusChange = async (newStatus) => {
     try {
       await updateJobStatus(job.id, { status: newStatus });
@@ -48,6 +67,9 @@ const JobDetails = () => {
     }
   };
   
+  /**
+   * Open modal to complete a door
+   */
   const openCompleteModal = (door) => {
     setSelectedDoor(door);
     setShowCompleteModal(true);
@@ -56,23 +78,38 @@ const JobDetails = () => {
     setVideo(null);
   };
   
+  /**
+   * Clear signature pad
+   */
   const handleSignatureClear = () => {
     sigCanvas.clear();
     setSignature(null);
   };
   
+  /**
+   * Capture signature when drawing ends
+   */
   const handleSignatureEnd = () => {
     setSignature(sigCanvas.toDataURL());
   };
   
+  /**
+   * Handle photo selection
+   */
   const handlePhotoChange = (e) => {
     setPhoto(e.target.files[0]);
   };
   
+  /**
+   * Handle video selection
+   */
   const handleVideoChange = (e) => {
     setVideo(e.target.files[0]);
   };
   
+  /**
+   * Mark a door as completed
+   */
   const handleCompleteDoor = async (e) => {
     e.preventDefault();
     
@@ -112,23 +149,9 @@ const JobDetails = () => {
     }
   };
   
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'unscheduled':
-        return <Badge bg="secondary">Unscheduled</Badge>;
-      case 'scheduled':
-        return <Badge bg="primary">Scheduled</Badge>;
-      case 'waiting_for_parts':
-        return <Badge bg="warning">Waiting for Parts</Badge>;
-      case 'on_hold':
-        return <Badge bg="danger">On Hold</Badge>;
-      case 'completed':
-        return <Badge bg="success">Completed</Badge>;
-      default:
-        return <Badge bg="info">{status}</Badge>;
-    }
-  };
-  
+  /**
+   * Format date for display
+   */
   const formatDate = (dateString) => {
     if (!dateString) return 'Not Scheduled';
     
@@ -136,108 +159,183 @@ const JobDetails = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
   
+  /**
+   * Render loading state
+   */
   if (loading) {
-    return <div>Loading job details...</div>;
+    return (
+      <div className="loading-container">
+        <Spinner animation="border" variant="primary" />
+        <p>Loading job details...</p>
+      </div>
+    );
   }
   
+  /**
+   * Render error state
+   */
+  if (error) {
+    return (
+      <Alert variant="danger" className="error-alert">
+        <Alert.Heading>Error Loading Job</Alert.Heading>
+        <p>{error}</p>
+        <div className="d-flex justify-content-between">
+          <Button variant="outline-danger" onClick={() => navigate('/jobs')}>
+            Back to Jobs
+          </Button>
+          <Button variant="primary" onClick={loadJob}>
+            Try Again
+          </Button>
+        </div>
+      </Alert>
+    );
+  }
+  
+  /**
+   * Render not found state
+   */
   if (!job) {
-    return <div>Job not found</div>;
+    return (
+      <Alert variant="warning" className="not-found-alert">
+        <Alert.Heading>Job Not Found</Alert.Heading>
+        <p>The requested job could not be found.</p>
+        <Button variant="primary" onClick={() => navigate('/jobs')}>
+          Back to Jobs
+        </Button>
+      </Alert>
+    );
   }
   
   return (
     <div className="job-details-container">
       <div className="job-details-header">
-        <h2>Job #{job.job_number}</h2>
+        <div className="job-title">
+          <h2>Job #{job.job_number}</h2>
+          <div className="d-flex align-items-center mb-2">
+            <span className="status-label me-3">
+              Status:
+            </span>
+            <span className="status-text">
+              {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1).replace(/_/g, ' ') : 'No Status'}
+            </span>
+          </div>
+        </div>
         <div className="job-actions">
           <Button 
             variant="outline-primary" 
-            className="me-2"
+            className="action-button"
             onClick={() => navigate(`/schedule?jobId=${job.id}`)}
           >
-            Schedule
+            <FaCalendarAlt className="me-2" /> Schedule
           </Button>
           <Button 
             variant="outline-secondary" 
+            className="action-button"
             onClick={() => navigate('/jobs')}
           >
-            Back to Jobs
+            <FaArrowLeft className="me-2" /> Back to Jobs
           </Button>
         </div>
       </div>
       
-      <Row>
-        <Col md={6}>
-          <Card className="mb-3">
-            <Card.Header>Job Information</Card.Header>
+      <Row className="job-info-row">
+        <Col lg={6} className="mb-3 mb-lg-0">
+          <Card className="info-card">
+            <Card.Header>
+              <h5 className="mb-0">
+                <FaInfo className="me-2" /> Job Information
+              </h5>
+            </Card.Header>
             <Card.Body>
               <div className="info-row">
-                <span className="info-label">Customer:</span>
-                <span className="info-value">{job.customer_name}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Address:</span>
-                <span className="info-value">{job.address || 'N/A'}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Contact:</span>
-                <span className="info-value">{job.contact_name || 'N/A'}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Phone:</span>
-                <span className="info-value">{job.phone || 'N/A'}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Region:</span>
-                <span className="info-value">{job.region}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Scope:</span>
-                <span className="info-value">{job.job_scope || 'N/A'}</span>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaUserAlt className="me-2" /> Customer
+                  </span>
+                  <span className="info-value">{job.customer_name}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaMapMarkerAlt className="me-2" /> Address
+                  </span>
+                  <span className="info-value">{job.address || 'N/A'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaUserAlt className="me-2" /> Contact
+                  </span>
+                  <span className="info-value">{job.contact_name || 'N/A'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaPhoneAlt className="me-2" /> Phone
+                  </span>
+                  <span className="info-value">{job.phone || 'N/A'}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaGlobe className="me-2" /> Region
+                  </span>
+                  <span className="info-value">{job.region}</span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">
+                    <FaTools className="me-2" /> Scope
+                  </span>
+                  <span className="info-value">{job.job_scope || 'N/A'}</span>
+                </div>
               </div>
             </Card.Body>
           </Card>
         </Col>
         
-        <Col md={6}>
-          <Card className="mb-3">
-            <Card.Header>Status Information</Card.Header>
+        <Col lg={6}>
+          <Card className="info-card">
+            <Card.Header>
+              <h5 className="mb-0">
+                <FaInfo className="me-2" /> Status Information
+              </h5>
+            </Card.Header>
             <Card.Body>
               <div className="info-row">
-                <span className="info-label">Status:</span>
-                <span className="info-value status-value">
-                  {getStatusBadge(job.status)}
-                </span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Scheduled Date:</span>
-                <span className="info-value">{formatDate(job.scheduled_date)}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Material Ready:</span>
-                <span className="info-value">
-                  {job.material_ready ? 
-                    <Badge bg="success">Yes</Badge> : 
-                    <Badge bg="danger">No</Badge>
-                  }
-                </span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Material Location:</span>
-                <span className="info-value">
-                  {job.material_location === 'S' ? 'Shop' : 
-                   job.material_location === 'C' ? 'Client' : 
-                   job.material_location || 'N/A'}
-                </span>
+                <div className="info-item">
+                  <span className="info-label">Scheduled Date</span>
+                  <span className="info-value">
+                    <FaCalendarAlt className="me-2" />
+                    {formatDate(job.scheduled_date)}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Status</span>
+                  <span className="status-text">
+                    {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1).replace(/_/g, ' ') : 'No Status'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Material Ready</span>
+                  <span className="status-text">
+                    {job.material_ready ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <span className="info-label">Material Location</span>
+                  <span className="info-value">
+                    <FaBoxOpen className="me-2" />
+                    {job.material_location === 'S' ? 'Shop' : 
+                     job.material_location === 'C' ? 'Client' : 
+                     job.material_location || 'N/A'}
+                  </span>
+                </div>
               </div>
               
-              <div className="status-actions mt-3">
-                <p><strong>Update Status:</strong></p>
+              <div className="status-actions">
+                <div className="status-label">Update Status:</div>
                 <div className="status-buttons">
                   <Button 
                     variant={job.status === 'unscheduled' ? 'secondary' : 'outline-secondary'} 
                     size="sm"
                     onClick={() => handleStatusChange('unscheduled')}
-                    className="me-2 mb-2"
+                    className="status-btn"
                   >
                     Unscheduled
                   </Button>
@@ -245,7 +343,7 @@ const JobDetails = () => {
                     variant={job.status === 'scheduled' ? 'primary' : 'outline-primary'} 
                     size="sm"
                     onClick={() => handleStatusChange('scheduled')}
-                    className="me-2 mb-2"
+                    className="status-btn"
                   >
                     Scheduled
                   </Button>
@@ -253,15 +351,15 @@ const JobDetails = () => {
                     variant={job.status === 'waiting_for_parts' ? 'warning' : 'outline-warning'} 
                     size="sm"
                     onClick={() => handleStatusChange('waiting_for_parts')}
-                    className="me-2 mb-2"
+                    className="status-btn"
                   >
-                    Waiting for Parts
+                    Waiting
                   </Button>
                   <Button 
                     variant={job.status === 'on_hold' ? 'danger' : 'outline-danger'} 
                     size="sm"
                     onClick={() => handleStatusChange('on_hold')}
-                    className="me-2 mb-2"
+                    className="status-btn"
                   >
                     On Hold
                   </Button>
@@ -269,7 +367,7 @@ const JobDetails = () => {
                     variant={job.status === 'completed' ? 'success' : 'outline-success'} 
                     size="sm"
                     onClick={() => handleStatusChange('completed')}
-                    className="mb-2"
+                    className="status-btn"
                   >
                     Completed
                   </Button>
@@ -280,49 +378,67 @@ const JobDetails = () => {
         </Col>
       </Row>
       
-      <Card>
-        <Card.Header>Doors</Card.Header>
+      <Card className="doors-card mt-4">
+        <Card.Header>
+          <h5 className="mb-0">
+            <FaTools className="me-2" /> Doors
+          </h5>
+        </Card.Header>
         <Card.Body>
-          <ListGroup>
-            {job.doors.map(door => (
-              <ListGroup.Item 
-                key={door.id}
-                className="door-list-item"
-              >
-                <div className="door-info">
-                  <span className="door-number">Door #{door.door_number}</span>
-                  {door.completed ? (
-                    <Badge bg="success" className="door-status">Completed</Badge>
-                  ) : (
-                    <Badge bg="secondary" className="door-status">Pending</Badge>
-                  )}
-                </div>
-                <div className="door-actions">
-                  {!door.completed && (
-                    <Button 
-                      variant="success" 
-                      size="sm"
-                      onClick={() => openCompleteModal(door)}
-                    >
-                      <FaCheckCircle /> Complete
-                    </Button>
-                  )}
-                </div>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
+          {job.doors.length === 0 ? (
+            <Alert variant="info">
+              No doors associated with this job.
+            </Alert>
+          ) : (
+            <ListGroup variant="flush" className="door-list">
+              {job.doors.map(door => (
+                <ListGroup.Item 
+                  key={door.id}
+                  className="door-list-item"
+                >
+                  <div className="door-info">
+                    <div className="door-number">Door #{door.door_number}</div>
+                    <span className="door-status-text">
+                      {door.completed ? 'Completed' : 'Pending'}
+                    </span>
+                  </div>
+                  <div className="door-actions">
+                    {!door.completed && (
+                      <Button 
+                        variant="primary" 
+                        size="sm"
+                        onClick={() => openCompleteModal(door)}
+                        className="complete-btn"
+                      >
+                        <FaCheckCircle className="me-2" /> Complete
+                      </Button>
+                    )}
+                  </div>
+                </ListGroup.Item>
+              ))}
+            </ListGroup>
+          )}
         </Card.Body>
       </Card>
       
       {/* Complete Door Modal */}
-      <Modal show={showCompleteModal} onHide={() => setShowCompleteModal(false)} size="lg">
+      <Modal 
+        show={showCompleteModal} 
+        onHide={() => setShowCompleteModal(false)} 
+        size="lg"
+        centered
+        className="complete-door-modal"
+      >
         <Modal.Header closeButton>
-          <Modal.Title>Complete Door #{selectedDoor?.door_number}</Modal.Title>
+          <Modal.Title>
+            <FaCheckCircle className="me-2 text-success" /> 
+            Complete Door #{selectedDoor?.door_number}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Form onSubmit={handleCompleteDoor}>
-            <Form.Group className="mb-3">
-              <Form.Label>Signature</Form.Label>
+            <Form.Group className="mb-4">
+              <Form.Label>Client Signature</Form.Label>
               <div className="signature-container">
                 <SignatureCanvas
                   ref={(ref) => { sigCanvas = ref; }}
@@ -331,40 +447,50 @@ const JobDetails = () => {
                   onEnd={handleSignatureEnd}
                 />
               </div>
-              <Button 
-                variant="outline-secondary" 
-                size="sm"
-                onClick={handleSignatureClear}
-              >
-                Clear
-              </Button>
+              <div className="signature-actions">
+                <small className="text-muted">Please sign above</small>
+                <Button 
+                  variant="outline-secondary" 
+                  size="sm"
+                  onClick={handleSignatureClear}
+                >
+                  Clear
+                </Button>
+              </div>
             </Form.Group>
             
-            <Form.Group className="mb-3">
+            <Form.Group className="mb-4">
               <Form.Label>Photo of Completed Door</Form.Label>
               <Form.Control
                 type="file"
                 accept="image/*"
                 onChange={handlePhotoChange}
                 required
+                className="file-input"
               />
+              <Form.Text className="text-muted">
+                Please upload a clear photo of the completed door installation.
+              </Form.Text>
             </Form.Group>
             
-            <Form.Group className="mb-3">
+            <Form.Group className="mb-4">
               <Form.Label>Video of Door Operation</Form.Label>
               <Form.Control
                 type="file"
                 accept="video/*"
                 onChange={handleVideoChange}
                 required
+                className="file-input"
               />
+              <Form.Text className="text-muted">
+                Upload a short video showing the door operating properly.
+              </Form.Text>
             </Form.Group>
             
-            <div className="d-grid gap-2 d-md-flex justify-content-md-end">
+            <div className="modal-actions">
               <Button 
                 variant="secondary" 
                 onClick={() => setShowCompleteModal(false)}
-                className="me-md-2"
               >
                 Cancel
               </Button>
@@ -373,7 +499,23 @@ const JobDetails = () => {
                 type="submit"
                 disabled={isSubmitting || !signature || !photo || !video}
               >
-                {isSubmitting ? 'Submitting...' : 'Mark as Completed'}
+                {isSubmitting ? (
+                  <>
+                    <Spinner
+                      as="span"
+                      animation="border"
+                      size="sm"
+                      role="status"
+                      aria-hidden="true"
+                      className="me-2"
+                    />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <FaCheckCircle className="me-2" /> Mark as Completed
+                  </>
+                )}
               </Button>
             </div>
           </Form>

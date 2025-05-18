@@ -1,64 +1,51 @@
 .door-tabs-container {
-  margin-bottom: 20px;
-}
-
-.door-tabs {
+  margin-bottom: 1.5rem; /* Consistent spacing /
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef; / Subtle separator */
+  }
+  .door-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.door-tab {
-  padding: 8px 15px;
+  gap: 0.75rem; /* Consistent gap /
+  margin-bottom: 1rem; / Space below tabs */
+  }
+  .door-tab {
+  padding: 0.5rem 1rem; /* Adjusted padding /
   background-color: #f8f9fa;
   border: 1px solid #dee2e6;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.door-tab.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-.door-tab.active .duplicate-btn {
-  color: white;
-}
-
-.duplicate-btn {
-  padding: 0;
-  color: #6c757d;
-}
-
-.duplicate-btn:hover {
-  color: #0056b3;
-}
-
-.door-tab.active .duplicate-btn:hover {
-  color: #f8f9fa;
-}
-
-.add-door-btn {
-  align-self: center;
-}
-
-@media (max-width: 768px) {
-  .door-tabs {
-    flex-direction: column;
-    width: 100%;
+  gap: 0.75rem; / Space between text and button /
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; / Smooth transition /
+  font-size: 0.9rem; / Slightly smaller font /
+  white-space: nowrap; / Prevent text wrapping */
   }
-  
-  .door-tab {
-    width: 100%;
-    justify-content: space-between;
+  .door-tab:hover {
+  background-color: #e9ecef;
+  border-color: #adb5bd;
   }
-  
+  .door-tab.active {
+  background-color: #0d6efd; /* Bootstrap primary blue */
+  color: white;
+  border-color: #0d6efd;
+  }
+  .door-tab.active:hover {
+  background-color: #0b5ed7; /* Darker blue on hover */
+  border-color: #0a58ca;
+  }
+  .duplicate-btn:hover {
+  color: #0d6efd; /* Primary blue on hover */
+  }
+  .door-tab.active .duplicate-btn {
+  color: rgba(255, 255, 255, 0.8); /* Lighter color on active tab */
+  }
+  .door-tab.active .duplicate-btn:hover {
+  color: #fff; /* White on hover when active */
+  }
   .add-door-btn {
-    width: 100%;
+  width: 100%; /* Make add button full width /
+  justify-content: center; / Center content /
+  margin-top: 0.5rem; / Add space above when it wraps */
   }
-}

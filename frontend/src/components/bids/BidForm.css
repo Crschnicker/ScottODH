@@ -1,44 +1,69 @@
 .bid-form-container {
-  margin-bottom: 40px;
-}
-
-.bid-header {
+  margin-bottom: 2rem; /* Consistent spacing unit */
+  }
+  .bid-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-}
-
-@media (max-width: 768px) {
-  .bid-header {
-    flex-direction: column;
-    align-items: flex-start;
+  margin-bottom: 1.5rem; /* Consistent spacing /
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #dee2e6; / Add subtle separation */
   }
-  
+  .bid-header h2 {
+  margin-bottom: 0; /* Prevent extra margin on heading */
+  }
   .bid-actions {
-    margin-top: 15px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+  display: flex;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens /
+  gap: 0.5rem; / Space between buttons */
+  align-items: center;
   }
-}
-
-.bid-summary {
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.summary-item {
+  .bid-actions .btn {
+  display: flex; /* Align icon and text /
+  align-items: center;
+  gap: 0.5rem; / Space between icon and text */
+  }
+  .bid-actions {
+  width: 100%; /* Make actions take full width /
+  justify-content: flex-start; / Align buttons to the start */
+  }
+  .bid-summary {
+  max-width: 600px; /* Slightly wider /
+  margin: 0 auto; / Center summary content /
+  padding: 1rem 0; / Add some vertical padding */
+  }
+  .summary-item {
   display: flex;
   justify-content: space-between;
-  padding: 10px 0;
+  padding: 0.75rem 0; /* Adjusted padding /
   border-bottom: 1px solid #eee;
-}
-
-.summary-item.total {
+  font-size: 0.95rem; / Slightly adjust font size */
+  }
+  .summary-item:last-of-type {
+  border-bottom: none; /* Remove border from last item before total */
+  }
+  .summary-item.total {
   font-weight: bold;
-  font-size: 1.2em;
-  margin-top: 10px;
+  font-size: 1.25em; /* Slightly larger total */
+  margin-top: 1rem;
+  padding-top: 1rem;
   border-top: 2px solid #333;
   border-bottom: none;
-}
+  }
+  .summary-item span:last-child {
+  font-weight: 500; /* Slightly bolder values */
+  }
+  .summary-item.total span:last-child {
+  font-weight: bold; /* Ensure total value is bold */
+  }
+  /* Door summary table styling */
+  .door-summary-table {
+  margin-top: 2rem;
+  }
+  .door-summary-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  }
+  .door-summary-table td {
+  vertical-align: middle;
+  }

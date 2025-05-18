@@ -1,51 +1,78 @@
+/* Add these styles to your EstimateInProgress.css file */
 
-.estimate-in-progress-container {
-  padding: 20px;
+.connection-error-container {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin: 3rem auto;
 }
 
-.page-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
+.connection-error-container h3 {
+  color: #dc3545;
+  margin-bottom: 1rem;
 }
 
-.back-button {
-  margin-right: 15px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.connection-error-container ul {
+  text-align: left;
+  max-width: 400px;
+  margin: 1rem auto;
 }
 
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
+.connection-error-container ul li {
+  padding: 0.5rem 0;
+  position: relative;
 }
 
-.customer-info-card,
-.audio-recorder-card,
-.audio-processor-card {
-  margin-bottom: 25px;
+.connection-error-container ul li:before {
+  content: "•";
+  color: #dc3545;
+  font-weight: bold;
+  display: inline-block;
+  width: 1em;
+  margin-left: -1em;
 }
 
-.submit-actions {
-  display: flex;
-  align-items: center;
-  margin-top: 30px;
-}
-
-.submit-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 25px;
+.processing-indicator {
+  background-color: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 4px;
+  border-left: 4px solid #0d6efd;
 }
 
 .submitting-indicator {
+  background-color: #f8f9fa;
+  padding: 0.75rem;
+  border-radius: 4px;
+  display: inline-flex;
+  margin-left: 1rem;
+}
+.recording-list-item {
+  padding: 15px;
+}
+
+.recording-info {
+  max-width: 100%;
+}
+
+.transcript-text {
+  word-break: break-word;
+  max-width: 90%;
+}
+
+.recording-actions {
+  display: flex;
+  flex-wrap: nowrap; /* Prevent wrapping by default */
+  gap: 8px; /* Even spacing between buttons */
+  margin-top: 5px;
+}
+.action-button {
+  flex: 1; /* Equal width distribution */
+  max-width: 120px; /* Prevent overly wide buttons */
+  white-space: nowrap;
   display: flex;
   align-items: center;
-  margin-left: 15px;
-  gap: 8px;
+  justify-content: center;
+  height: 32px; /* Consistent height */
+  padding: 0 10px; /* Balanced padding */
 }

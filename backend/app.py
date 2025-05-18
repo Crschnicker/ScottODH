@@ -6,75 +6,90 @@ import os
 import uuid
 import json
 import calendar
-from flask import send_file
-from io import BytesIO
-import tempfile
-import openai
+import re # Added for process_audio
+
+# For AI functionalities
 from openai import OpenAI
-# ReportLab imports
+
+# For PDF generation
+from io import BytesIO
 from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-import re
+from reportlab.lib import colors
+from config import Config
 
+# Initialize Flask app
 app = Flask(__name__)
-CORS(app, 
-     resources={r"/*": {"origins": "*"}}, 
-     supports_credentials=True,
-     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-     expose_headers=["Content-Disposition"]
-)
+app.config.from_object(Config)
 
 # Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///scott_overhead_doors.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+CORS(app, resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}}, supports_credentials=True)
+
 # Database Models
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    sites = db.relationship('Site', backref='customer', lazy=True, cascade="all, delete-orphan")
+    estimates = db.relationship('Estimate', backref='customer_direct_link', lazy=True, foreign_keys='Estimate.customer_id', cascade="all, delete-orphan")
+
+class Site(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=True) # e.g., "Main Warehouse", "Building A"
     address = db.Column(db.String(200))
     lockbox_location = db.Column(db.String(200))
     contact_name = db.Column(db.String(100))
     phone = db.Column(db.String(20))
-    email = db.Column(db.String(100))  # Added email field
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    estimates = db.relationship('Estimate', backref='customer', lazy=True)
+    email = db.Column(db.String(100), nullable=True) # Added email field
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    estimates = db.relationship('Estimate', backref='site', lazy=True, foreign_keys='Estimate.site_id', cascade="all, delete-orphan")
     
 class Estimate(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
-    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    bids = db.relationship('Bid', backref='estimate', lazy=True)
-    audio_recordings = db.relationship('AudioRecording', backref='estimate', lazy=True)
-
-class AudioRecording(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    estimate_id = db.Column(db.Integer, db.ForeignKey('estimate.id'), nullable=False)
-    file_path = db.Column(db.String(200), nullable=False)
-    transcript = db.Column(db.Text)
+    customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False) 
+    site_id = db.Column(db.Integer, db.ForeignKey('site.id'), nullable=False) 
+    status = db.Column(db.String(20), default='pending')  # pending, approved, rejected, converted
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    bids = db.relationship('Bid', backref='estimate', lazy=True, cascade="all, delete-orphan")
+    doors_data = db.Column(db.Text, default='[]')  # Store doors as JSON text
+    
+    # Add these fields for estimate details
+    title = db.Column(db.String(200), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    reference_number = db.Column(db.String(50), nullable=True)
+    estimated_hours = db.Column(db.Float, nullable=True)
+    estimated_cost = db.Column(db.Float, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    
+    # Scheduling fields
+    scheduled_date = db.Column(db.DateTime, nullable=True)
+    estimator_id = db.Column(db.Integer, default=1, nullable=True)
+    estimator_name = db.Column(db.String(50), default='Brett', nullable=True)
+    duration = db.Column(db.Integer, default=60, nullable=True)
+    schedule_notes = db.Column(db.Text, nullable=True)
+    
 class Bid(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     estimate_id = db.Column(db.Integer, db.ForeignKey('estimate.id'), nullable=False)
     status = db.Column(db.String(20), default='draft')  # draft, completed, approved
     total_cost = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    doors = db.relationship('Door', backref='bid', lazy=True)
-    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    doors = db.relationship('Door', backref='bid', lazy=True, cascade="all, delete-orphan")
+    # jobs relationship will be added by backref from Job model
+
 class Door(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     bid_id = db.Column(db.Integer, db.ForeignKey('bid.id'), nullable=False)
     door_number = db.Column(db.Integer, nullable=False)
-    location = db.Column(db.String(100))  # Add this new field
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    line_items = db.relationship('LineItem', backref='door', lazy=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    line_items = db.relationship('LineItem', backref='door', lazy=True, cascade="all, delete-orphan")
     
 class LineItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -88,28 +103,36 @@ class LineItem(db.Model):
     
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    job_number = db.Column(db.String(10), unique=True)  # Format: MR2525
+    job_number = db.Column(db.String(10), unique=True) 
     bid_id = db.Column(db.Integer, db.ForeignKey('bid.id'), nullable=False)
-    status = db.Column(db.String(20), default='unscheduled')  # unscheduled, scheduled, waiting_for_parts, on_hold, completed
+    status = db.Column(db.String(20), default='unscheduled')  
     scheduled_date = db.Column(db.Date, nullable=True)
     material_ready = db.Column(db.Boolean, default=False)
     material_location = db.Column(db.String(1))  # S for Shop, C for Client
     region = db.Column(db.String(2))  # OC, LA, IE
     job_scope = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    completed_doors = db.relationship('CompletedDoor', backref='job', lazy=True)
-    
-    # Add this relationship
-    bid = db.relationship('Bid', backref='jobs', lazy=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_doors = db.relationship('CompletedDoor', backref='job', lazy=True, cascade="all, delete-orphan")
+    bid = db.relationship('Bid', backref=db.backref('jobs', lazy=True, cascade="all, delete-orphan"))
     
 class CompletedDoor(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
     door_id = db.Column(db.Integer, db.ForeignKey('door.id'), nullable=False)
-    signature = db.Column(db.Text)  # Base64 encoded signature
+    signature = db.Column(db.Text) 
     photo_path = db.Column(db.String(200))
     video_path = db.Column(db.String(200))
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Define AudioRecording model (FIX for NameError)
+class AudioRecording(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    estimate_id = db.Column(db.Integer, db.ForeignKey('estimate.id'), nullable=False)
+    file_path = db.Column(db.String(200), nullable=False)
+    transcript = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # This relationship adds 'audio_recordings' attribute to Estimate model
+    estimate = db.relationship('Estimate', backref=db.backref('audio_recordings', lazy=True, cascade="all, delete-orphan"))
 
 def generate_job_number():
     today = date.today()
@@ -135,6 +158,106 @@ def generate_job_number():
     job_number = f"{month_code}{month_jobs + 1}{str(today.year)[2:]}"
     return job_number
 
+
+@app.route('/api/estimates/<int:estimate_id>/schedule', methods=['POST'])
+def schedule_estimate(estimate_id):
+    """
+    Schedule or reschedule an estimate
+    
+    Expects JSON with:
+    - scheduled_date (ISO format datetime string)
+    - estimator_id (optional, defaults to 1 for Brett)
+    - estimator_name (optional, defaults to "Brett")
+    - duration (optional, in minutes, defaults to 60)
+    - schedule_notes (optional)
+    """
+    try:
+        estimate = Estimate.query.get_or_404(estimate_id)
+        data = request.json
+        
+        # Validate required field
+        if not data.get('scheduled_date'):
+            return jsonify({'error': 'scheduled_date is required'}), 400
+            
+        # Convert the scheduled date string to a datetime object
+        try:
+            scheduled_date = datetime.fromisoformat(data['scheduled_date'].replace('Z', '+00:00'))
+        except (ValueError, TypeError) as e:
+            return jsonify({'error': f'Invalid date format: {str(e)}'}), 400
+            
+        # Update estimate with scheduling information
+        estimate.scheduled_date = scheduled_date
+        estimate.estimator_id = data.get('estimator_id', 1)  # Default to 1 (Brett)
+        estimate.estimator_name = data.get('estimator_name', 'Brett')  # Default to Brett
+        estimate.duration = data.get('duration', 60)  # Default to 60 minutes
+        estimate.schedule_notes = data.get('schedule_notes', '')
+        
+        db.session.commit()
+        
+        # Format the response
+        result = {
+            'id': estimate.id,
+            'customer_id': estimate.customer_id,
+            'customer_name': estimate.customer_direct_link.name,
+            'site_id': estimate.site_id,
+            'site_address': estimate.site.address if estimate.site else None,
+            'site_name': estimate.site.name if estimate.site else None,
+            'status': estimate.status,
+            'created_at': estimate.created_at,
+            'scheduled_date': estimate.scheduled_date,
+            'estimator_id': estimate.estimator_id,
+            'estimator_name': estimate.estimator_name,
+            'duration': estimate.duration,
+            'schedule_notes': estimate.schedule_notes
+        }
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error scheduling estimate: {str(e)}")
+        return jsonify({'error': 'Failed to schedule estimate'}), 500
+
+
+@app.route('/api/estimates/<int:estimate_id>/unschedule', methods=['POST'])
+def unschedule_estimate(estimate_id):
+    """
+    Cancel scheduling for an estimate (removes scheduled_date)
+    """
+    try:
+        estimate = Estimate.query.get_or_404(estimate_id)
+        
+        # Remove scheduling information
+        estimate.scheduled_date = None
+        estimate.schedule_notes = None
+        # Keep estimator information for reference
+        
+        db.session.commit()
+        
+        # Format the response
+        result = {
+            'id': estimate.id,
+            'customer_id': estimate.customer_id,
+            'customer_name': estimate.customer_direct_link.name,
+            'site_id': estimate.site_id,
+            'site_address': estimate.site.address if estimate.site else None,
+            'site_name': estimate.site.name if estimate.site else None,
+            'status': estimate.status,
+            'created_at': estimate.created_at,
+            'scheduled_date': None,
+            'estimator_id': estimate.estimator_id,
+            'estimator_name': estimate.estimator_name,
+            'duration': estimate.duration,
+            'schedule_notes': None
+        }
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error unscheduling estimate: {str(e)}")
+        return jsonify({'error': 'Failed to unschedule estimate'}), 500
+
 @app.route('/api/audio/<int:recording_id>/transcribe', methods=['POST'])
 def transcribe_audio(recording_id):
     recording = AudioRecording.query.get_or_404(recording_id)
@@ -144,7 +267,8 @@ def transcribe_audio(recording_id):
     
     try:
         # Set up the OpenAI client
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "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"))
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
         
         print(f"Processing audio file: {recording.file_path}")
         file_size = os.path.getsize(recording.file_path)
@@ -233,60 +357,50 @@ def process_audio_with_ai(recording_id):
         return jsonify({'error': 'No transcript available. Please transcribe the audio first.'}), 400
     
     try:
-        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "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"))
+        # Increase timeout for client
+        client = OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+            timeout=120.0  # Increase timeout to 120 seconds (2 minutes)
+        )
         
-        # Extract the first word/phrase which is likely the location
+        # Extract the transcript
         transcript = recording.transcript
-        first_location = None
         
-        # Try to identify location from the first part of the transcript
-        # Look for comma or other common separators
-        location_split = transcript.split(',', 1)
-        if len(location_split) > 1:
-            first_location = location_split[0].strip()
-        else:
-            # If no comma, try to get the first phrase (could be "Front door" etc.)
-            words = transcript.split()
-            if len(words) >= 2:
-                # Check if first two words likely form a location description
-                first_location = ' '.join(words[0:2]).strip()
-            elif len(words) >= 1:
-                first_location = words[0].strip()
-        
-        # More general prompt about doors but emphasizing preserving the original location name
+        # More robust prompt for multiple doors
         prompt = """
-        Analyze this transcript about door installations, repairs, or related work. Extract information about each door or door component mentioned.
+        Analyze this transcript about door installations, repairs, or related work. Extract information about EACH door or door component mentioned.
         
         Transcript: {}
         
-        Return a JSON array where each object represents a door or door-related task with these properties:
-        - door_number (number, default to 1 if not specified)
-        - location (string, IMPORTANT: use the EXACT location as mentioned in transcript, e.g. "Front door", "Back door", etc.)
+        IMPORTANT: Create a SEPARATE JSON object for EACH door mentioned in the transcript. If multiple doors are described (e.g. "front door", "garage door", "kitchen door"), each should have its own object.
+        
+        Return a JSON array where each object represents a distinct door with these properties:
+        - door_number (number, default to sequence number if not explicitly mentioned)
+        - location (string, EXACT location mentioned like "Front door", "Kitchen door", "Garage bay 2", etc.)
         - dimensions (object with width, height, unit if mentioned)
         - type (string, like entry, garage, interior, etc.)
         - material (string)
-        - components (array of strings - parts mentioned like plates, hardware, etc.)
+        - components (array of strings - parts mentioned like tracks, springs, hardware, etc.)
         - labor_description (string - description of work being done)
         - notes (string - any other relevant details)
         
-        If the transcript appears to be about a repair or work on a single door rather than multiple doors, create a single object with the relevant details.
-        
         Only include properties that are explicitly mentioned in the transcript.
-        IMPORTANT: Do NOT make assumptions about the type of door - preserve the exact location terminology used in the transcript.
+        CRITICAL: Identify each distinct door as a separate object, even if door numbers aren't explicitly mentioned.
         """.format(transcript)
         
         # Log the prompt for debugging
-        print(f"Sending prompt to OpenAI:\n{prompt}")
+        print(f"Sending prompt to OpenAI with increased timeout:\n{prompt}")
         
-        # Call the OpenAI API
+        # Call the OpenAI API with increased timeout
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that extracts structured information about door installations and repairs from audio transcripts. Always return a valid JSON array, even if there's only one door. ALWAYS preserve the exact location terminology from the transcript."},
+                {"role": "system", "content": "You are a helpful assistant that extracts structured information about door installations and repairs from audio transcripts. Always return valid JSON with an array of door objects. Each distinct door (by location or number) should be a separate object in the array."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            timeout=90  # Set a 90 second timeout for the API call
         )
         
         # Extract and log the content
@@ -297,31 +411,38 @@ def process_audio_with_ai(recording_id):
         try:
             response_data = json.loads(content)
             
-            # Handle different response formats
+            # Handle different response formats to ensure we always have an array of doors
+            doors_data = []
+            
             if isinstance(response_data, dict):
-                # Check if it has a door_number field (single door object)
-                if 'door_number' in response_data or 'components' in response_data or 'labor_description' in response_data:
-                    doors_data = [response_data]  # Convert single object to array
-                # Check if there's an array inside the response
+                # Check if the response is a dict with an array
+                for key, value in response_data.items():
+                    if isinstance(value, list):
+                        doors_data = value
+                        break
                 else:
-                    for key, value in response_data.items():
-                        if isinstance(value, list):
-                            doors_data = value
-                            break
+                    # If no array found in the dict, check if it's a single door object
+                    if 'door_number' in response_data or 'location' in response_data:
+                        doors_data = [response_data]  # Convert single object to array
                     else:
-                        # Couldn't find an array, use the whole object
-                        doors_data = [response_data]
+                        # Create a generic door
+                        doors_data = [{
+                            "door_number": 1,
+                            "location": "Unspecified location",
+                            "labor_description": "Work described in recording",
+                            "notes": transcript
+                        }]
             elif isinstance(response_data, list):
                 doors_data = response_data
             else:
-                # Fallback if the response is neither dict nor list
-                door = {
-                    'door_number': door_number,
-                    'location': location,  # Store the raw location
-                    'description': description,
-                    'details': details,
-                    'id': str(uuid.uuid4())
-                }
+                # Fallback for unexpected data
+                doors_data = [{
+                    "door_number": 1,
+                    "location": "Unspecified location",
+                    "labor_description": "Work described in recording",
+                    "notes": transcript
+                }]
+                
             print(f"Parsed doors_data: {doors_data}")
             
         except json.JSONDecodeError as e:
@@ -331,30 +452,27 @@ def process_audio_with_ai(recording_id):
             # Create a fallback structure
             doors_data = [{
                 "door_number": 1,
-                "location": first_location or "Door",
+                "location": "Error parsing transcript",
                 "labor_description": "Door work described in recording",
                 "notes": transcript
             }]
         
         # Process the doors data to match the frontend format
         doors = []
-        for door_data in doors_data:
+        for i, door_data in enumerate(doors_data):
             # Defensive programming - make sure door_data is a dict
             if not isinstance(door_data, dict):
                 print(f"Warning: Expected dict but got {type(door_data)}: {door_data}")
                 continue
                 
-            door_number = door_data.get('door_number', 1)  # Default to 1
+            # Get door number from the data, or use index+1 as fallback
+            door_number = door_data.get('door_number', i+1)
             
             # Create a list of details
             details = []
             
-            # Add location if available - PRIORITIZE this!
-            location = door_data.get('location', first_location)
-            if not location and 'type' in door_data:
-                # Fallback to 'type' if location not provided but we have a type
-                location = door_data.get('type')
-            
+            # Add location if available
+            location = door_data.get('location', f"Door {door_number}")
             if location:
                 details.append(f"Location: {location}")
             
@@ -369,7 +487,7 @@ def process_audio_with_ai(recording_id):
             
             # Add type if available, but only if different from location
             door_type = door_data.get('type')
-            if door_type and door_type.lower() != location.lower():
+            if door_type and ((not location) or door_type.lower() != location.lower()):
                 details.append(f"Type: {door_type}")
             
             # Add material if available
@@ -410,7 +528,7 @@ def process_audio_with_ai(recording_id):
         if not doors:
             doors = [{
                 'door_number': 1,
-                'description': first_location or f"Door work from recording {recording_id}",
+                'description': f"Door work from recording {recording_id}",
                 'details': [f"Work description: {transcript}"],
                 'id': str(uuid.uuid4())
             }]
@@ -429,7 +547,7 @@ def process_audio_with_ai(recording_id):
         # Always return a valid response even on error
         doors = [{
             'door_number': 1,
-            'description': first_location or f"Door work from recording {recording_id}",
+            'description': f"Door work from recording {recording_id}",
             'details': [f"Work description: {transcript}"],
             'id': str(uuid.uuid4())
         }]
@@ -439,10 +557,6 @@ def process_audio_with_ai(recording_id):
             'doors': doors,
             'error': str(e)  # Include the error for debugging
         }), 200  # Return 200 even on error to prevent frontend crashes
-    
-    
-    # Add this route to your Flask app to serve audio files
-
 
 @app.route('/uploads/<path:filename>', methods=['GET'])
 def serve_audio(filename):
@@ -461,6 +575,41 @@ def serve_audio_api(filename):
     
     
 # API Routes - Customers
+
+@app.route('/api/customers/<int:customer_id>/sites', methods=['POST'])
+def create_site(customer_id):
+    """
+    Create a new site for a given customer.
+    Expects JSON body with at least 'name' field, and optionally address, lockbox_location, contact_name, phone, email.
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    data = request.json
+    name = data.get('name')
+    if not name:
+        return jsonify({'error': 'Site name is required'}), 400
+    site = Site(
+        customer_id=customer_id,
+        name=name,
+        address=data.get('address', ''),
+        lockbox_location=data.get('lockbox_location', ''),
+        contact_name=data.get('contact_name', ''),
+        phone=data.get('phone', ''),
+        email=data.get('email', '')
+    )
+    db.session.add(site)
+    db.session.commit()
+    return jsonify({
+        'id': site.id,
+        'customer_id': site.customer_id,
+        'name': site.name,
+        'address': site.address,
+        'lockbox_location': site.lockbox_location,
+        'contact_name': site.contact_name,
+        'phone': site.phone,
+        'email': site.email,
+        'created_at': site.created_at
+    }), 201
+
 @app.route('/api/customers', methods=['GET'])
 def get_customers():
     customers = Customer.query.all()
@@ -469,11 +618,7 @@ def get_customers():
         result.append({
             'id': customer.id,
             'name': customer.name,
-            'address': customer.address,
-            'lockbox_location': customer.lockbox_location,
-            'contact_name': customer.contact_name,
-            'phone': customer.phone,
-            'email': customer.email,  # Added email
+            # Removed address, lockbox_location, contact_name, phone
             'created_at': customer.created_at
         })
     return jsonify(result)
@@ -481,24 +626,18 @@ def get_customers():
 @app.route('/api/customers', methods=['POST'])
 def create_customer():
     data = request.json
+    if 'name' not in data or not data['name'].strip():
+        return jsonify({'error': 'Customer name is required'}), 400
+        
     customer = Customer(
-        name=data['name'],
-        address=data.get('address', ''),
-        lockbox_location=data.get('lockbox_location', ''),
-        contact_name=data.get('contact_name', ''),
-        phone=data.get('phone', ''),
-        email=data.get('email', '')  # Added email
+        name=data['name']
+        # Removed address, lockbox_location, contact_name, phone
     )
     db.session.add(customer)
     db.session.commit()
     return jsonify({
         'id': customer.id,
         'name': customer.name,
-        'address': customer.address,
-        'lockbox_location': customer.lockbox_location,
-        'contact_name': customer.contact_name,
-        'phone': customer.phone,
-        'email': customer.email,  # Added email
         'created_at': customer.created_at
     }), 201
 
@@ -508,75 +647,266 @@ def get_customer(customer_id):
     return jsonify({
         'id': customer.id,
         'name': customer.name,
-        'address': customer.address,
-        'lockbox_location': customer.lockbox_location,
-        'contact_name': customer.contact_name,
-        'phone': customer.phone,
-        'email': customer.email,  # Added email
         'created_at': customer.created_at
     })
 
-# API Routes - Estimates
+
+# API Routes - Sites
+@app.route('/api/customers/<int:customer_id>/sites', methods=['GET'])
+def get_customer_sites(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    sites = Site.query.filter_by(customer_id=customer.id).all()
+    result = []
+    for site in sites:
+        result.append({
+            'id': site.id,
+            'customer_id': site.customer_id,
+            'name': site.name,
+            'address': site.address,
+            'lockbox_location': site.lockbox_location,
+            'contact_name': site.contact_name,
+            'phone': site.phone,
+            'created_at': site.created_at
+        })
+    return jsonify(result)
+
+@app.route('/api/customers/<int:customer_id>/sites', methods=['POST'])
+def create_customer_site(customer_id):
+    customer = Customer.query.get_or_404(customer_id)
+    data = request.json
+    
+    site = Site(
+        customer_id=customer.id,
+        name=data.get('name'), # Site name is optional
+        address=data.get('address', ''),
+        lockbox_location=data.get('lockbox_location', ''),
+        contact_name=data.get('contact_name', ''),
+        phone=data.get('phone', '')
+    )
+    db.session.add(site)
+    db.session.commit()
+    return jsonify({
+        'id': site.id,
+        'customer_id': site.customer_id,
+        'name': site.name,
+        'address': site.address,
+        'lockbox_location': site.lockbox_location,
+        'contact_name': site.contact_name,
+        'phone': site.phone,
+        'created_at': site.created_at
+    }), 201
+
 @app.route('/api/estimates', methods=['GET'])
 def get_estimates():
-    estimates = Estimate.query.all()
+    """
+    Get all estimates with optional filtering
+    Now includes scheduling information
+    """
+    # Join with Customer and Site to get necessary details
+    estimates = Estimate.query.join(Site, Estimate.site_id == Site.id)\
+                              .join(Customer, Estimate.customer_id == Customer.id)\
+                              .all()
     result = []
     for estimate in estimates:
         result.append({
             'id': estimate.id,
             'customer_id': estimate.customer_id,
-            'customer_name': estimate.customer.name,
+            'customer_name': estimate.customer_direct_link.name, 
+            'site_id': estimate.site_id,
+            'site_address': estimate.site.address if estimate.site else None,
+            'site_name': estimate.site.name if estimate.site else None,
             'status': estimate.status,
-            'created_at': estimate.created_at
+            'created_at': estimate.created_at,
+            # Include scheduling information
+            'scheduled_date': estimate.scheduled_date,
+            'estimator_id': estimate.estimator_id,
+            'estimator_name': estimate.estimator_name or 'Brett',
+            'duration': estimate.duration or 60,
+            'schedule_notes': estimate.schedule_notes
         })
     return jsonify(result)
+
 
 @app.route('/api/estimates', methods=['POST'])
 def create_estimate():
     data = request.json
     
-    # Create customer if needed
     customer_id = data.get('customer_id')
+    site_id = data.get('site_id')
+
     if not customer_id:
-        customer = Customer(
-            name=data['customer_name'],
-            address=data.get('address', ''),
-            lockbox_location=data.get('lockbox_location', ''),
-            contact_name=data.get('contact_name', ''),
-            phone=data.get('phone', ''),
-            email=data.get('email', '')  # Added email
-        )
-        db.session.add(customer)
-        db.session.flush()
-        customer_id = customer.id
+        return jsonify({'error': 'customer_id is required'}), 400
+    if not site_id:
+        return jsonify({'error': 'site_id is required'}), 400
+
+    customer = Customer.query.get(customer_id)
+    if not customer:
+        return jsonify({'error': f'Customer with id {customer_id} not found'}), 404
     
-    # Create estimate
+    site = Site.query.get(site_id)
+    if not site:
+        return jsonify({'error': f'Site with id {site_id} not found'}), 404
+    
+    if site.customer_id != customer.id:
+        return jsonify({'error': f'Site {site_id} does not belong to customer {customer_id}'}), 400
+    
+    # Process scheduling data if provided
+    scheduled_date = None
+    if data.get('scheduled_date'):
+        try:
+            scheduled_date = datetime.fromisoformat(data['scheduled_date'].replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            # If parsing fails, leave as None
+            pass
+    
+    # Create the estimate with all provided fields
     estimate = Estimate(
         customer_id=customer_id,
-        status='pending'
+        site_id=site_id,
+        status='pending',
+        # Estimate details fields
+        title=data.get('title'),
+        description=data.get('description'),
+        reference_number=data.get('reference_number'),
+        estimated_hours=float(data.get('estimated_hours', 0)) if data.get('estimated_hours') else None,
+        estimated_cost=float(data.get('estimated_cost', 0)) if data.get('estimated_cost') else None,
+        notes=data.get('notes'),
+        # Scheduling fields
+        scheduled_date=scheduled_date,
+        estimator_id=int(data.get('estimator_id', 1)) if data.get('estimator_id') else 1,
+        estimator_name=data.get('estimator_name', 'Brett'),
+        duration=int(data.get('duration', 60)) if data.get('duration') else 60,
+        schedule_notes=data.get('schedule_notes')
     )
+    
     db.session.add(estimate)
     db.session.commit()
     
+    # Fetch related data for response
+    db.session.refresh(estimate)
+
     return jsonify({
         'id': estimate.id,
         'customer_id': estimate.customer_id,
-        'customer_name': estimate.customer.name,
+        'customer_name': estimate.customer_direct_link.name,
+        'site_id': estimate.site_id,
+        'site_address': estimate.site.address if estimate.site else None,
+        'site_name': estimate.site.name if estimate.site else None,
         'status': estimate.status,
-        'created_at': estimate.created_at
+        'created_at': estimate.created_at,
+        'title': estimate.title,
+        'description': estimate.description,
+        'reference_number': estimate.reference_number,
+        'estimated_hours': estimate.estimated_hours,
+        'estimated_cost': estimate.estimated_cost,
+        'notes': estimate.notes,
+        'scheduled_date': estimate.scheduled_date,
+        'estimator_id': estimate.estimator_id,
+        'estimator_name': estimate.estimator_name,
+        'duration': estimate.duration,
+        'schedule_notes': estimate.schedule_notes
     }), 201
-
+    
+@app.route('/api/estimates/<int:estimate_id>/doors', methods=['GET', 'PUT'])
+def handle_estimate_doors(estimate_id):
+    """
+    GET: Retrieve all doors for an estimate
+    PUT: Update the doors for an estimate
+    
+    Args:
+        estimate_id (int): The ID of the estimate
+        
+    Returns:
+        JSON response with estimate and doors data
+    """
+    estimate = Estimate.query.get_or_404(estimate_id)
+    
+    if request.method == 'GET':
+        # Return the stored doors data
+        try:
+            doors = json.loads(estimate.doors_data) if estimate.doors_data else []
+        except json.JSONDecodeError:
+            doors = []
+            
+        return jsonify({
+            'estimate_id': estimate_id,
+            'doors': doors
+        })
+    
+    elif request.method == 'PUT':
+        data = request.json
+        
+        if not data or 'doors' not in data:
+            return jsonify({'error': 'Doors data is required'}), 400
+        
+        doors = data['doors']
+        
+        # Validate doors data - ensure it's a valid list
+        if not isinstance(doors, list):
+            return jsonify({'error': 'Doors must be an array'}), 400
+            
+        # Further validation for each door object if needed
+        for door in doors:
+            if not isinstance(door, dict):
+                return jsonify({'error': 'Each door must be an object'}), 400
+                
+            # Ensure each door has required properties
+            if 'door_number' not in door:
+                door['door_number'] = 1  # Default
+                
+            if 'id' not in door:
+                # Generate a unique ID
+                door['id'] = str(uuid.uuid4())
+                
+        # Store the doors data as JSON
+        estimate.doors_data = json.dumps(doors)
+        
+        # Save to the database
+        db.session.commit()
+        
+        return jsonify({
+            'estimate_id': estimate_id,
+            'doors': doors,
+            'updated_at': datetime.utcnow().isoformat()
+        })
+    
+    
 @app.route('/api/estimates/<int:estimate_id>', methods=['GET'])
 def get_estimate(estimate_id):
+    """
+    Get a single estimate by ID
+    Now includes scheduling information
+    """
     estimate = Estimate.query.get_or_404(estimate_id)
+    
+    # Parse the doors data from JSON
+    try:
+        doors = json.loads(estimate.doors_data) if estimate.doors_data else []
+    except (json.JSONDecodeError, AttributeError):
+        doors = []
+    
     return jsonify({
         'id': estimate.id,
         'customer_id': estimate.customer_id,
-        'customer_name': estimate.customer.name,
+        'customer_name': estimate.customer_direct_link.name,
+        'site_id': estimate.site_id,
+        'site_address': estimate.site.address if estimate.site else None,
+        'site_name': estimate.site.name if estimate.site else None,
+        'site_lockbox_location': estimate.site.lockbox_location if estimate.site else None,
+        'site_contact_name': estimate.site.contact_name if estimate.site else None,
+        'site_phone': estimate.site.phone if estimate.site else None,
         'status': estimate.status,
-        'created_at': estimate.created_at
+        'created_at': estimate.created_at,
+        'doors': doors,  # Include doors in the response
+        # Include scheduling information
+        'scheduled_date': estimate.scheduled_date,
+        'estimator_id': estimate.estimator_id,
+        'estimator_name': estimate.estimator_name or 'Brett',
+        'duration': estimate.duration or 60,
+        'schedule_notes': estimate.schedule_notes
     })
-
+    
+    
 # API Routes - Bids
 @app.route('/api/bids', methods=['GET'])
 def get_bids():
@@ -586,7 +916,8 @@ def get_bids():
         result.append({
             'id': bid.id,
             'estimate_id': bid.estimate_id,
-            'customer_name': bid.estimate.customer.name,
+            'customer_name': bid.estimate.customer_direct_link.name,
+            'site_address': bid.estimate.site.address if bid.estimate.site else None,
             'status': bid.status,
             'total_cost': bid.total_cost,
             'created_at': bid.created_at
@@ -597,32 +928,29 @@ def get_bids():
 def create_bid(estimate_id):
     estimate = Estimate.query.get_or_404(estimate_id)
     
-    # Create the bid
     bid = Bid(
         estimate_id=estimate_id,
         status='draft',
         total_cost=0.0
     )
     db.session.add(bid)
-    
-    # Update the estimate status to indicate it's been converted to a bid
-    estimate.status = 'converted'  # Add this line
-    
+    estimate.status = 'converted'
     db.session.commit()
     
     return jsonify({
         'id': bid.id,
         'estimate_id': bid.estimate_id,
-        'customer_name': bid.estimate.customer.name,
+        'customer_name': bid.estimate.customer_direct_link.name,
+        'site_address': bid.estimate.site.address if bid.estimate.site else None,
         'status': bid.status,
         'total_cost': bid.total_cost,
         'created_at': bid.created_at
     }), 201
+
 @app.route('/api/bids/<int:bid_id>', methods=['GET'])
 def get_bid(bid_id):
     bid = Bid.query.get_or_404(bid_id)
     
-    # Collect all doors and their line items
     doors_data = []
     total_parts_cost = 0
     total_labor_cost = 0
@@ -637,7 +965,7 @@ def get_bid(bid_id):
         for item in door.line_items:
             item_total = item.price * item.quantity
             door_parts_cost += item_total
-            door_labor_cost += item.labor_hours * 47.02  # $47.02 per hour labor rate
+            door_labor_cost += item.labor_hours * 47.02
             door_hardware_cost += item.hardware
             
             line_items.append({
@@ -653,16 +981,9 @@ def get_bid(bid_id):
         
         door_total = door_parts_cost + door_labor_cost + door_hardware_cost
         
-        # Create a description that includes the location
-        description = f"Door #{door.door_number}"
-        if door.location:
-            description = f"{door.location} (Door #{door.door_number})"
-        
         doors_data.append({
             'id': door.id,
             'door_number': door.door_number,
-            'location': door.location,  # Include location in response
-            'description': description,  # Include formatted description
             'line_items': line_items,
             'parts_cost': door_parts_cost,
             'labor_cost': door_labor_cost,
@@ -674,57 +995,80 @@ def get_bid(bid_id):
         total_labor_cost += door_labor_cost
         total_hardware_cost += door_hardware_cost
     
-    # Calculate tax (8.75%)
     tax_rate = 0.0875
     tax_amount = (total_parts_cost + total_hardware_cost) * tax_rate
-    total_cost = total_parts_cost + total_labor_cost + total_hardware_cost + tax_amount
+    total_cost_val = total_parts_cost + total_labor_cost + total_hardware_cost + tax_amount
     
-    # Update bid total cost
-    bid.total_cost = total_cost
+    bid.total_cost = total_cost_val
     db.session.commit()
     
     return jsonify({
         'id': bid.id,
         'estimate_id': bid.estimate_id,
-        'customer_name': bid.estimate.customer.name,
-        'customer_address': bid.estimate.customer.address,
-        'customer_contact': bid.estimate.customer.contact_name,
-        'customer_phone': bid.estimate.customer.phone,
-        'customer_email': bid.estimate.customer.email,
+        'customer_name': bid.estimate.customer_direct_link.name,
+        'customer_address': bid.estimate.site.address if bid.estimate.site else None, # Site address
+        'customer_contact': bid.estimate.site.contact_name if bid.estimate.site else None, # Site contact
+        'customer_phone': bid.estimate.site.phone if bid.estimate.site else None, # Site phone
         'status': bid.status,
         'doors': doors_data,
         'total_parts_cost': total_parts_cost,
         'total_labor_cost': total_labor_cost,
         'total_hardware_cost': total_hardware_cost,
         'tax': tax_amount,
-        'total_cost': total_cost,
+        'total_cost': total_cost_val,
         'created_at': bid.created_at
     })
+
+
+
+def serialize_site(site):
+    """
+    Serialize a Site model object to a dictionary for JSON response
+    
+    Args:
+        site (Site): The site model instance to serialize
+        
+    Returns:
+        dict: A dictionary of site properties ready for JSON serialization
+    """
+    return {
+        'id': site.id,
+        'customer_id': site.customer_id,
+        'name': site.name,
+        'address': site.address or '',
+        'lockbox_location': site.lockbox_location or '',
+        'contact_name': site.contact_name or '',
+        'phone': site.phone or '',
+        'email': site.email or '',
+        'created_at': site.created_at.isoformat() if site.created_at else None
+    }
+    
+    
+@app.after_request
+def add_cors_headers(response):
+    """Add CORS headers to all responses"""
+    origin = request.headers.get('Origin')
+    
+    # Only set CORS headers if the origin is in our allowed list
+    if origin in app.config['CORS_ORIGINS']:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Origin,Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    
+    return response
+    
 @app.route('/api/bids/<int:bid_id>/doors', methods=['POST'])
 def add_door(bid_id):
     bid = Bid.query.get_or_404(bid_id)
     data = request.json
-    
-    # Find the highest door number to assign next
     highest_door = Door.query.filter_by(bid_id=bid_id).order_by(Door.door_number.desc()).first()
     next_door_number = 1
     if highest_door:
         next_door_number = highest_door.door_number + 1
-    
-    # Override with provided door number if specified
     door_number = data.get('door_number', next_door_number)
     
-    # Get location from request data
-    location = data.get('location', '')
-    
-    # Log the location for debugging
-    print(f"Adding door #{door_number} with location: {location}")
-    
-    door = Door(
-        bid_id=bid_id,
-        door_number=door_number,
-        location=location  # Store the location
-    )
+    door = Door(bid_id=bid_id, door_number=door_number)
     db.session.add(door)
     db.session.commit()
     
@@ -732,9 +1076,9 @@ def add_door(bid_id):
         'id': door.id,
         'bid_id': door.bid_id,
         'door_number': door.door_number,
-        'location': door.location,  # Include location in response
         'created_at': door.created_at
     }), 201
+
 @app.route('/api/doors/<int:door_id>/line-items', methods=['POST'])
 def add_line_item(door_id):
     door = Door.query.get_or_404(door_id)
@@ -772,15 +1116,10 @@ def duplicate_door(door_id):
     created_doors = []
     
     for door_number in target_door_numbers:
-        # Create new door
-        new_door = Door(
-            bid_id=source_door.bid_id,
-            door_number=door_number
-        )
+        new_door = Door(bid_id=source_door.bid_id, door_number=door_number)
         db.session.add(new_door)
-        db.session.flush()  # Get new door ID
+        db.session.flush()
         
-        # Duplicate all line items
         for item in source_door.line_items:
             new_item = LineItem(
                 door_id=new_door.id,
@@ -793,35 +1132,24 @@ def duplicate_door(door_id):
             )
             db.session.add(new_item)
         
-        created_doors.append({
-            'id': new_door.id,
-            'door_number': new_door.door_number
-        })
+        created_doors.append({'id': new_door.id, 'door_number': new_door.door_number})
     
     db.session.commit()
-    
-    return jsonify({
-        'source_door_id': door_id,
-        'created_doors': created_doors
-    }), 201
+    return jsonify({'source_door_id': door_id, 'created_doors': created_doors}), 201
 
 @app.route('/api/bids/<int:bid_id>/approve', methods=['POST'])
 def approve_bid(bid_id):
     bid = Bid.query.get_or_404(bid_id)
     bid.status = 'approved'
-    db.session.commit()
-    
-    # Generate job number
     job_number = generate_job_number()
     
-    # Create job
     job = Job(
         job_number=job_number,
         bid_id=bid_id,
         status='unscheduled',
         material_ready=False,
-        material_location='S',  # Default to Shop
-        region=request.json.get('region', 'OC'),  # Default to Orange County
+        material_location='S',
+        region=request.json.get('region', 'OC'),
         job_scope=request.json.get('job_scope', '')
     )
     db.session.add(job)
@@ -842,29 +1170,23 @@ def get_jobs():
     search = request.args.get('search', '')
     
     query = Job.query
-    
-    if region:
-        query = query.filter_by(region=region)
-    
-    if status:
-        query = query.filter_by(status=status)
-    
+    if region: query = query.filter_by(region=region)
+    if status: query = query.filter_by(status=status)
     if search:
-        query = query.join(Bid).join(Estimate).join(Customer).filter(
+        query = query.join(Bid).join(Estimate).join(Customer, Estimate.customer_id == Customer.id).filter(
             (Job.job_number.like(f'%{search}%')) |
-            (Customer.name.like(f'%{search}%')) |
+            (Customer.name.like(f'%{search}%')) | # Search by customer name
             (Job.job_scope.like(f'%{search}%'))
         )
     
     jobs = query.all()
     result = []
-    
     for job in jobs:
         result.append({
             'id': job.id,
             'job_number': job.job_number,
-            'customer_name': job.bid.estimate.customer.name,
-            'address': job.bid.estimate.customer.address,
+            'customer_name': job.bid.estimate.customer_direct_link.name,
+            'address': job.bid.estimate.site.address if job.bid.estimate.site else None, # Site address
             'job_scope': job.job_scope,
             'scheduled_date': job.scheduled_date,
             'status': job.status,
@@ -872,22 +1194,17 @@ def get_jobs():
             'material_location': job.material_location,
             'region': job.region
         })
-    
     return jsonify(result)
 
 @app.route('/api/jobs/<int:job_id>', methods=['GET'])
 def get_job(job_id):
     job = Job.query.get_or_404(job_id)
-    
-    # Get doors from the bid
     doors = []
-    for door in job.bid.doors:
-        # Check if this door has been completed
-        completed = CompletedDoor.query.filter_by(job_id=job.id, door_id=door.id).first()
-        
+    for door_model_instance in job.bid.doors: # renamed 'door' to 'door_model_instance' to avoid conflict
+        completed = CompletedDoor.query.filter_by(job_id=job.id, door_id=door_model_instance.id).first()
         doors.append({
-            'id': door.id,
-            'door_number': door.door_number,
+            'id': door_model_instance.id,
+            'door_number': door_model_instance.door_number,
             'completed': completed is not None,
             'completed_at': completed.completed_at if completed else None
         })
@@ -895,11 +1212,10 @@ def get_job(job_id):
     return jsonify({
         'id': job.id,
         'job_number': job.job_number,
-        'customer_name': job.bid.estimate.customer.name,
-        'address': job.bid.estimate.customer.address,
-        'contact_name': job.bid.estimate.customer.contact_name,
-        'phone': job.bid.estimate.customer.phone,
-        'email': job.bid.estimate.customer.email,  # Added email
+        'customer_name': job.bid.estimate.customer_direct_link.name,
+        'address': job.bid.estimate.site.address if job.bid.estimate.site else None, # Site address
+        'contact_name': job.bid.estimate.site.contact_name if job.bid.estimate.site else None, # Site contact
+        'phone': job.bid.estimate.site.phone if job.bid.estimate.site else None, # Site phone
         'job_scope': job.job_scope,
         'scheduled_date': job.scheduled_date,
         'status': job.status,
@@ -913,17 +1229,15 @@ def get_job(job_id):
 def schedule_job(job_id):
     job = Job.query.get_or_404(job_id)
     data = request.json
-    
-    scheduled_date = data.get('scheduled_date')
-    if scheduled_date:
-        job.scheduled_date = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+    scheduled_date_str = data.get('scheduled_date')
+    if scheduled_date_str:
+        job.scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%d').date()
         job.status = 'scheduled'
     
     job.material_ready = data.get('material_ready', job.material_ready)
     job.material_location = data.get('material_location', job.material_location)
     job.region = data.get('region', job.region)
     job.job_scope = data.get('job_scope', job.job_scope)
-    
     db.session.commit()
     
     return jsonify({
@@ -941,26 +1255,19 @@ def schedule_job(job_id):
 def update_job_status(job_id):
     job = Job.query.get_or_404(job_id)
     data = request.json
-    
     job.status = data.get('status', job.status)
     db.session.commit()
-    
-    return jsonify({
-        'id': job.id,
-        'job_number': job.job_number,
-        'status': job.status
-    }), 200
+    return jsonify({'id': job.id, 'job_number': job.job_number, 'status': job.status}), 200
 
 @app.route('/api/jobs/<int:job_id>/doors/<int:door_id>/complete', methods=['POST'])
 def complete_door(job_id, door_id):
     job = Job.query.get_or_404(job_id)
-    door = Door.query.get_or_404(door_id)
+    # door = Door.query.get_or_404(door_id) # 'door' is a reserved keyword or variable name here
+    door_instance = Door.query.get_or_404(door_id) # Renamed to avoid conflict
     data = request.json
     
-    # Handle file uploads (in a real app, this would save files to disk or cloud storage)
-    # Here we're just storing the file paths for demonstration
-    photo_path = f"uploads/{job.job_number}/door_{door.door_number}_photo.jpg"
-    video_path = f"uploads/{job.job_number}/door_{door.door_number}_video.mp4"
+    photo_path = f"uploads/{job.job_number}/door_{door_instance.door_number}_photo.jpg"
+    video_path = f"uploads/{job.job_number}/door_{door_instance.door_number}_video.mp4"
     
     completed_door = CompletedDoor(
         job_id=job_id,
@@ -969,25 +1276,201 @@ def complete_door(job_id, door_id):
         photo_path=photo_path,
         video_path=video_path
     )
-    
     db.session.add(completed_door)
-    db.session.commit()
-    
-    # Check if all doors are completed
     total_doors = len(job.bid.doors)
-    completed_doors = CompletedDoor.query.filter_by(job_id=job_id).count()
+    completed_doors_count = CompletedDoor.query.filter_by(job_id=job_id).count() + 1 # +1 for the current one being added
     
-    if completed_doors == total_doors:
+    if completed_doors_count >= total_doors: # Use >= in case of race condition or re-completion
         job.status = 'completed'
-        db.session.commit()
+    db.session.commit()
     
     return jsonify({
         'id': completed_door.id,
         'job_id': completed_door.job_id,
         'door_id': completed_door.door_id,
         'completed_at': completed_door.completed_at,
-        'all_completed': completed_doors == total_doors
+        'all_completed': completed_doors_count >= total_doors
     }), 201
+# Add these routes to handle site updates and deletions
+
+@app.route('/api/sites/<int:site_id>', methods=['PUT'])
+def update_site(site_id):
+    """
+    Update an existing site
+    
+    Args:
+        site_id (int): The ID of the site to update
+        
+    Returns:
+        JSON of the updated site
+    """
+    site = Site.query.get_or_404(site_id)
+    data = request.json
+    
+    if 'name' in data:
+        site.name = data['name']
+    if 'address' in data:
+        site.address = data['address']
+    if 'lockbox_location' in data:
+        site.lockbox_location = data['lockbox_location']
+    if 'contact_name' in data:
+        site.contact_name = data['contact_name']
+    if 'phone' in data:
+        site.phone = data['phone']
+    if 'email' in data:
+        site.email = data['email']
+    
+    db.session.commit()
+    return jsonify(serialize_site(site))
+
+
+@app.route('/api/sites/<int:site_id>', methods=['DELETE'])
+def delete_site(site_id):
+    """
+    Delete a site
+    
+    Args:
+        site_id (int): The ID of the site to delete
+        
+    Returns:
+        JSON confirmation of deletion
+    """
+    site = Site.query.get_or_404(site_id)
+    db.session.delete(site)
+    db.session.commit()
+    return jsonify({'success': True, 'message': f'Site {site_id} deleted successfully'})
+
+# Fix the customer update route
+@app.route('/api/customers/<int:customer_id>', methods=['PUT'])
+def update_customer(customer_id):
+    """
+    Update a customer
+    
+    Args:
+        customer_id (int): The ID of the customer to update
+        
+    Returns:
+        JSON of the updated customer
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    data = request.json
+    
+    if 'name' in data:
+        customer.name = data['name']
+    if 'address' in data:
+        customer.address = data['address']
+    if 'lockbox_location' in data:
+        customer.lockbox_location = data['lockbox_location']
+    if 'contact_name' in data:
+        customer.contact_name = data['contact_name']
+    if 'phone' in data:
+        customer.phone = data['phone']
+    if 'email' in data:
+        customer.email = data['email']
+    
+    db.session.commit()
+    
+    return jsonify({
+        'id': customer.id,
+        'name': customer.name,
+        'address': customer.address,
+        'lockbox_location': customer.lockbox_location,
+        'contact_name': customer.contact_name,
+        'phone': customer.phone,
+        'email': customer.email,
+        'created_at': customer.created_at.isoformat() if customer.created_at else None
+    })
+
+
+
+
+@app.route('/api/customers/<int:customer_id>', methods=['DELETE'])
+def delete_customer(customer_id):
+    """
+    Delete a customer and all related records
+    
+    Args:
+        customer_id (int): The ID of the customer to delete
+        
+    Returns:
+        JSON confirmation of deletion
+    """
+    try:
+        # Get the customer to delete
+        customer = Customer.query.get_or_404(customer_id)
+        
+        # First, delete records that depend on estimates 
+        # We need to go through the dependency chain from bottom to top
+        
+        # 1. Get all estimates for this customer
+        estimates = Estimate.query.filter_by(customer_id=customer_id).all()
+        
+        for estimate in estimates:
+            # 2. Delete audio recordings related to each estimate
+            AudioRecording.query.filter_by(estimate_id=estimate.id).delete()
+            
+            # 3. Get all bids for this estimate
+            bids = Bid.query.filter_by(estimate_id=estimate.id).all()
+            
+            for bid in bids:
+                # 4. Get all doors for this bid
+                doors = Door.query.filter_by(bid_id=bid.id).all()
+                
+                for door in doors:
+                    # 5. Delete line items for each door
+                    LineItem.query.filter_by(door_id=door.id).delete()
+                
+                # 6. Delete all doors for this bid
+                Door.query.filter_by(bid_id=bid.id).delete()
+                
+                # 7. Delete any jobs related to this bid
+                jobs = Job.query.filter_by(bid_id=bid.id).all()
+                
+                for job in jobs:
+                    # 8. Delete completed doors for each job
+                    CompletedDoor.query.filter_by(job_id=job.id).delete()
+                
+                # 9. Delete all jobs for this bid
+                Job.query.filter_by(bid_id=bid.id).delete()
+            
+            # 10. Delete all bids for this estimate
+            Bid.query.filter_by(estimate_id=estimate.id).delete()
+        
+        # 11. Delete all estimates for this customer
+        Estimate.query.filter_by(customer_id=customer_id).delete()
+        
+        # 12. Delete all sites for this customer
+        Site.query.filter_by(customer_id=customer_id).delete()
+        
+        # 13. Finally, delete the customer
+        db.session.delete(customer)
+        
+        # Commit all changes
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Customer {customer_id} and all related records deleted successfully'
+        })
+        
+    except Exception as e:
+        # Roll back the transaction in case of error
+        db.session.rollback()
+        
+        # Log the error for debugging
+        import traceback
+        error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        print(f"Error deleting customer {customer_id}: {error_msg}")
+        print(error_traceback)
+        
+        # Return a more helpful error message
+        return jsonify({
+            'success': False,
+            'message': f'Failed to delete customer: {error_msg}',
+            'error_type': type(e).__name__
+        }), 500
+
 
 # Replace the existing bid report route
 @app.route('/api/bids/<int:bid_id>/report', methods=['GET'])
@@ -1603,6 +2086,21 @@ def delete_audio(recording_id):
     
     return jsonify({'status': 'success', 'message': 'Recording deleted'}), 200
 
+# Fix the routes for handling sites
+@app.route('/api/customers/<int:customer_id>/sites', methods=['GET'])
+def get_sites_for_customer(customer_id):
+    """
+    Get all sites for a customer
+    
+    Args:
+        customer_id (int): The ID of the customer
+        
+    Returns:
+        JSON array of sites belonging to the customer
+    """
+    customer = Customer.query.get_or_404(customer_id)
+    sites = Site.query.filter_by(customer_id=customer_id).all()
+    return jsonify([serialize_site(site) for site in sites])
 
 
 @app.route('/api/audio/<int:recording_id>/process', methods=['POST'])

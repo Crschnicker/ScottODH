@@ -1,43 +1,189 @@
+/* JobDetails.css - Simplified styling with better mobile support */
+
 .job-details-container {
-  margin-bottom: 40px;
+  margin-bottom: 2rem;
 }
 
+/* Header styling */
 .job-details-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 1.5rem;
 }
 
+.job-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.status-badge {
+  padding: 0.5rem 0.75rem;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.status-badge-detail {
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  text-transform: capitalize;
+}
+
+.job-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Cards styling */
+.info-card {
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  border: none;
+  overflow: hidden;
+}
+
+.info-card .card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.25rem;
+}
+
+/* Info items styling */
 .info-row {
   display: flex;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-item:last-child {
+  border-bottom: none;
 }
 
 .info-label {
-  font-weight: bold;
-  min-width: 120px;
+  font-weight: 600;
+  color: #495057;
+  display: flex;
+  align-items: center;
+  min-width: 110px;
+  margin-right: 1rem;
 }
 
-.status-value {
-  display: inline-block;
+.info-value {
+  color: #212529;
+  display: flex;
+  align-items: center;
+}
+
+/* Status update section */
+.status-actions {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e9ecef;
+  padding-top: 1.5rem;
+}
+
+.status-label {
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #495057;
+}
+
+.status-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0.375rem 0.5rem;
+}
+
+/* Doors section */
+.doors-card {
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  border: none;
+  overflow: hidden;
+}
+
+.door-list {
+  border-radius: 4px;
 }
 
 .door-list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 1rem;
+  transition: background-color 0.2s;
+}
+
+.door-list-item:hover {
+  background-color: #f8f9fa;
+}
+
+.door-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .door-number {
-  font-weight: bold;
-  margin-right: 10px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #2c3e50;
+}
+
+.door-status-badge {
+  padding: 0.35rem 0.75rem;
+}
+
+.complete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Complete door modal */
+.complete-door-modal .modal-content {
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+}
+
+.complete-door-modal .modal-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 1rem 1.5rem;
+}
+
+.complete-door-modal .modal-body {
+  padding: 1.5rem;
 }
 
 .signature-container {
   border: 1px solid #ced4da;
-  border-radius: 0.25rem;
-  margin-bottom: 10px;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  background-color: #fff;
 }
 
 .signature-canvas {
@@ -45,33 +191,114 @@
   height: 200px;
 }
 
-@media (max-width: 768px) {
+.signature-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-input {
+  padding: 0.625rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Loading state */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6c757d;
+}
+
+.loading-container p {
+  margin-top: 1rem;
+  font-weight: 500;
+}
+
+/* Error and not found alerts */
+.error-alert,
+.not-found-alert {
+  margin-bottom: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .job-info-row {
+    margin-bottom: -1rem;
+  }
+  
+  .info-card {
+    margin-bottom: 1rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .job-title {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .status-badge {
+    align-self: flex-start;
+  }
+  
   .job-details-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  
+  .job-actions {
+    width: 100%;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .action-button {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .door-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .door-list-item {
     flex-direction: column;
     align-items: flex-start;
   }
   
-  .job-actions {
-    margin-top: 15px;
-    display: flex;
+  .door-actions {
+    margin-top: 1rem;
     width: 100%;
   }
   
-  .job-actions button {
-    flex: 1;
+  .complete-btn {
+    width: 100%;
   }
   
-  .info-row {
+  .modal-actions {
     flex-direction: column;
-    margin-bottom: 15px;
+    gap: 0.5rem;
   }
   
-  .info-label {
-    margin-bottom: 5px;
-  }
-  
-  .status-buttons {
-    display: flex;
-    flex-wrap: wrap;
+  .modal-actions button {
+    width: 100%;
   }
 }

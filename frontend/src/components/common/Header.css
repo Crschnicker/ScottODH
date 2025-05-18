@@ -1,0 +1,263 @@
+/* Header.css - Styling for the enhanced header component */
+
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    width: 100%;
+  }
+  
+  /* Main navbar styling */
+  .main-navbar {
+    padding: 0;
+    background: linear-gradient(to right, #1a2636, #2c3e50) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* Brand/logo section */
+  .brand {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+  }
+  
+  .brand-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+    color: #4dabf7;
+  }
+  
+  .brand-text {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    font-size: 1.25rem;
+  }
+  
+  /* Main navigation links */
+  .main-nav {
+    padding: 0.5rem 0;
+  }
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin: 0 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    color: rgba(255, 255, 255, 0.85) !important;
+  }
+  
+  .nav-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff !important;
+  }
+  
+  .nav-item.active {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #fff !important;
+    border-left: 3px solid #4dabf7;
+  }
+  
+  .nav-icon {
+    margin-right: 0.75rem;
+    font-size: 1.1rem;
+    color: #4dabf7;
+  }
+  
+  /* User controls section */
+  .user-controls {
+    display: flex;
+    align-items: center;
+  }
+  
+  .user-controls .nav-link,
+  .user-controls .dropdown-toggle {
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+  }
+  
+  .user-controls .nav-link:hover,
+  .user-controls .dropdown-toggle:hover {
+    color: #fff;
+  }
+  
+  /* Icon with notification badge */
+  .icon-with-badge {
+    position: relative;
+  }
+  
+  .badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background-color: #dc3545;
+    color: white;
+    font-size: 0.7rem;
+    height: 18px;
+    width: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    padding: 0;
+  }
+  
+  /* Quick add dropdown */
+  .quick-add-dropdown .dropdown-toggle {
+    background-color: #28a745;
+    border-color: #28a745;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+  }
+  
+  .quick-add-dropdown .dropdown-toggle:hover,
+  .quick-add-dropdown .dropdown-toggle:focus {
+    background-color: #218838;
+    border-color: #218838;
+  }
+  
+  /* Dropdown styling */
+  .dropdown-menu {
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border: none;
+    padding: 0.5rem 0;
+  }
+  
+  .dropdown-item {
+    padding: 0.6rem 1.5rem;
+    transition: background-color 0.2s;
+  }
+  
+  .dropdown-item:active {
+    background-color: #4dabf7;
+  }
+  
+  .dropdown-header {
+    font-weight: 600;
+    color: #6c757d;
+    padding: 0.6rem 1.5rem;
+  }
+  
+  /* Notification dropdown */
+  .notification-menu {
+    width: 320px;
+    padding: 0;
+  }
+  
+  .notification-item {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .notification-item.unread {
+    background-color: rgba(13, 110, 253, 0.05);
+  }
+  
+  .notification-item:last-child {
+    border-bottom: none;
+  }
+  
+  .notification-content {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .notification-title {
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 0.25rem;
+  }
+  
+  .notification-text {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .notification-time {
+    color: #adb5bd;
+    font-size: 0.75rem;
+  }
+  
+  /* Quick actions bar - optional component for dashboard */
+  .quick-actions-bar {
+    background-color: #f8f9fa;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .quick-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 991.98px) {
+    .main-navbar .navbar-collapse {
+      background-color: #2c3e50;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      padding: 1rem;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    .nav-item {
+      margin: 0.25rem 0;
+    }
+    
+    .nav-item.active {
+      border-left: none;
+      border-left: 3px solid #4dabf7;
+    }
+    
+    .user-controls {
+      flex-direction: column;
+      align-items: flex-start;
+      margin-top: 1rem;
+      width: 100%;
+    }
+    
+    .notification-dropdown,
+    .user-dropdown,
+    .quick-add-dropdown {
+      width: 100%;
+    }
+    
+    .user-controls .dropdown-toggle {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    
+    .quick-add-dropdown {
+      margin-bottom: 0.5rem;
+    }
+    
+    .quick-add-dropdown .dropdown-toggle {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-right: 0;
+    }
+  }
+  
+  /* Add a smooth transition when expanding the navbar on mobile */
+  .navbar-collapse {
+    transition: height 0.35s ease;
+  }
+  
+  /* Extra icons not defined in the component */
+  .FaPlus, .FaCog, .FaSignOutAlt, .FaFileAlt, .FaClipboardCheck, .FaChartLine {
+    display: inline-block;
+    margin-right: 0.5rem;
+  }

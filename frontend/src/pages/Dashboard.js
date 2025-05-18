@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Badge } from 'react-bootstrap';
+import { Card, Row, Col } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { FaClipboardList, FaFileInvoiceDollar, FaTools, FaCalendarAlt } from 'react-icons/fa';
 import { getEstimates } from '../services/estimateService';
@@ -40,22 +40,7 @@ const Dashboard = () => {
   const unscheduledJobs = jobs.filter(j => j.status === 'unscheduled');
   const scheduledJobs = jobs.filter(j => j.status === 'scheduled');
   
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'pending':
-        return <Badge bg="warning">Pending</Badge>;
-      case 'draft':
-        return <Badge bg="secondary">Draft</Badge>;
-      case 'unscheduled':
-        return <Badge bg="info">Unscheduled</Badge>;
-      case 'scheduled':
-        return <Badge bg="primary">Scheduled</Badge>;
-      case 'completed':
-        return <Badge bg="success">Completed</Badge>;
-      default:
-        return <Badge bg="secondary">{status}</Badge>;
-    }
-  };
+
   
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -145,7 +130,7 @@ const Dashboard = () => {
                     <div className="recent-item" key={estimate.id}>
                       <div className="recent-item-header">
                         <span className="recent-item-title">EST-{estimate.id}</span>
-                        {getStatusBadge(estimate.status)}
+                        {estimate.status ? estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1) : 'No Status'}
                       </div>
                       <div className="recent-item-details">
                         <span>{estimate.customer_name}</span>

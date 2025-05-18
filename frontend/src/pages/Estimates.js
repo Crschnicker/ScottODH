@@ -1,57 +1,81 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Button, Card } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button } from 'react-bootstrap';
 import { FaPlus } from 'react-icons/fa';
 import EstimateList from '../components/estimates/EstimateList';
 import EstimateForm from '../components/estimates/EstimateForm';
 
+/**
+ * Estimates Page Component
+ * 
+ * Main page for managing estimates. Displays a list of existing estimates and
+ * provides an interface to create new ones.
+ */
 const Estimates = () => {
+  // State for UI control
   const [showForm, setShowForm] = useState(false);
+  const [refreshListTrigger, setRefreshListTrigger] = useState(0);
   
-  const toggleForm = () => {
-    setShowForm(!showForm);
-  };
-  
+  /**
+   * Handle estimate creation completion
+   * Called when a new estimate has been created or the form is cancelled
+   */
   const handleEstimateCreated = () => {
-    // Automatically hide the form after estimate is created
-    setShowForm(false);
+    setShowForm(false); // Hide the form after estimate is created
+    setRefreshListTrigger(prev => prev + 1); // Trigger a refresh of the EstimateList
   };
   
   return (
     <Container fluid>
-      <Row className="mb-4">
+      <Row className="mb-4 align-items-center">
         <Col>
           <h2>Estimates</h2>
-          <p>Create and manage estimates for Scott Overhead Doors.</p>
+          <p className="mb-0">Create and manage estimates for Scott Overhead Doors.</p>
         </Col>
         <Col xs="auto">
           <Button 
             variant="primary" 
-            onClick={toggleForm}
+            onClick={() => setShowForm(prev => !prev)}
           >
-            <FaPlus className="me-2" />
-            {showForm ? 'Hide Form' : 'New Estimate'}
+            {showForm ? 'Cancel' : <><FaPlus className="me-2" /> New Estimate</>}
           </Button>
         </Col>
       </Row>
       
-      {showForm && (
+      {showForm ? (
         <Row className="mb-4">
           <Col>
-            <EstimateForm onEstimateCreated={handleEstimateCreated} />
+            <EstimateForm 
+              onEstimateCreated={handleEstimateCreated} 
+              onCancel={() => setShowForm(false)}
+            />
+          </Col>
+        </Row>
+      ) : (
+        <Row>
+          <Col>
+            <Card>
+              <Card.Header>
+                <div className="d-flex justify-content-between align-items-center">
+                  <span>Estimate List</span>
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={() => setShowForm(true)}
+                  >
+                    <FaPlus className="me-1" /> Create New
+                  </Button>
+                </div>
+              </Card.Header>
+              <Card.Body>
+                <EstimateList 
+                  refreshTrigger={refreshListTrigger} 
+                  onCreateClick={() => setShowForm(true)}
+                />
+              </Card.Body>
+            </Card>
           </Col>
         </Row>
       )}
-      
-      <Row>
-        <Col>
-          <Card>
-            <Card.Header>Estimate List</Card.Header>
-            <Card.Body>
-              <EstimateList onCreateClick={() => setShowForm(true)} />
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
     </Container>
   );
 };

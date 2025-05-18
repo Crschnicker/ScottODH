@@ -1,57 +1,372 @@
+/* JobList.css - Simplified styling for better cross-platform compatibility */
+
 .job-list-container {
-  margin-bottom: 30px;
+  margin-bottom: 2rem;
+}
+
+.job-list-card {
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  border: none;
+  overflow: hidden;
 }
 
 .job-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
 }
 
-.job-list-filters {
+/* Filters row styling */
+.filters-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
   align-items: center;
-  gap: 10px;
+}
+
+.filters-group {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .filter-dropdown {
   min-width: 180px;
 }
 
-.search-input {
-  width: 300px;
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  background-color: #fff;
+  color: #495057;
+  border-color: #ced4da;
 }
 
-.job-table th,
+.filter-toggle:hover, 
+.filter-toggle:focus {
+  background-color: #f8f9fa;
+  color: #212529;
+  border-color: #adb5bd;
+}
+
+.filter-menu {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border: none;
+  border-radius: 4px;
+}
+
+.filter-menu .dropdown-item.active {
+  background-color: #4dabf7;
+  color: #fff;
+}
+
+/* Search input styling */
+.search-input-container {
+  flex: 1;
+  min-width: 250px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.search-input {
+  border-left: none;
+  padding-left: 0;
+  background-color: #fff;
+}
+
+.search-icon {
+  background-color: #fff;
+  border-right: none;
+  color: #6c757d;
+}
+
+.clear-search {
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.75rem;
+}
+
+.clear-search:hover {
+  color: #343a40;
+  background: transparent;
+}
+
+/* Table styling */
+.job-table {
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.job-table th {
+  background-color: #f8f9fa;
+  color: #495057;
+  font-weight: 600;
+  border-top: none;
+  white-space: nowrap;
+  padding: 0.75rem 1rem;
+}
+
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.sortable-header:hover {
+  background-color: #e9ecef;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-icon {
+  font-size: 0.85rem;
+  color: #4dabf7;
+}
+
+.sort-icon.asc {
+  transform: rotate(180deg);
+}
+
 .job-table td {
   vertical-align: middle;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #f0f0f0;
 }
 
-.region-tag {
+.location-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.address-text {
+  margin-bottom: 0.25rem;
+}
+
+.region-badge {
   display: inline-block;
-  font-size: 0.8em;
-  padding: 0.2em 0.5em;
-  background-color: #e9ecef;
-  border-radius: 0.25rem;
-  margin-top: 0.3em;
+  font-size: 0.75rem;
+  font-weight: 500;
+  align-self: flex-start;
 }
 
-@media (max-width: 992px) {
-  .job-list-header {
+.actions-column {
+  width: 220px;
+  text-align: right;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.action-link {
+  text-decoration: none;
+}
+
+/* Empty state styling */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6c757d;
+}
+
+.empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+  color: #6c757d;
+}
+
+/* Error state styling */
+.error-state {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #dc3545;
+  background-color: rgba(220, 53, 69, 0.05);
+  border-radius: 6px;
+}
+
+/* Loading state */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6c757d;
+}
+
+.loading-container p {
+  margin-top: 1rem;
+  font-weight: 500;
+}
+
+/* Footer styling */
+.list-footer {
+  background-color: #f8f9fa;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 0.75rem 1.25rem;
+}
+
+.refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Animation for refresh icon */
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .filter-dropdown {
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .hide-sm {
+    display: none;
+  }
+  
+  .filters-row {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
   
-  .job-list-filters {
-    margin-top: 10px;
-    flex-wrap: wrap;
+  .filters-group {
+    flex-direction: column;
+  }
+  
+  .filter-dropdown {
     width: 100%;
   }
   
-  .filter-dropdown,
-  .search-input {
+  .search-input-container {
     width: 100%;
-    margin-bottom: 10px;
+  }
+  
+  /* Responsive table for mobile */
+  .job-table {
+    border: 0;
+  }
+  
+  .job-table thead {
+    border: none;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+  
+  .job-table tr {
+    border-bottom: 1px solid #f0f0f0;
+    display: block;
+    margin-bottom: 1rem;
+    background-color: #fff;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .job-table td {
+    border-bottom: 1px solid #f8f9fa;
+    display: block;
+    font-size: 0.9rem;
+    text-align: right;
+    padding: 0.75rem 1rem 0.75rem 45%;
+    position: relative;
+  }
+  
+  .job-table td:last-child {
+    border-bottom: 0;
+  }
+  
+  .job-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    position: absolute;
+    left: 1rem;
+    width: 45%;
+    white-space: nowrap;
+    text-align: left;
+    color: #495057;
+  }
+  
+  /* Location cell mobile styling */
+  .location-info {
+    width: 100%;
+  }
+  
+  .address-text {
+    margin-right: 0.5rem;
+  }
+  
+  .region-badge {
+    display: inline-block;
+    margin-top: 0.25rem;
+  }
+  
+  .actions-column {
+    text-align: center;
+    width: 100%;
+    padding: 0.75rem !important;
+  }
+  
+  .actions-column::before {
+    display: none !important;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .action-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  /* Footer adjustments */
+  .list-footer .d-flex {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  
+  .refresh-btn {
+    width: 100%;
+    justify-content: center;
   }
 }

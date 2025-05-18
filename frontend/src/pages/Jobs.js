@@ -8,15 +8,11 @@ const Jobs = () => {
   const { jobId } = useParams();
   
   return (
-    <Container fluid>
+    <Container fluid className="jobs-page-container" style={{ background: '#f5f7fa', minHeight: '100vh', padding: '32px 0 24px 0' }}>
       {jobId ? (
         <JobDetails />
       ) : (
-        <>
-          <h2>Jobs</h2>
-          <p>Manage and track jobs for Scott Overhead Doors.</p>
-          <JobList />
-        </>
+        <JobList />
       )}
     </Container>
   );

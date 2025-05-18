@@ -1,0 +1,26 @@
+/* EstimateForm.css */
+.estimate-form-card {
+  box-shadow: 0 .125rem .25rem rgba(0,0,0,.075);
+}
+
+.selected-info {
+  background-color: #f8f9fa;
+  border-radius: 0.25rem;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.selected-info .label {
+  font-weight: 600;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.selected-info .value {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.form-label {
+  font-weight: 500;
+}
