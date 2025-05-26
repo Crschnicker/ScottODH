@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
-import { Card, Button, ListGroup, Badge } from 'react-bootstrap';
+import { Card, Button, Badge, ListGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { getJobs } from '../../services/jobService';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -10,7 +10,7 @@ import './Calendar.css';
 /**
  * JobCalendar Component
  * Displays scheduled jobs in a calendar view with detailed list for selected date
- * Optimized for space efficiency and better layout
+ * Optimized layout to match EstimateCalendar's space efficiency
  */
 const JobCalendar = ({ region, onSelectDate }) => {
   // State management
@@ -18,7 +18,10 @@ const JobCalendar = ({ region, onSelectDate }) => {
   const [jobs, setJobs] = useState([]);
   const [selectedDateJobs, setSelectedDateJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [calendarView, setCalendarView] = useState('month');
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   
   const navigate = useNavigate();
   const localizer = momentLocalizer(moment);
@@ -30,6 +33,15 @@ const JobCalendar = ({ region, onSelectDate }) => {
    */
   const formatDateKey = (date) => {
     return moment(date).format('YYYY-MM-DD');
+  };
+  
+  /**
+   * Format time for display
+   * @param {Date} date - The date to format
+   * @returns {string} Formatted time string (h:mm A)
+   */
+  const formatTime = (date) => {
+    return moment(date).format('h:mm A');
   };
   
   /**
@@ -47,16 +59,26 @@ const JobCalendar = ({ region, onSelectDate }) => {
       
       // Transform jobs into events for the calendar
       const jobEvents = fetchedJobs.map(job => {
-        // Create a date object from scheduled_date
-        const jobDate = new Date(job.scheduled_date);
+        // Parse date and set to noon to avoid timezone issues
+        let jobDate;
         
-        // Create an end date (default to 1 hour after start)
+        if (job.scheduled_date) {
+          // Parse the date string to a Date object
+          jobDate = new Date(job.scheduled_date);
+          // Ensure it's set to noon to avoid timezone issues
+          jobDate.setHours(12, 0, 0, 0);
+        } else {
+          jobDate = new Date();
+          jobDate.setHours(12, 0, 0, 0);
+        }
+        
+        // Create an end date (1 hour after start)
         const endDate = new Date(jobDate);
         endDate.setHours(endDate.getHours() + 1);
         
         return {
           id: job.id,
-          title: `${job.job_number}: ${job.customer_name}`, // More concise title
+          title: `${job.job_number}: ${job.customer_name}`,
           start: jobDate,
           end: endDate,
           resource: job // Store the original job data
@@ -69,6 +91,7 @@ const JobCalendar = ({ region, onSelectDate }) => {
       updateSelectedDateJobs(calendarDate, jobEvents);
     } catch (error) {
       console.error('Error loading scheduled jobs:', error);
+      setError('Failed to load jobs. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -86,8 +109,10 @@ const JobCalendar = ({ region, onSelectDate }) => {
    */
   const updateSelectedDateJobs = (date, jobsList = jobs) => {
     const dateStr = formatDateKey(date);
-    const filtered = jobsList.filter(job => formatDateKey(job.start) === dateStr)
-      .map(job => job.resource);
+    const filtered = jobsList.filter(job => {
+      const jobDateStr = formatDateKey(job.start);
+      return jobDateStr === dateStr;
+    }).map(job => job.resource);
     
     setSelectedDateJobs(filtered);
   };
@@ -97,11 +122,15 @@ const JobCalendar = ({ region, onSelectDate }) => {
    * @param {Object} slotInfo - Information about the selected slot
    */
   const handleSelectSlot = ({ start }) => {
-    setCalendarDate(start);
-    updateSelectedDateJobs(start);
+    // Create a new date with time fixed at noon to avoid timezone shifts
+    const selectedDate = new Date(start);
+    selectedDate.setHours(12, 0, 0, 0);
+    
+    setCalendarDate(selectedDate);
+    updateSelectedDateJobs(selectedDate);
     
     if (onSelectDate) {
-      onSelectDate(start);
+      onSelectDate(selectedDate);
     }
   };
   
@@ -119,48 +148,49 @@ const JobCalendar = ({ region, onSelectDate }) => {
    * @returns {string} Formatted date string
    */
   const formatDisplayDate = (date) => {
+    if (!date) return '';
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString(undefined, options);
+  };
+  
+  /**
+   * Filter jobs displayed in the sidebar based on search text and status
+   * @returns {Array} Filtered jobs
+   */
+  const getFilteredJobs = () => {
+    if (!searchText && statusFilter === 'all') return selectedDateJobs;
+    
+    return selectedDateJobs.filter(job => {
+      const matchesSearch = !searchText || 
+        job.job_number?.toLowerCase().includes(searchText.toLowerCase()) ||
+        job.customer_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        job.address?.toLowerCase().includes(searchText.toLowerCase());
+        
+      const matchesStatus = statusFilter === 'all' || 
+        job.status?.toLowerCase() === statusFilter.toLowerCase();
+        
+      return matchesSearch && matchesStatus;
+    });
   };
   
   /**
    * Custom toolbar component for the calendar
    */
   const CustomToolbar = (toolbar) => {
-    const goToBack = () => {
-      toolbar.onNavigate('PREV');
-    };
+    const goToBack = () => toolbar.onNavigate('PREV');
+    const goToNext = () => toolbar.onNavigate('NEXT');
+    const goToToday = () => toolbar.onNavigate('TODAY');
     
-    const goToNext = () => {
-      toolbar.onNavigate('NEXT');
-    };
-    
-    const goToToday = () => {
-      toolbar.onNavigate('TODAY');
-    };
-    
-    const viewLabels = {
-      month: 'Month',
-      week: 'Week',
-      day: 'Day',
-      agenda: 'List'
-    };
+    const viewLabels = { month: 'Month', week: 'Week', day: 'Day', agenda: 'List' };
     
     return (
       <div className="d-flex justify-content-between align-items-center mb-2">
         <div>
-          <Button variant="outline-secondary" size="sm" onClick={goToBack}>
-            &lt;
-          </Button>
-          <Button variant="outline-primary" size="sm" onClick={goToToday} className="mx-2">
-            Today
-          </Button>
-          <Button variant="outline-secondary" size="sm" onClick={goToNext}>
-            &gt;
-          </Button>
+          <Button variant="outline-secondary" size="sm" onClick={goToBack}>&lt;</Button>
+          <Button variant="outline-primary" size="sm" onClick={goToToday} className="mx-2">Today</Button>
+          <Button variant="outline-secondary" size="sm" onClick={goToNext}>&gt;</Button>
           <span className="ms-2 fw-bold">{toolbar.label}</span>
         </div>
-        
         <div className="btn-group">
           {Object.keys(viewLabels).map(view => (
             <Button
@@ -181,18 +211,29 @@ const JobCalendar = ({ region, onSelectDate }) => {
   };
   
   /**
-   * Styling for the job events in the calendar
-   * @returns {Object} Style object for events
+   * Custom styling for calendar events
    */
-  const eventStyleGetter = () => {
+  const eventStyleGetter = (event) => {
+    // Extract job status from the resource
+    const status = event.resource?.status?.toLowerCase() || 'scheduled';
+    
+    let backgroundColor = '#007bff'; // Default blue
+    
+    switch (status) {
+      case 'completed': backgroundColor = '#28a745'; break; // Green
+      case 'in_progress': backgroundColor = '#ffc107'; break; // Yellow
+      case 'cancelled': backgroundColor = '#dc3545'; break; // Red
+      default: backgroundColor = '#007bff'; // Blue for scheduled
+    }
+    
     return {
       style: {
-        backgroundColor: '#007bff',
+        backgroundColor,
         borderRadius: '4px',
-        color: '#fff',
+        color: status === 'in_progress' ? '#212529' : '#fff',
         border: 'none',
         display: 'block',
-        fontSize: '0.85rem', // Smaller font for better fit
+        fontSize: '0.85rem',
         padding: '2px 4px'
       }
     };
@@ -200,34 +241,24 @@ const JobCalendar = ({ region, onSelectDate }) => {
   
   /**
    * Custom day cell component for month view
-   * Shows the date number and optional indicator for jobs count
    */
-  const DayCellWrapper = ({ value, children }) => {
-    const dateStr = formatDateKey(value);
+  const DateCellWrapper = ({ value }) => {
+    const date = value;
+    const dateStr = formatDateKey(date);
     const jobsForDate = jobs.filter(job => formatDateKey(job.start) === dateStr);
-    const hasJobs = jobsForDate.length > 0;
     
     return (
       <div className="position-relative h-100">
-        <div className="position-absolute" style={{ right: '5px', top: '2px' }}>
-          {value.getDate()}
-        </div>
-        {children}
-        {hasJobs && (
+        <div className="position-absolute" style={{ right: '5px', top: '2px' }}>{date.getDate()}</div>
+        {jobsForDate.length > 0 && (
           <div 
-            className="position-absolute"
+            className="position-absolute" 
             style={{ 
-              bottom: '2px', 
-              right: '5px',
+              bottom: '2px', right: '5px',
               backgroundColor: '#007bff',
-              borderRadius: '50%',
-              width: '18px',
-              height: '18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '10px',
-              color: 'white'
+              borderRadius: '50%', width: '18px', height: '18px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '10px', color: '#fff'
             }}
           >
             {jobsForDate.length}
@@ -244,17 +275,10 @@ const JobCalendar = ({ region, onSelectDate }) => {
     let variant = 'primary';
     
     switch (status?.toLowerCase()) {
-      case 'completed':
-        variant = 'success';
-        break;
-      case 'in_progress':
-        variant = 'warning';
-        break;
-      case 'cancelled':
-        variant = 'danger';
-        break;
-      default:
-        variant = 'primary';
+      case 'completed': variant = 'success'; break;
+      case 'in_progress': variant = 'warning'; break;
+      case 'cancelled': variant = 'danger'; break;
+      default: variant = 'primary';
     }
     
     return (
@@ -264,13 +288,121 @@ const JobCalendar = ({ region, onSelectDate }) => {
     );
   };
   
+  /**
+   * HourlyTimeline component to display jobs in a timeline view
+   * Similar to the one in EstimateCalendar
+   */
+  const HourlyTimeline = () => {
+    const startHour = 6; 
+    const endHour = 17;  
+    const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
+    
+    // Function to calculate job position and height in the timeline
+    const calculateJobPosition = (job) => {
+      // For this example, we'll just position all jobs at 9 AM and make them 2 hours long
+      // In a real app, you would use the actual scheduled time
+      const jobHour = 9; // Default to 9 AM
+      const jobDuration = 2; // 2 hours
+      
+      const totalTimelineSpanHours = endHour - startHour;
+      
+      const topPosition = ((jobHour - startHour) / totalTimelineSpanHours) * 100;
+      const heightPercentage = (jobDuration / totalTimelineSpanHours) * 100;
+      
+      return {
+        top: `${Math.max(0, topPosition)}%`, 
+        height: `${Math.max(0, heightPercentage)}%`,
+      };
+    };
+    
+    const getJobColor = (job) => {
+      switch (job.status?.toLowerCase()) {
+        case 'completed': return '#28a745';
+        case 'in_progress': return '#ffc107';
+        case 'cancelled': return '#dc3545';
+        default: return '#007bff';
+      }
+    };
+    
+    return (
+      <div className="hourly-timeline p-3">
+        <h6 className="mb-3">Day Schedule</h6>
+        <div className="timeline-container" style={{ position: 'relative', height: '480px', overflow: 'hidden' }}>
+          {hours.map((hour) => (
+            <div 
+              key={hour} 
+              className="hour-row d-flex align-items-center" 
+              style={{ 
+                position: 'absolute', 
+                width: '100%', 
+                height: `${100 / hours.length}%`, 
+                top: `${((hour - startHour) / hours.length) * 100}%`,
+                borderBottom: (hour < endHour) ? '1px solid #e9ecef' : 'none',
+              }}
+            >
+              <div className="hour-label" style={{ width: '50px', fontSize: '0.8rem', color: '#6c757d', paddingRight: '5px' }}>
+                {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+              </div>
+            </div>
+          ))}
+          
+          {selectedDateJobs.map((job) => {
+            const positionStyle = calculateJobPosition(job);
+            
+            return (
+              <div
+                key={job.id}
+                className="job-block position-absolute rounded shadow-sm p-1"
+                style={{
+                  left: '60px', 
+                  right: '10px', 
+                  ...positionStyle,
+                  backgroundColor: getJobColor(job),
+                  color: job.status === 'in_progress' ? '#212529' : '#fff', 
+                  cursor: 'pointer',
+                  zIndex: 10,
+                  overflow: 'hidden',
+                  fontSize: '0.8rem', 
+                }}
+                onClick={() => navigate(`/jobs/${job.id}`)}
+                title={`${job.customer_name}\nJob #: ${job.job_number}\nStatus: ${job.status || 'Scheduled'}`}
+              >
+                <div className="d-flex justify-content-between align-items-start">
+                  <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {job.job_number}
+                  </div>
+                  <JobStatusBadge status={job.status} />
+                </div>
+                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {job.customer_name}
+                </div>
+                <div style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {job.address && job.address.split(',')[0]}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+  
   if (loading && jobs.length === 0) {
     return (
       <div className="text-center p-3">
         <div className="spinner-border spinner-border-sm text-primary me-2" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
-        <span>Loading calendar...</span>
+        <span>Loading jobs...</span>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="alert alert-danger" role="alert">
+        {error}
+        <Button variant="outline-danger" size="sm" className="ms-2" onClick={() => loadScheduledJobs()}>Retry</Button>
       </div>
     );
   }
@@ -278,15 +410,15 @@ const JobCalendar = ({ region, onSelectDate }) => {
   return (
     <div className={`job-calendar-container ${calendarView !== 'month' ? 'single-column' : ''}`}>
       <div className="calendar-section">
-        <h3 className="calendar-title text-center mb-3">Job Schedule</h3>
-        <Card className="shadow-sm">
+        <h3 className="calendar-title mb-3 text-center">Job Schedule</h3>
+        <Card className="shadow-sm mb-0">
           <Card.Body className="p-3">
-            <Calendar 
+            <Calendar
               localizer={localizer}
               events={jobs}
               startAccessor="start"
               endAccessor="end"
-              style={{ height: 650 }}
+              style={{ height: 600 }}
               defaultView="month"
               views={['month', 'week', 'day', 'agenda']}
               selectable
@@ -295,15 +427,19 @@ const JobCalendar = ({ region, onSelectDate }) => {
               eventPropGetter={eventStyleGetter}
               components={{
                 toolbar: CustomToolbar,
-                dateCellWrapper: DayCellWrapper
+                dateCellWrapper: DateCellWrapper
               }}
               onNavigate={date => {
                 setCalendarDate(date);
-                updateSelectedDateJobs(date);
+                updateSelectedDateJobs(date, jobs);
               }}
               onView={view => setCalendarView(view)}
               popup
-              tooltipAccessor={event => event.title}
+              tooltipAccessor={event => 
+                `${event.resource?.job_number}\n` +
+                `${event.resource?.customer_name}\n` +
+                `Status: ${event.resource?.status || 'Scheduled'}`
+              }
             />
           </Card.Body>
         </Card>
@@ -316,62 +452,63 @@ const JobCalendar = ({ region, onSelectDate }) => {
               <h5 className="mb-0">{formatDisplayDate(calendarDate)}</h5>
             </Card.Header>
             <Card.Body className="p-0">
-              {selectedDateJobs.length === 0 ? (
-                <p className="text-muted p-3 mb-0">No jobs scheduled for this date.</p>
-              ) : (
-                <>
-                  <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
-                    <h6 className="mb-0">{selectedDateJobs.length} Jobs Scheduled</h6>
-                    <Button 
-                      variant="outline-secondary" 
-                      size="sm"
-                      onClick={() => loadScheduledJobs()}
-                    >
-                      Refresh
-                    </Button>
-                  </div>
-                  <ListGroup variant="flush">
-                    {selectedDateJobs.map(job => (
-                      <ListGroup.Item 
-                        key={job.id}
-                        className="scheduled-job-item"
-                        action
-                        onClick={() => navigate(`/jobs/${job.id}`)}
+              {(() => {
+                if (selectedDateJobs.length === 0) {
+                  return <p className="text-muted p-3 mb-0">No jobs scheduled for this date.</p>;
+                }
+                
+                return (
+                  <>
+                    <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
+                      <h6 className="mb-0">{selectedDateJobs.length} Job{selectedDateJobs.length === 1 ? '' : 's'} Scheduled</h6>
+                      <Button 
+                        variant="outline-secondary" 
+                        size="sm"
+                        onClick={() => loadScheduledJobs()}
                       >
-                        <div className="job-info">
-                          <div className="job-name">
-                            <span className="job-number">{job.job_number}</span>
-                            <span>{job.customer_name}</span>
-                            {job.status && <JobStatusBadge status={job.status} />}
-                          </div>
-                          <div className="job-address">
-                            {job.address || 'No address'} 
-                            {job.region && (
-                              <span className="ms-2 badge bg-light text-dark">
-                                {job.region}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="job-actions">
-                          <Button 
-                            variant="outline-primary" 
-                            size="sm"
+                        Refresh
+                      </Button>
+                    </div>
+                    
+                    <HourlyTimeline />
+                    
+                    <div className="p-3 border-top">
+                      <h6 className="mb-2">Job Details</h6>
+                      <ListGroup variant="flush">
+                        {getFilteredJobs().map(job => (
+                          <ListGroup.Item 
+                            key={job.id}
+                            className="px-0 py-2 border-bottom"
+                            action
+                            onClick={() => navigate(`/jobs/${job.id}`)}
                           >
-                            View
-                          </Button>
-                        </div>
-                      </ListGroup.Item>
-                    ))}
-                  </ListGroup>
-                </>
-              )}
+                            <div className="d-flex justify-content-between align-items-start">
+                              <div className="job-info">
+                                <div className="d-flex align-items-center mb-1">
+                                  <span className="job-number me-2">{job.job_number}</span>
+                                  <JobStatusBadge status={job.status} />
+                                </div>
+                                <div className="customer-name mb-1">
+                                  {job.customer_name}
+                                </div>
+                                <div className="job-address text-muted small">
+                                  {job.address || 'No address'}
+                                  {job.region && <span className="ms-2 badge bg-light text-dark">{job.region}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </ListGroup.Item>
+                        ))}
+                      </ListGroup>
+                    </div>
+                  </>
+                );
+              })()}
               
               {onSelectDate && (
                 <div className="p-3 border-top">
                   <Button 
                     variant="success"
-                    size="sm"
                     className="w-100"
                     onClick={() => onSelectDate(calendarDate)}
                   >

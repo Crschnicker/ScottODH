@@ -1,162 +1,167 @@
-/* Improved Calendar Layout */
-.job-calendar-container {
+/* Shared Calendar Container Styles */
+.job-calendar-container,
+.estimate-calendar-container {
   display: grid;
   grid-template-columns: 1fr;
   grid-gap: 20px;
-  margin-bottom: 0; /* Remove bottom margin to prevent scrolling */
+  margin-bottom: 20px;
 }
 
-/* Improved desktop layout with better space utilization */
+/* Desktop layout with side panel */
 @media (min-width: 992px) {
-  .job-calendar-container {
+  .job-calendar-container,
+  .estimate-calendar-container {
     grid-template-columns: 3fr 1fr;
     grid-gap: 24px;
   }
 }
 
-/* Compact layout for smaller screens */
-@media (max-width: 767.98px) {
-  .calendar-section {
-    margin-bottom: 16px;
-  }
-  
-  .calendar-title {
-    font-size: 1.25rem;
-    margin-bottom: 12px !important;
-  }
-  
-  .larger-calendar {
-    max-width: 100%;
-    padding: 0;
-  }
-}
-
-/* Enhanced calendar wrapper */
-.calendar-wrapper {
+/* Calendar section styles */
+.calendar-section {
   width: 100%;
-  max-width: 100%;
 }
 
-.larger-calendar {
-  height: 600px; /* Further reduced height to prevent scrolling */
+.calendar-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
 }
 
-/* Date details section with improved sizing */
+/* Date details section */
 .date-details-section {
   width: 100%;
-  display: flex;
-  justify-content: flex-start;
-  margin-top: 0; /* Remove top margin to reduce wasted space */
-  /* Ensure this section doesn't create additional space */
-  min-height: 0;
-  overflow: visible;
 }
 
 .date-details {
-  width: 100%;
-  max-width: 100%; /* Take full width of container */
-  position: sticky;
-  top: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  height: fit-content;
 }
 
-/* Compact item styles */
-.scheduled-job-item, .scheduled-estimate-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 12px; /* Reduced padding */
-  border-bottom: 1px solid #f2f2f2;
+.date-details .card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
 }
 
-/* Improved item content spacing */
-.job-info, .estimate-info {
-  flex: 1;
+.date-details .card-body {
+  padding: 0;
 }
 
-.job-name, .estimate-name {
-  font-weight: 500;
-  margin-bottom: 4px; /* Reduced margin */
+/* Timeline Styles */
+.hourly-timeline {
+  border-bottom: 1px solid #e9ecef;
 }
 
-.job-number {
-  font-weight: bold;
-  margin-right: 8px;
-  color: #0056b3;
-}
-
-.estimate-title {
-  font-weight: 600;
-}
-
-/* Compact address display */
-.job-address, .estimate-details {
-  font-size: 0.85rem;
-  color: #6c757d;
-  line-height: 1.4;
-}
-
-/* Better button alignment */
-.job-actions, .estimate-actions {
-  margin-left: 8px;
-  display: flex;
-  align-items: center;
-}
-
-/* Calendar event styling */
-.rbc-event {
-  padding: 2px 4px !important;
-  border-radius: 3px !important;
-  font-size: 0.85rem !important;
-}
-
-/* Calendar cell styling */
-.rbc-day-bg {
+.hour-row {
   position: relative;
 }
 
-/* Calendar toolbar optimization */
+.hour-label {
+  color: #6c757d;
+  font-size: 0.8rem;
+  width: 50px;
+  text-align: right;
+  padding-right: 8px;
+}
+
+/* Shared event styling for jobs and estimates */
+.job-block,
+.estimate-block {
+  position: absolute;
+  border-radius: 4px;
+  padding: 4px 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+  z-index: 10;
+}
+
+.job-block:hover,
+.estimate-block:hover {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Calendar overrides for consistency */
+.rbc-calendar {
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: white;
+}
+
 .rbc-toolbar {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  margin-bottom: 12px !important;
+  padding: 8px;
+  border-bottom: 1px solid #e9ecef;
 }
 
 .rbc-toolbar button {
-  padding: 6px 10px !important;
+  color: #495057;
+  border-color: #ced4da;
 }
 
-/* Single column layout option for mobile or specific views */
-.job-calendar-container.single-column {
-  display: block;
-  width: 100%;
-  margin-bottom: 24px;
+.rbc-toolbar button.rbc-active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
 }
 
-/* Calendar day cell optimization */
-.rbc-date-cell {
-  padding: 3px 5px !important;
-  text-align: right !important;
-}
-
-/* Calendar header row optimization */
-.rbc-month-header {
-  height: 32px !important;
-}
-
-/* Job/estimate count indicator styling */
-.job-count-marker, .estimate-count-marker {
-  display: flex;
-  justify-content: center;
-  margin-top: 3px;
-}
-
-.job-count-text, .estimate-count-text {
-  display: inline-block;
-  background: #e3e9f6;
-  color: #24324d;
-  font-size: 0.8rem;
+.rbc-header {
+  padding: 8px 0;
   font-weight: 600;
-  padding: 1px 8px;
-  border-radius: 10px;
+}
+
+.rbc-today {
+  background-color: rgba(0, 123, 255, 0.08);
+}
+
+.rbc-event {
+  background-color: #007bff;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+}
+
+.rbc-day-bg:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* List item styles */
+.list-group-item {
+  transition: background-color 0.15s ease;
+  border-left: 3px solid transparent;
+}
+
+.list-group-item:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+  border-left-color: #007bff;
+}
+
+.job-number,
+.estimate-number {
+  font-weight: 600;
+  color: #007bff;
+}
+
+.customer-name {
+  font-weight: 500;
+}
+
+/* Single column layout for different calendar views */
+.job-calendar-container.single-column,
+.estimate-calendar-container.single-column {
+  display: block;
+}
+
+/* Responsive adjustments */
+@media (max-width: 991.98px) {
+  .job-calendar-container,
+  .estimate-calendar-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .date-details-section {
+    margin-top: 20px;
+  }
 }

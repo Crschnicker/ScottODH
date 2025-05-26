@@ -271,11 +271,6 @@ const EstimateForm = ({ onEstimateCreated, onCancel }) => {
   // No changes needed in the JSX part for this request.
   return (
     <Card className="shadow-sm">
-      <Card.Header>
-        <h5 className="mb-0">
-          {step === 1 ? 'Select Customer & Site' : 'Create New Estimate'}
-        </h5>
-      </Card.Header>
       <Card.Body>
         {/* Step 1: Customer & Site Selection */}
         {step === 1 && (
@@ -354,7 +349,7 @@ const EstimateForm = ({ onEstimateCreated, onCancel }) => {
               </Row>
               
               <Form.Group className="mb-3">
-                <Form.Label style={{fontWeight: '500'}}>Description</Form.Label>
+                <Form.Label style={{fontWeight: '500'}}>Additional Description</Form.Label>
                 <Form.Control
                   as="textarea"
                   rows={3}

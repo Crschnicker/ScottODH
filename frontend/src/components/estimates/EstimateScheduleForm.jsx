@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Form, Row, Col, Alert } from 'react-bootstrap';
-import { formatDateForInput } from '../../utils/dateHelpers';
+import { formatDateForInput } from '../../utils/DateHelpers';
 
 /**
  * EstimateScheduleForm Component

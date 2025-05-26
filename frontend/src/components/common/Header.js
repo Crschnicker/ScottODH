@@ -1,197 +1,364 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Navbar, Nav, Container, Button, Dropdown } from 'react-bootstrap';
-import { 
-  FaHome, 
-  FaUsers, 
-  FaClipboardList, 
-  FaFileInvoiceDollar, 
-  FaTools, 
-  FaCalendar,
-  FaUserCircle,
-  FaBell,
-  FaPlus,
-  FaCog,
-  FaSignOutAlt,
-  FaFileAlt,
-  FaClipboardCheck,
-  FaChartLine
-} from 'react-icons/fa';
 import './Header.css';
 
 /**
- * Enhanced Header component that replaces both the original Header and Sidebar
- * Provides comprehensive navigation in a user-friendly layout
+ * Enhanced Header component with integrated authentication support
+ * Maintains existing design while adding secure user management features
+ * Responsive design with mobile-first approach
  */
-const Header = () => {
+const Header = ({ 
+  currentUser, 
+  onLogout, 
+  onShowPasswordModal, 
+  isAuthenticated = false 
+}) => {
   const location = useLocation();
-  const [expanded, setExpanded] = useState(false);
-  
-  // Helper function to determine if a nav item is active
-  const isActive = (path) => {
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  /**
+   * Navigation items configuration with role-based access control
+   * Dynamically shows/hides items based on user permissions
+   */
+  const getNavigationItems = () => {
+    const baseNavItems = [
+      { path: '/', label: 'Dashboard', icon: 'fas fa-tachometer-alt' },
+      { path: '/customers', label: 'Customers', icon: 'fas fa-users' },
+      { path: '/estimates', label: 'Estimates', icon: 'fas fa-file-alt' },
+      { path: '/bids', label: 'Bids', icon: 'fas fa-dollar-sign' },
+      { path: '/jobs', label: 'Jobs', icon: 'fas fa-wrench' },
+      { path: '/schedule', label: 'Schedule', icon: 'fas fa-calendar-alt' }
+    ];
+
+    // Add admin-only navigation items
+    if (currentUser?.role === 'admin') {
+      baseNavItems.push({
+        path: '/users',
+        label: 'User Management',
+        icon: 'fas fa-user-cog',
+        adminOnly: true
+      });
+    }
+
+    return baseNavItems;
+  };
+
+  /**
+   * Check if current route matches navigation item
+   * Supports exact matching and nested route detection
+   */
+  const isActiveRoute = (path) => {
     if (path === '/') {
       return location.pathname === '/';
     }
     return location.pathname.startsWith(path);
   };
-  
-  // Notification count - would be populated from a real notification system
-  const notificationCount = 3;
-  
+
+  /**
+   * Handle user dropdown toggle with click outside handling
+   */
+  const toggleUserDropdown = () => {
+    setShowUserDropdown(!showUserDropdown);
+  };
+
+  /**
+   * Handle mobile menu toggle
+   */
+  const toggleMobileMenu = () => {
+    setShowMobileMenu(!showMobileMenu);
+  };
+
+  /**
+   * Handle user logout with confirmation and cleanup
+   */
+  const handleLogout = async () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      setShowUserDropdown(false);
+      setShowMobileMenu(false);
+      await onLogout();
+    }
+  };
+
+  /**
+   * Handle password change modal opening
+   */
+  const handlePasswordChange = () => {
+    setShowUserDropdown(false);
+    onShowPasswordModal();
+  };
+
+  /**
+   * Handle click outside dropdown to close it
+   */
+  const handleClickOutside = (event) => {
+    if (!event.target.closest('.user-dropdown-container')) {
+      setShowUserDropdown(false);
+    }
+  };
+
+  // Add click outside listener
+  React.useEffect(() => {
+    if (showUserDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showUserDropdown]);
+
+  const navigationItems = getNavigationItems();
+
   return (
-    <header className="app-header">
-      {/* Main navigation bar */}
-      <Navbar 
-        bg="dark" 
-        variant="dark" 
-        expand="lg" 
-        className="main-navbar" 
-        expanded={expanded}
-        onToggle={setExpanded}
-      >
-        <Container fluid>
-          {/* Company logo/brand */}
-          <Navbar.Brand as={Link} to="/" className="brand">
-            <span className="brand-icon">
-              <FaHome />
-            </span>
-            <span className="brand-text">Scott Overhead Doors</span>
-          </Navbar.Brand>
-          
-          {/* Navbar toggle button for mobile */}
-          <Navbar.Toggle aria-controls="main-navbar-nav" />
-          
-          {/* Main navigation links */}
-          <Navbar.Collapse id="main-navbar-nav">
-            <Nav className="me-auto main-nav">
-              <Nav.Link 
-                as={Link} 
-                to="/" 
-                className={`nav-item ${isActive('/') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
+    <header className="header-container">
+      <div className="header-content">
+        {/* Logo and Company Name - MODIFIED: Logo div removed */}
+        <div className="header-brand">
+          <Link to="/" className="brand-link">
+            {/* The brand-logo div was here and has been removed */}
+            <div className="brand-text">
+              <h1 className="brand-title">Scott Overhead Doors</h1>
+              <span className="brand-subtitle">Professional Door Solutions</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Desktop Navigation */}
+        <nav className="desktop-navigation">
+          <ul className="nav-list">
+            {navigationItems.map((item) => (
+              <li key={item.path} className="nav-item">
+                <Link
+                  to={item.path}
+                  className={`nav-link ${isActiveRoute(item.path) ? 'active' : ''} ${
+                    item.adminOnly ? 'admin-only' : ''
+                  }`}
+                  title={item.adminOnly ? 'Admin Only' : item.label}
+                >
+                  <i className={`${item.icon} nav-icon`}></i>
+                  <span className="nav-text">{item.label}</span>
+                  {item.adminOnly && (
+                    <span className="admin-badge">
+                      <i className="fas fa-crown"></i>
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* User Profile Section */}
+        {isAuthenticated && currentUser && (
+          <div className="user-section">
+            {/* User Info Display */}
+            <div className="user-info-display">
+              <span className="user-welcome">Welcome back,</span>
+              <span className="user-name">{currentUser.first_name}</span>
+              <span className="user-role-badge">
+                {currentUser.role === 'admin' ? (
+                  <>
+                    <i className="fas fa-user-shield"></i>
+                    Admin
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-hard-hat"></i>
+                    Field Tech
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* User Dropdown */}
+            <div className="user-dropdown-container">
+              <button
+                className="user-dropdown-trigger"
+                onClick={toggleUserDropdown}
+                aria-expanded={showUserDropdown}
+                aria-haspopup="true"
               >
-                <FaHome className="nav-icon" />
-                <span>Dashboard</span>
-              </Nav.Link>
-              
-              <Nav.Link 
-                as={Link} 
-                to="/customers" 
-                className={`nav-item ${isActive('/customers') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
-              >
-                <FaUsers className="nav-icon" />
-                <span>Customers</span>
-              </Nav.Link>
-              
-              <Nav.Link 
-                as={Link} 
-                to="/estimates" 
-                className={`nav-item ${isActive('/estimates') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
-              >
-                <FaClipboardList className="nav-icon" />
-                <span>Estimates</span>
-              </Nav.Link>
-              
-              <Nav.Link 
-                as={Link} 
-                to="/bids" 
-                className={`nav-item ${isActive('/bids') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
-              >
-                <FaFileInvoiceDollar className="nav-icon" />
-                <span>Bids</span>
-              </Nav.Link>
-              
-              <Nav.Link 
-                as={Link} 
-                to="/jobs" 
-                className={`nav-item ${isActive('/jobs') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
-              >
-                <FaTools className="nav-icon" />
-                <span>Jobs</span>
-              </Nav.Link>
-              
-              <Nav.Link 
-                as={Link} 
-                to="/schedule" 
-                className={`nav-item ${isActive('/schedule') ? 'active' : ''}`}
-                onClick={() => setExpanded(false)}
-              >
-                <FaCalendar className="nav-icon" />
-                <span>Schedule</span>
-              </Nav.Link>
-            </Nav>
-            
-            {/* Right side of navbar - user controls */}
-            <Nav className="user-controls">
-              {/* Notifications */}
-              <Dropdown className="notification-dropdown">
-                <Dropdown.Toggle variant="link" id="dropdown-notifications">
-                  <div className="icon-with-badge">
-                    <FaBell className="nav-icon" />
-                    {notificationCount > 0 && (
-                      <span className="badge">{notificationCount}</span>
+                <div className="user-avatar">
+                  <span className="user-initials">
+                    {currentUser.first_name?.[0]}{currentUser.last_name?.[0]}
+                  </span>
+                  <div className="user-status-indicator"></div>
+                </div>
+                <div className="user-details">
+                  <span className="user-display-name">{currentUser.full_name}</span>
+                  <span className="user-email">{currentUser.email}</span>
+                </div>
+                <i className={`fas fa-chevron-down dropdown-arrow ${showUserDropdown ? 'rotated' : ''}`}></i>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showUserDropdown && (
+                <div className="user-dropdown-menu">
+                  <div className="dropdown-header">
+                    <div className="dropdown-user-info">
+                      <div className="dropdown-avatar">
+                        <span className="user-initials">
+                          {currentUser.first_name?.[0]}{currentUser.last_name?.[0]}
+                        </span>
+                      </div>
+                      <div className="dropdown-user-details">
+                        <div className="dropdown-user-name">{currentUser.full_name}</div>
+                        <div className="dropdown-user-email">{currentUser.email}</div>
+                        <div className="dropdown-user-role">
+                          {currentUser.role === 'admin' ? 'Office Administrator' : 'Field Technician'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dropdown-divider"></div>
+
+                  <div className="dropdown-section">
+                    <button
+                      className="dropdown-item"
+                      onClick={handlePasswordChange}
+                    >
+                      <i className="fas fa-key item-icon"></i>
+                      <span className="item-text">Change Password</span>
+                      <span className="item-description">Update your account security</span>
+                    </button>
+
+                    <Link
+                      to="/"
+                      className="dropdown-item"
+                      onClick={() => setShowUserDropdown(false)}
+                    >
+                      <i className="fas fa-tachometer-alt item-icon"></i>
+                      <span className="item-text">Dashboard</span>
+                      <span className="item-description">Go to main dashboard</span>
+                    </Link>
+
+                    {currentUser.role === 'admin' && (
+                      <Link
+                        to="/users"
+                        className="dropdown-item admin-item"
+                        onClick={() => setShowUserDropdown(false)}
+                      >
+                        <i className="fas fa-users-cog item-icon"></i>
+                        <span className="item-text">Manage Users</span>
+                        <span className="item-description">User administration</span>
+                        <i className="fas fa-crown admin-indicator"></i>
+                      </Link>
                     )}
                   </div>
-                </Dropdown.Toggle>
-                
-                <Dropdown.Menu align="end" className="notification-menu">
-                  <Dropdown.Header>Notifications</Dropdown.Header>
-                  <Dropdown.Item className="notification-item unread">
-                    <div className="notification-content">
-                      <div className="notification-title">New estimate request</div>
-                      <div className="notification-text">John Smith requested an estimate</div>
-                      <div className="notification-time">10 minutes ago</div>
+
+                  <div className="dropdown-divider"></div>
+
+                  <div className="dropdown-section">
+                    <button
+                      className="dropdown-item logout-item"
+                      onClick={handleLogout}
+                    >
+                      <i className="fas fa-sign-out-alt item-icon"></i>
+                      <span className="item-text">Sign Out</span>
+                      <span className="item-description">Secure logout</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Menu Toggle */}
+        <button
+          className="mobile-menu-toggle"
+          onClick={toggleMobileMenu}
+          aria-expanded={showMobileMenu}
+          aria-label="Toggle mobile menu"
+        >
+          <div className={`hamburger ${showMobileMenu ? 'active' : ''}`}>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </button>
+      </div>
+
+      {/* Mobile Navigation Menu */}
+      {showMobileMenu && (
+        <div className="mobile-navigation">
+          <div className="mobile-nav-content">
+            {/* Mobile User Info */}
+            {isAuthenticated && currentUser && (
+              <div className="mobile-user-section">
+                <div className="mobile-user-info">
+                  <div className="mobile-user-avatar">
+                    <span className="user-initials">
+                      {currentUser.first_name?.[0]}{currentUser.last_name?.[0]}
+                    </span>
+                  </div>
+                  <div className="mobile-user-details">
+                    <div className="mobile-user-name">{currentUser.full_name}</div>
+                    <div className="mobile-user-role">
+                      {currentUser.role === 'admin' ? 'Administrator' : 'Field Technician'}
                     </div>
-                  </Dropdown.Item>
-                  <Dropdown.Item className="notification-item unread">
-                    <div className="notification-content">
-                      <div className="notification-title">Job completed</div>
-                      <div className="notification-text">Job #125 was marked as completed</div>
-                      <div className="notification-time">1 hour ago</div>
-                    </div>
-                  </Dropdown.Item>
-                  <Dropdown.Item className="notification-item">
-                    <div className="notification-content">
-                      <div className="notification-title">Bid approved</div>
-                      <div className="notification-text">Bid #87 was approved by supervisor</div>
-                      <div className="notification-time">Yesterday</div>
-                    </div>
-                  </Dropdown.Item>
-                  <Dropdown.Divider />
-                  <Dropdown.Item className="text-center">
-                    <small>View All Notifications</small>
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
-              
-              {/* User profile dropdown */}
-              <Dropdown className="user-dropdown">
-                <Dropdown.Toggle variant="link" id="dropdown-user">
-                  <FaUserCircle className="nav-icon" />
-                  <span className="d-none d-md-inline">Admin</span>
-                </Dropdown.Toggle>
-                
-                <Dropdown.Menu align="end">
-                  <Dropdown.Item>
-                    <FaUserCircle className="me-2" /> Profile
-                  </Dropdown.Item>
-                  <Dropdown.Item>
-                    <FaCog className="me-2" /> Settings
-                  </Dropdown.Item>
-                  <Dropdown.Divider />
-                  <Dropdown.Item>
-                    <FaSignOutAlt className="me-2" /> Logout
-                  </Dropdown.Item>
-                </Dropdown.Menu>
-              </Dropdown>
-            </Nav>
-          </Navbar.Collapse>
-        </Container>
-      </Navbar>
+                  </div>
+                </div>
+                <div className="mobile-user-actions">
+                  <button
+                    className="mobile-action-button"
+                    onClick={handlePasswordChange}
+                    title="Change Password"
+                  >
+                    <i className="fas fa-key"></i>
+                  </button>
+                  <button
+                    className="mobile-action-button logout"
+                    onClick={handleLogout}
+                    title="Sign Out"
+                  >
+                    <i className="fas fa-sign-out-alt"></i>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Navigation Items */}
+            <nav className="mobile-nav-list">
+              {navigationItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`mobile-nav-item ${isActiveRoute(item.path) ? 'active' : ''} ${
+                    item.adminOnly ? 'admin-only' : ''
+                  }`}
+                  onClick={() => setShowMobileMenu(false)}
+                >
+                  <div className="mobile-nav-icon">
+                    <i className={item.icon}></i>
+                    {item.adminOnly && (
+                      <span className="mobile-admin-indicator">
+                        <i className="fas fa-crown"></i>
+                      </span>
+                    )}
+                  </div>
+                  <div className="mobile-nav-content"> {/* This was named .mobile-nav-content, ensuring correct nesting from original CSS */}
+                    <span className="mobile-nav-label">{item.label}</span>
+                    {item.adminOnly && (
+                      <span className="mobile-nav-description">Admin Only</span>
+                    )}
+                  </div>
+                  <div className="mobile-nav-arrow">
+                    <i className="fas fa-chevron-right"></i>
+                  </div>
+                </Link>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div 
+          className="mobile-menu-overlay"
+          onClick={() => setShowMobileMenu(false)}
+        ></div>
+      )}
     </header>
   );
 };

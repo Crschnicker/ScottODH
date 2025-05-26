@@ -1,263 +1,858 @@
-/* Header.css - Styling for the enhanced header component */
+/* Enhanced Header.css */
 
-.app-header {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    width: 100%;
+/* Main Header Container */
+.header-container {
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 3px solid #3498db;
+}
+
+.header-content {
+  /* max-width: 1200px; */ /* Removed for full width */
+  margin: 0; /* Was margin: 0 auto; Changed for full width */
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  /* justify-content: space-between; /* ORIGINAL */
+  justify-content: flex-start; /* MODIFIED: Align items to the start */
+  min-height: 70px;
+}
+
+/* Brand Section */
+.header-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.brand-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s ease;
+}
+
+.brand-link:hover {
+  transform: translateY(-1px);
+  text-decoration: none;
+  color: inherit;
+}
+
+/* .brand-logo div was removed in a previous step */
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  margin: 0;
+  line-height: 1.2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: #bdc3c7;
+  margin-top: 2px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* Desktop Navigation */
+.desktop-navigation {
+  display: flex;
+  align-items: center;
+  /* flex-grow: 1; /* ORIGINAL: Removed */
+  /* justify-content: center; /* ORIGINAL: Removed */
+  margin-left: 2rem; /* MODIFIED: Space after brand. Was '0 2rem' */
+  margin-right: auto; /* ADDED: Pushes user section to the far right */
+}
+
+.nav-list {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 0.5rem; /* Space between li elements */
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #ecf0f1;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  position: relative;
+  gap: 8px; /* Space between icon and text, if both were visible */
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #3498db;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.nav-link.active {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  color: white;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.nav-link.active::after {
+  /* MODIFIED: Removed the dot indicator by commenting out content */
+  /*
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  background: #3498db;
+  border-radius: 50%;
+  */
+}
+
+.nav-icon {
+  font-size: 1rem;
+  min-width: 18px; /* Gives icon a minimum width if shown */
+}
+/* MODIFICATION FOR DESKTOP VIEW: Hide icon by default in .desktop-navigation */
+.desktop-navigation .nav-icon {
+  display: none;
+}
+
+.nav-text {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+/* .desktop-navigation .nav-text is visible by default (as a span) */
+
+.admin-only { /* Class on the Link component */
+  position: relative; /* Needed if badge positioning is relative to this directly */
+}
+
+.admin-badge { /* Span inside the Link */
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* User Section */
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+  /* margin-left: auto; /* Not needed as .desktop-navigation has margin-right: auto */
+}
+
+.user-info-display {
+  display: none; /* Default from original CSS, shown at wider screens not explicitly overridden here */
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.user-welcome {
+  font-size: 0.75rem;
+  color: #bdc3c7;
+  margin-bottom: 2px;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 2px;
+}
+
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-weight: 500;
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+/* User Dropdown */
+.user-dropdown-container {
+  position: relative;
+}
+
+.user-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.user-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.user-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.user-initials {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+}
+
+.user-status-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  background: #27ae60;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.user-details {
+  display: none; /* Hidden by default, shown at wider screens not explicitly overridden here */
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.user-display-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.user-email {
+  font-size: 0.7rem;
+  color: #bdc3c7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+  transition: transform 0.3s ease;
+  color: #bdc3c7;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* User Dropdown Menu */
+.user-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 1001;
+  overflow: hidden;
+  animation: dropdownSlide 0.2s ease-out;
+}
+
+@keyframes dropdownSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-header {
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.dropdown-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dropdown-avatar {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.dropdown-avatar .user-initials {
+  font-size: 1.1rem;
+}
+
+.dropdown-user-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropdown-user-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 2px;
+}
+
+.dropdown-user-email {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  margin-bottom: 4px;
+}
+
+.dropdown-user-role {
+  font-size: 0.75rem;
+  color: #3498db;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
+  margin: 0.5rem 0;
+}
+
+.dropdown-section {
+  padding: 0.5rem;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #2c3e50;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 12px;
+  font-size: 0.85rem;
+  position: relative;
+}
+
+.dropdown-item:hover {
+  background: #f8f9fa;
+  color: #2c3e50;
+  text-decoration: none;
+}
+
+.item-icon {
+  width: 20px;
+  text-align: center;
+  color: #7f8c8d;
+  flex-shrink: 0;
+}
+
+.item-text {
+  font-weight: 500;
+  flex: 1;
+}
+
+.item-description {
+  font-size: 0.7rem;
+  color: #95a5a6;
+  margin-top: 2px;
+}
+
+.admin-item {
+  border: 1px solid rgba(243, 156, 18, 0.2);
+  background: rgba(243, 156, 18, 0.05);
+}
+
+.admin-item:hover {
+  background: rgba(243, 156, 18, 0.1);
+  border-color: rgba(243, 156, 18, 0.3);
+}
+
+.admin-indicator {
+  color: #f39c12;
+  font-size: 0.7rem;
+}
+
+.logout-item {
+  color: #e74c3c;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+}
+
+.logout-item:hover {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.logout-item .item-icon {
+  color: #e74c3c;
+}
+
+/* Mobile Menu Toggle */
+.mobile-menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.mobile-menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.hamburger {
+  width: 24px;
+  height: 18px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hamburger span {
+  width: 100%;
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+  transition: all 0.3s ease;
+  transform-origin: center;
+}
+
+.hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px);
+}
+
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px);
+}
+
+/* Mobile Navigation */
+.mobile-navigation {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 999;
+  animation: mobileMenuSlide 0.3s ease-out;
+}
+
+@keyframes mobileMenuSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mobile-nav-content { /* Container for mobile nav items */
+  padding: 1rem; 
+}
+
+
+.mobile-user-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.mobile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-user-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #3498db, #2980b9);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mobile-user-avatar .user-initials { /* Re-using user-initials, ensure it's styled if needed */
+    font-size: 0.9rem; /* Example, adjust if needed */
+}
+
+
+.mobile-user-details {
+  flex: 1;
+}
+
+.mobile-user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 2px;
+}
+
+.mobile-user-role {
+  font-size: 0.75rem;
+  color: #3498db;
+  font-weight: 500;
+}
+
+.mobile-user-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mobile-action-button {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(52, 152, 219, 0.1);
+  color: #3498db;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.mobile-action-button:hover {
+  background: rgba(52, 152, 219, 0.2);
+  transform: scale(1.05);
+}
+
+.mobile-action-button.logout {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.mobile-action-button.logout:hover {
+  background: rgba(231, 76, 60, 0.2);
+}
+
+.mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mobile-nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #2c3e50;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.mobile-nav-item:hover {
+  background: #f8f9fa;
+  color: #2c3e50;
+  text-decoration: none;
+  transform: translateX(4px);
+}
+
+.mobile-nav-item.active {
+  background: linear-gradient(135deg, #3498db10, #2980b910);
+  color: #3498db;
+  border-color: rgba(52, 152, 219, 0.2);
+}
+
+.mobile-nav-item.admin-only {
+  background: rgba(243, 156, 18, 0.05);
+  border-color: rgba(243, 156, 18, 0.2);
+}
+
+.mobile-nav-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  background: rgba(52, 152, 219, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.mobile-nav-icon i {
+  font-size: 1rem;
+  color: #3498db;
+}
+
+.mobile-admin-indicator {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #f39c12;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6px;
+  color: white;
+}
+
+.mobile-nav-item .mobile-nav-content { /* Specific to the content wrapper inside mobile-nav-item */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.mobile-nav-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.mobile-nav-description {
+  font-size: 0.7rem;
+  color: #f39c12;
+  font-weight: 500;
+}
+
+.mobile-nav-arrow {
+  color: #bdc3c7;
+  margin-left: auto;
+}
+
+.mobile-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 998;
+}
+
+/* Custom Toast Styles */
+.custom-toast {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.custom-toast-body {
+  font-weight: 500 !important;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .user-info-display { /* Appears in user-section, hidden on smaller screens */
+    display: none;
   }
   
-  /* Main navbar styling */
-  .main-navbar {
-    padding: 0;
-    background: linear-gradient(to right, #1a2636, #2c3e50) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  /* Desktop navigation links become icon-only */
+  .desktop-navigation .nav-text {
+    display: none; 
+  }
+  .desktop-navigation .nav-icon {
+    display: inline-block; /* Show the icon */
+  }
+  .desktop-navigation .nav-link {
+    padding: 10px; /* Adjust padding for icon-only */
+    min-width: 40px; /* Ensure clickable area */
+    justify-content: center; /* Center the icon */
+    gap: 0; /* No gap needed if only icon is shown */
+  }
+}
+
+@media (max-width: 992px) {
+  .desktop-navigation { /* Hide desktop nav completely */
+    display: none;
   }
   
-  /* Brand/logo section */
-  .brand {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
+  .mobile-menu-toggle { /* Show mobile hamburger */
+    display: block;
   }
   
-  .brand-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    margin-right: 0.75rem;
-    color: #4dabf7;
+  .user-details { /* Part of the user dropdown trigger, hide text details */
+    display: none;
   }
   
-  .brand-text {
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    font-size: 1.25rem;
+  .header-content {
+    padding: 0 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .brand-title {
+    font-size: 1.2rem;
   }
   
-  /* Main navigation links */
-  .main-nav {
-    padding: 0.5rem 0;
+  .brand-subtitle {
+    display: none;
   }
   
-  .nav-item {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    margin: 0 0.25rem;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    color: rgba(255, 255, 255, 0.85) !important;
+  .user-dropdown-menu {
+    width: 250px;
   }
   
-  .nav-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #fff !important;
+  .header-content {
+    min-height: 60px;
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* .brand-logo was removed */
+  
+  .brand-text { /* If brand-logo was providing margin, adjust brand-text if needed */
+    /* margin-right: 8px; /* Example, if brand-logo had margin-right */
+  }
+
+  .brand-title {
+    font-size: 1rem;
   }
   
-  .nav-item.active {
-    background-color: rgba(255, 255, 255, 0.15);
-    color: #fff !important;
-    border-left: 3px solid #4dabf7;
+  .user-avatar {
+    width: 32px;
+    height: 32px;
   }
   
-  .nav-icon {
-    margin-right: 0.75rem;
-    font-size: 1.1rem;
-    color: #4dabf7;
+  .user-initials {
+    font-size: 0.8rem;
   }
   
-  /* User controls section */
-  .user-controls {
-    display: flex;
-    align-items: center;
+  .user-dropdown-menu {
+    width: calc(100vw - 20px);
+    right: 0; /* Adjust if padding on header-content is 10px */
+    left: 10px; /* Ensure it doesn't overflow */
+    /* Consider transform: translateX(-10px) if right: 0 is used with viewport padding */
+  }
+}
+
+/* Focus and Accessibility Styles */
+.nav-link:focus,
+.user-dropdown-trigger:focus,
+.dropdown-item:focus,
+.mobile-menu-toggle:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .header-container {
+    border-bottom-width: 4px;
   }
   
-  .user-controls .nav-link,
-  .user-controls .dropdown-toggle {
-    color: rgba(255, 255, 255, 0.85);
-    padding: 0.75rem 1rem;
-    display: flex;
-    align-items: center;
+  .nav-link.active {
+    border: 2px solid #3498db;
   }
   
-  .user-controls .nav-link:hover,
-  .user-controls .dropdown-toggle:hover {
-    color: #fff;
+  .user-dropdown-menu {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .nav-link,
+  .user-dropdown-trigger,
+  .dropdown-item,
+  .mobile-nav-item,
+  .hamburger span {
+    transition: none;
   }
   
-  /* Icon with notification badge */
-  .icon-with-badge {
-    position: relative;
+  .dropdownSlide,
+  .mobileMenuSlide {
+    animation: none;
   }
-  
-  .badge {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    background-color: #dc3545;
-    color: white;
-    font-size: 0.7rem;
-    height: 18px;
-    width: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    padding: 0;
-  }
-  
-  /* Quick add dropdown */
-  .quick-add-dropdown .dropdown-toggle {
-    background-color: #28a745;
-    border-color: #28a745;
-    padding: 0.5rem 1rem;
-    margin-right: 0.5rem;
-  }
-  
-  .quick-add-dropdown .dropdown-toggle:hover,
-  .quick-add-dropdown .dropdown-toggle:focus {
-    background-color: #218838;
-    border-color: #218838;
-  }
-  
-  /* Dropdown styling */
-  .dropdown-menu {
-    border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    border: none;
-    padding: 0.5rem 0;
-  }
-  
-  .dropdown-item {
-    padding: 0.6rem 1.5rem;
-    transition: background-color 0.2s;
-  }
-  
-  .dropdown-item:active {
-    background-color: #4dabf7;
-  }
-  
-  .dropdown-header {
-    font-weight: 600;
-    color: #6c757d;
-    padding: 0.6rem 1.5rem;
-  }
-  
-  /* Notification dropdown */
-  .notification-menu {
-    width: 320px;
-    padding: 0;
-  }
-  
-  .notification-item {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  
-  .notification-item.unread {
-    background-color: rgba(13, 110, 253, 0.05);
-  }
-  
-  .notification-item:last-child {
-    border-bottom: none;
-  }
-  
-  .notification-content {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .notification-title {
-    font-weight: 600;
-    color: #212529;
-    margin-bottom: 0.25rem;
-  }
-  
-  .notification-text {
-    color: #6c757d;
-    font-size: 0.875rem;
-    margin-bottom: 0.25rem;
-  }
-  
-  .notification-time {
-    color: #adb5bd;
-    font-size: 0.75rem;
-  }
-  
-  /* Quick actions bar - optional component for dashboard */
-  .quick-actions-bar {
-    background-color: #f8f9fa;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #dee2e6;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  }
-  
-  .quick-actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 991.98px) {
-    .main-navbar .navbar-collapse {
-      background-color: #2c3e50;
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      padding: 1rem;
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-    }
-    
-    .nav-item {
-      margin: 0.25rem 0;
-    }
-    
-    .nav-item.active {
-      border-left: none;
-      border-left: 3px solid #4dabf7;
-    }
-    
-    .user-controls {
-      flex-direction: column;
-      align-items: flex-start;
-      margin-top: 1rem;
-      width: 100%;
-    }
-    
-    .notification-dropdown,
-    .user-dropdown,
-    .quick-add-dropdown {
-      width: 100%;
-    }
-    
-    .user-controls .dropdown-toggle {
-      width: 100%;
-      justify-content: flex-start;
-    }
-    
-    .quick-add-dropdown {
-      margin-bottom: 0.5rem;
-    }
-    
-    .quick-add-dropdown .dropdown-toggle {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-      margin-right: 0;
-    }
-  }
-  
-  /* Add a smooth transition when expanding the navbar on mobile */
-  .navbar-collapse {
-    transition: height 0.35s ease;
-  }
-  
-  /* Extra icons not defined in the component */
-  .FaPlus, .FaCog, .FaSignOutAlt, .FaFileAlt, .FaClipboardCheck, .FaChartLine {
-    display: inline-block;
-    margin-right: 0.5rem;
-  }
+}

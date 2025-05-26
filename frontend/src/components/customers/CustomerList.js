@@ -454,7 +454,6 @@ const CustomerList = ({
             <Card.Body className="d-flex flex-wrap align-items-center justify-content-between gap-2 p-3">
                  <Form className="flex-grow-1 me-sm-2" onSubmit={(e) => e.preventDefault()}>
                     <InputGroup>
-                        <InputGroup.Text><FaSearch /></InputGroup.Text>
                         <Form.Control
                             type="search"
                             placeholder="Search Customers or Sites..."

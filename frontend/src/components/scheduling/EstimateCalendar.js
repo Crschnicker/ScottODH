@@ -11,6 +11,7 @@ import './Calendar.css'; // Assuming this file exists and has relevant styles
  * EstimateCalendar Component
  * Displays estimates in a calendar view and shows details for selected date
  * Optimized for space efficiency and better visual presentation
+ * Filters out estimates that have been converted to bids
  */
 const EstimateCalendar = () => {
   // State management
@@ -43,8 +44,18 @@ const EstimateCalendar = () => {
   };
   
   /**
+   * Filter function to exclude converted estimates
+   * @param {Object} estimate - The estimate object to check
+   * @returns {boolean} True if estimate should be included (not converted)
+   */
+  const isNotConverted = (estimate) => {
+    return estimate.status !== 'converted';
+  };
+  
+  /**
    * Fetch estimates from API
    * Handles data transformation for calendar display
+   * Filters out estimates that have been converted to bids
    */
   const fetchEstimates = useCallback(async () => {
     setLoading(true);
@@ -58,7 +69,10 @@ const EstimateCalendar = () => {
       
       const data = await response.json();
       
-      const formattedEstimates = data.map(estimate => {
+      // Filter out converted estimates before processing
+      const activeEstimates = data.filter(isNotConverted);
+      
+      const formattedEstimates = activeEstimates.map(estimate => {
         let startDate, endDate;
         
         if (estimate.scheduled_date) {
@@ -145,7 +159,7 @@ const EstimateCalendar = () => {
         case 'approved': backgroundColor = '#28a745'; break;
         case 'declined': case 'rejected': backgroundColor = '#dc3545'; break;
         case 'pending': backgroundColor = '#ffc107'; break;
-        case 'converted': backgroundColor = '#17a2b8'; break;
+        // Removed 'converted' case since converted estimates are now filtered out
         default: backgroundColor = '#6f42c1';
       }
     } else {
@@ -153,7 +167,7 @@ const EstimateCalendar = () => {
         case 'approved': backgroundColor = '#8fd19e'; break;
         case 'declined': case 'rejected': backgroundColor = '#f1aeb5'; break;
         case 'pending': backgroundColor = '#ffe083'; break;
-        case 'converted': backgroundColor = '#9fcdff'; break;
+        // Removed 'converted' case since converted estimates are now filtered out
         default: backgroundColor = '#d2d2d2';
       }
     }
@@ -171,42 +185,74 @@ const EstimateCalendar = () => {
     };
   };
   
-  const CustomToolbar = (toolbar) => {
-    const goToBack = () => toolbar.onNavigate('PREV');
-    const goToNext = () => toolbar.onNavigate('NEXT');
-    const goToToday = () => toolbar.onNavigate('TODAY');
-    
-    const viewLabels = { month: 'Month', week: 'Week', day: 'Day', agenda: 'List' };
-    
-    return (
-      <div className="d-flex justify-content-between align-items-center mb-2">
-        <div>
-          <Button variant="outline-secondary" size="sm" onClick={goToBack}></Button>
-          <Button variant="outline-primary" size="sm" onClick={goToToday} className="mx-2">Today</Button>
-          <Button variant="outline-secondary" size="sm" onClick={goToNext}></Button>
-          <span className="ms-2 fw-bold">{toolbar.label}</span>
-        </div>
-        <div>
-          <Button variant="success" size="sm" onClick={() => navigate('/estimates')}>New Estimate</Button>
-        </div>
-        <div className="btn-group">
-          {Object.keys(viewLabels).map(view => (
-            <Button
-              key={view}
-              variant={toolbar.view === view ? "primary" : "outline-secondary"}
-              size="sm"
-              onClick={() => {
-                toolbar.onView(view);
-                setCalendarView(view);
-              }}
-            >
-              {viewLabels[view]}
-            </Button>
-          ))}
-        </div>
+/**
+ * CustomToolbar Component
+ * Enhanced toolbar for the EstimateCalendar with proper navigation arrows
+ * @param {Object} toolbar - Toolbar props from react-big-calendar
+ */
+const CustomToolbar = (toolbar) => {
+  const goToBack = () => toolbar.onNavigate('PREV');
+  const goToNext = () => toolbar.onNavigate('NEXT');
+  const goToToday = () => toolbar.onNavigate('TODAY');
+  
+  const viewLabels = { month: 'Month', week: 'Week', day: 'Day', agenda: 'List' };
+  
+  return (
+    <div className="d-flex justify-content-between align-items-center mb-2">
+      <div>
+        <Button 
+          variant="outline-secondary" 
+          size="sm" 
+          onClick={goToBack}
+          aria-label="Previous Month"
+        >
+          &lt;
+        </Button>
+        <Button 
+          variant="outline-primary" 
+          size="sm" 
+          onClick={goToToday} 
+          className="mx-2"
+        >
+          Today
+        </Button>
+        <Button 
+          variant="outline-secondary" 
+          size="sm" 
+          onClick={goToNext}
+          aria-label="Next Month"
+        >
+          &gt;
+        </Button>
+        <span className="ms-2 fw-bold">{toolbar.label}</span>
       </div>
-    );
-  };
+      <div>
+        <Button 
+          variant="success" 
+          size="sm" 
+          onClick={() => navigate('/estimates')}
+        >
+          New Estimate
+        </Button>
+      </div>
+      <div className="btn-group">
+        {Object.keys(viewLabels).map(view => (
+          <Button
+            key={view}
+            variant={toolbar.view === view ? "primary" : "outline-secondary"}
+            size="sm"
+            onClick={() => {
+              toolbar.onView(view);
+              setCalendarView(view);
+            }}
+          >
+            {viewLabels[view]}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+};
   
   const DateCellWrapper = ({ value }) => {
     const date = value;
@@ -242,7 +288,7 @@ const EstimateCalendar = () => {
       case 'approved': variant = 'success'; break;
       case 'declined': case 'rejected': variant = 'danger'; break;
       case 'pending': variant = 'warning'; break;
-      case 'converted': variant = 'info'; break;
+      // Removed 'converted' case since converted estimates are now filtered out
       default: variant = 'secondary';
     }
     return <Badge bg={variant} className="me-2">{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
@@ -277,7 +323,7 @@ const EstimateCalendar = () => {
         case 'approved': return '#28a745';
         case 'declined': case 'rejected': return '#dc3545';
         case 'pending': return '#ffc107';
-        case 'converted': return '#17a2b8';
+        // Removed 'converted' case since converted estimates are now filtered out
         default: return '#6f42c1';
       }
     };

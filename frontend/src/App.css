@@ -1,250 +1,198 @@
-/* App.css - Main application styling 
-   Updated to support layout without sidebar */
+/* App.css - Modified to remove conflicting header styles */
 
-/* Base application container */
-.app-container {
-  display: flex;
-  flex-direction: column;
+/* Loading States */
+.loading-container {
   min-height: 100vh;
-}
-
-/* Main content area now spans full width */
-.main-content {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  background-color: #f8f9fa;
-  transition: padding 0.3s ease;
-}
-
-/* Common styles */
-.section-title {
-  margin-bottom: 20px;
-  color: #333;
-  border-bottom: 2px solid #f0f0f0;
-  padding-bottom: 10px;
-  font-weight: 600;
-}
-
-/* Enhanced card styling */
-.card {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  border: none;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-}
-
-.card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.card-header {
-  background-color: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  font-weight: 600;
-  padding: 15px 20px;
-}
-
-.card-body {
-  padding: 20px;
-}
-
-/* Button styling */
-.btn {
-  border-radius: 4px;
-  font-weight: 500;
-  padding: 8px 16px;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background-color: #0056b3;
-  border-color: #0056b3;
-}
-
-.btn-primary:hover {
-  background-color: #004494;
-  border-color: #004494;
-}
-
-.btn-success {
-  background-color: #28a745;
-  border-color: #28a745;
-}
-
-.btn-success:hover {
-  background-color: #218838;
-  border-color: #218838;
-}
-
-.btn-danger {
-  background-color: #dc3545;
-  border-color: #dc3545;
-}
-
-.btn-danger:hover {
-  background-color: #c82333;
-  border-color: #c82333;
-}
-
-.btn-warning {
-  background-color: #ffc107;
-  border-color: #ffc107;
-}
-
-.btn-warning:hover {
-  background-color: #e0a800;
-  border-color: #e0a800;
-}
-
-.btn-info {
-  background-color: #17a2b8;
-  border-color: #17a2b8;
-}
-
-.btn-info:hover {
-  background-color: #138496;
-  border-color: #138496;
-}
-
-/* Enhanced table styling */
-.table {
-  margin-bottom: 0;
-}
-
-.table th {
-  background-color: #f8f9fa;
-  border-top: none;
-  font-weight: 600;
-  color: #495057;
-}
-
-.table-hover tbody tr:hover {
-  background-color: rgba(0, 123, 255, 0.1);
-  cursor: pointer;
-}
-
-.table td {
-  vertical-align: middle;
-}
-
-/* Form styling */
-.form-control {
-  border-radius: 4px;
-  padding: 10px 12px;
-  border: 1px solid #ced4da;
-  transition: all 0.2s;
-}
-
-.form-control:focus {
-  border-color: #80bdff;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.form-label {
-  font-weight: 500;
-  margin-bottom: 6px;
-}
-
-/* Door tabs styling */
-.door-tabs {
-  margin-bottom: 20px;
+  background: #f8fafc;
   display: flex;
-  flex-wrap: wrap;
-  border-bottom: 1px solid #dee2e6;
-  padding-bottom: 1px;
-}
-
-.door-tab {
-  padding: 10px 15px;
-  margin-right: 5px;
-  margin-bottom: 5px;
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 4px 4px 0 0;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.door-tab:hover {
-  background-color: #e9ecef;
-}
-
-.door-tab.active {
-  background-color: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-/* Dashboard statistics cards */
-.stats-card {
-  padding: 1.5rem;
-  text-align: center;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.stats-card:hover {
-  transform: translateY(-5px);
-}
-
-.stats-card-icon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-}
-
-.stats-card-value {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.stats-card-label {
-  color: #6c757d;
-  font-size: 1rem;
-}
-
-/* Content loader */
-.content-loader {
-  display: flex;
-  justify-content: center;
   align-items: center;
-  height: 200px;
+  justify-content: center;
 }
 
-/* Empty state styling */
-.empty-state {
+.loading-content {
   text-align: center;
-  padding: 3rem 1rem;
-  color: #6c757d;
+  padding: 2rem;
 }
 
-.empty-state-icon {
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+.loading-text {
+  color: #64748b;
+  font-size: 1rem;
+  margin: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/*
+  Removed conflicting Header Styles, Desktop Navigation,
+  User Menu, User Dropdown, and Mobile Navigation styles
+  that were present in the App.css from your second prompt.
+  Your original Header.css (from the first prompt) should now
+  be solely responsible for styling the header.
+*/
+
+
+/* Messages */
+.message-container {
+  margin: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.message-container.success {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.message-container.error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.message-container.info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.message-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.message-icon {
+  font-size: 1.25rem;
+}
+
+.message-text {
+  font-size: 0.875rem;
+}
+
+.message-container.success .message-text {
+  color: #166534;
+}
+
+.message-container.error .message-text {
+  color: #b91c1c;
+}
+
+.message-container.info .message-text {
+  color: #1d4ed8;
+}
+
+/* Main Content */
+.app-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  /* Adjust min-height if your first Header.css has a different header height */
+  /* For example, if your first header is 70px tall:
+  min-height: calc(100vh - 70px - (footer_height_if_any));
+  */
+  /* The original App.css assumed a 64px header. Your first Header.css uses min-height: 70px for .header-content */
+  min-height: calc(100vh - 70px); /* Assuming a 70px header based on your first Header.css */
+}
+
+/* Error States */
+.access-denied,
+.page-not-found,
+.page-error {
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.error-container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.error-icon {
   font-size: 3rem;
   margin-bottom: 1rem;
-  opacity: 0.3;
 }
 
-.empty-state-text {
-  font-size: 1.25rem;
-  margin-bottom: 1.5rem;
+.error-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.5rem 0;
 }
 
-/* Date picker styling */
-.react-datepicker-wrapper {
+.error-message {
+  color: #64748b;
+  margin: 0 0 1.5rem 0;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50; /* Ensure this is lower than your first Header.css z-index if modals should appear under it, or higher if over. The first Header.css uses z-index: 1000 for header-container */
+  padding: 1rem;
+}
+
+.modal-container {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
   width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-/* Toast customization */
-.Toastify__toast {
-  border-radius: 4px;
-}
-
-/* Modal styling */
 .modal-header {
-  border-bottom: 1px solid #dee2e6;
-  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.modal-close:hover {
+  background: #f1f5f9;
 }
 
 .modal-body {
@@ -252,197 +200,168 @@
 }
 
 .modal-footer {
-  border-top: 1px solid #dee2e6;
-  padding: 1rem 1.5rem;
-}
-
-/* Tab navigation */
-.nav-tabs {
-  margin-bottom: 1rem;
-  border-bottom: 1px solid #dee2e6;
-}
-
-.nav-tabs .nav-link {
-  border-radius: 4px 4px 0 0;
-  padding: 10px 15px;
-  margin-right: 5px;
-  font-weight: 500;
-  color: #495057;
-}
-
-.nav-tabs .nav-link.active {
-  color: #007bff;
-  border-color: #dee2e6 #dee2e6 #fff;
-}
-
-/* Mobile responsive adjustments */
-@media (max-width: 768px) {
-  .main-content {
-    padding: 15px;
-  }
-  
-  .card-header {
-    padding: 12px 15px;
-  }
-  
-  .card-body {
-    padding: 15px;
-  }
-  
-  .btn {
-    padding: 6px 12px;
-  }
-  
-  .table thead {
-    display: none; /* Hide table headers on mobile for better space usage */
-  }
-  
-  .table, .table tbody, .table tr, .table td {
-    display: block;
-    width: 100%;
-  }
-  
-  .table tr {
-    margin-bottom: 15px;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-  }
-  
-  .table td {
-    position: relative;
-    padding-left: 50%;
-    text-align: right;
-    border-top: none;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .table td:before {
-    content: attr(data-label);
-    position: absolute;
-    left: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 45%;
-    font-weight: 600;
-    text-align: left;
-  }
-  
-  .table td:last-child {
-    border-bottom: none;
-  }
-  
-  /* Adjust door tabs for mobile */
-  .door-tabs {
-    flex-direction: column;
-    border-bottom: none;
-  }
-  
-  .door-tab {
-    margin-right: 0;
-    margin-bottom: 5px;
-    border-radius: 4px;
-  }
-} 
-/* API Connection Manager Styles */
-.api-connection-manager {
-  background-color: #f0f4f8;
-  border-bottom: 1px solid #d0d7de;
-  padding: 8px 16px;
-  font-size: 14px;
   display: flex;
-  flex-direction: column;
-}
-
-.connection-controls {
-  display: flex;
-  align-items: center;
+  gap: 0.75rem;
   justify-content: flex-end;
-  gap: 12px;
+  padding: 1.5rem;
+  border-top: 1px solid #e2e8f0;
 }
 
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+/* Form Styles */
+.form-group {
+  margin-bottom: 1.5rem;
 }
 
-.status-label {
+.form-label {
+  display: block;
+  font-size: 0.875rem;
   font-weight: 600;
-  color: #24292e;
+  color: #374151;
+  margin-bottom: 0.5rem;
 }
 
-.status-checking {
-  color: #0550ae;
-  font-style: italic;
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+  background: white;
 }
 
-.status-connected {
-  color: #0e8a16;
-  font-weight: 500;
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.status-disconnected {
-  color: #cb2431;
-  font-weight: 500;
-}
-
-.environment-selector select {
-  padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #d0d7de;
-  background-color: #ffffff;
-  font-size: 14px;
-}
-
-.retry-button {
-  padding: 4px 10px;
-  background-color: #f6f8fa;
-  border: 1px solid #d0d7de;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.retry-button:hover {
-  background-color: #e9ecef;
-}
-
-.retry-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.connection-error-details {
-  margin-top: 6px;
-  color: #cb2431;
-  font-size: 13px;
-}
-
-/* API Disconnected Banner */
-.api-disconnected-banner {
-  background-color: #fff8c5;
-  border: 1px solid #eed888;
-  border-radius: 4px;
-  margin: 0 0 16px 0;
-  padding: 12px 16px;
-}
-
-.api-disconnected-banner .banner-content {
+.password-input-group {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
-.api-disconnected-banner .warning-icon {
-  font-size: 18px;
+.password-input-group .form-input {
+  padding-right: 3rem;
 }
 
-.api-disconnected-banner .message {
-  flex-grow: 1;
+.password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.25rem;
+  transition: color 0.2s;
+}
+
+.password-toggle:hover {
+  color: #334155;
+}
+
+.password-requirements {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+}
+
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
   font-weight: 500;
-  color: #735c0f;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
 }
 
-.api-disconnected {
-  opacity: 0.95;
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.btn-icon {
+  font-size: 1rem;
+}
+
+/* Dropdown Overlay */
+/* This might be used by your first Header.css for its dropdowns or mobile menu.
+   If your first Header.css handles its own overlay (e.g., .mobile-menu-overlay),
+   you might not need this one, or you'll need to ensure z-index values are compatible.
+   The first Header.css has .mobile-menu-overlay with z-index: 998.
+   And .user-dropdown-menu with z-index: 1001.
+   This .dropdown-overlay has z-index: 30, so it should be fine (lower).
+*/
+.dropdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+}
+
+/* Responsive Design */
+/* Removed header-specific responsive rules.
+   Your first Header.css has its own responsive rules.
+*/
+@media (max-width: 768px) {
+  /* .mobile-menu-toggle { display: block; } */ /* Handled by first Header.css */
+  /* .desktop-nav { display: none; } */         /* Handled by first Header.css */
+  /* .mobile-nav { display: block; } */          /* Handled by first Header.css */
+  /* .user-name { display: none; } */            /* Handled by first Header.css */
+  /* .header-container { padding: 0 0.5rem; } */ /* Handled by first Header.css */
+
+  .app-main {
+    padding: 0 0.5rem; /* This can stay if it applies to your main content area below the header */
+  }
+
+  .message-container {
+    margin: 0.5rem;
+  }
+}
+
+@media (min-width: 640px) {
+  /* .user-name { display: block; } */ /* Handled by first Header.css */
+}
+
+/* Focus States for Accessibility */
+/* Removed focus states for .nav-item and .user-menu-trigger as those elements are styled by first Header.css */
+.btn:focus,
+.dropdown-item:focus { /* Kept for general dropdown items and buttons if used outside the header */
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+
+/* High Contrast Mode Support */
+/* Removed high contrast styles for .app-header and .nav-item as they are styled by first Header.css */
+@media (prefers-contrast: high) {
+  /* If your first Header.css has high-contrast rules, they will apply.
+     If not, you might want to add some there or general high-contrast rules here.
+  */
 }

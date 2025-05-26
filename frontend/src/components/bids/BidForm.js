@@ -138,28 +138,6 @@ const BidForm = () => {
         <h2>Bid for {bid.customer_name}</h2>
         <div className="bid-actions">
           <Button 
-            variant="success" 
-            className="me-2" 
-            onClick={handleSaveBid}
-            disabled={savingBid}
-          >
-            <FaSave /> {savingBid ? 'Saving...' : 'Save Bid'}
-          </Button>
-          <Button 
-            variant="primary" 
-            className="me-2" 
-            onClick={handleGenerateReport}
-          >
-            <FaFileAlt /> Report
-          </Button>
-          <Button 
-            variant="info" 
-            className="me-2" 
-            onClick={handleGenerateProposal}
-          >
-            <FaFileInvoiceDollar /> Proposal
-          </Button>
-          <Button 
             variant="warning" 
             onClick={handleApproveBid}
           >
@@ -221,6 +199,7 @@ const BidForm = () => {
                   <LineItemTable 
                     doorId={activeDoorTab}
                     door={bid.doors.find(d => d.id === activeDoorTab)}
+                    bidId={bid.id}  // MISSING!
                     onUpdate={() => getBid(bid.id).then(newBid => setBid(newBid))}
                   />
                 )}

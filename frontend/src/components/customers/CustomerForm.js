@@ -28,6 +28,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
   const [validated, setValidated] = useState(false);
   
   // Load customer data if in edit mode
@@ -44,6 +45,24 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
   }, [customer]);
   
   /**
+   * Reset form to initial state
+   */
+  const resetForm = () => {
+    if (!isEditMode) {
+      setFormData({
+        name: '',
+        contact_name: '',
+        phone: '',
+        email: '',
+        address: ''
+      });
+    }
+    setValidated(false);
+    setError(null);
+    setSuccess(false);
+  };
+  
+  /**
    * Handle form field changes
    * @param {Event} e - Change event
    */
@@ -53,8 +72,49 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
       ...prev,
       [name]: value
     }));
-    // Reset validation state when user types
+    
+    // Reset validation and error states when user types
     if (validated) setValidated(false);
+    if (error) setError(null);
+    if (success) setSuccess(false);
+  };
+  
+  /**
+   * Validate email format
+   * @param {string} email - Email to validate
+   * @returns {boolean} - True if valid or empty, false if invalid
+   */
+  const isValidEmail = (email) => {
+    if (!email.trim()) return true; // Empty email is valid (optional field)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+  
+  /**
+   * Validate form data
+   * @returns {Object} - Validation result with isValid boolean and errors object
+   */
+  const validateForm = () => {
+    const errors = {};
+    const trimmedData = {
+      name: formData.name.trim(),
+      email: formData.email.trim()
+    };
+    
+    // Required field validation
+    if (!trimmedData.name) {
+      errors.name = 'Customer name is required.';
+    }
+    
+    // Email format validation (only if email is provided)
+    if (trimmedData.email && !isValidEmail(trimmedData.email)) {
+      errors.email = 'Please enter a valid email address.';
+    }
+    
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors
+    };
   };
   
   /**
@@ -63,40 +123,86 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     
-    // Form validation
-    const form = e.currentTarget;
-    if (!form.checkValidity()) {
-      e.stopPropagation();
+    // Clear previous states
+    setError(null);
+    setSuccess(false);
+    
+    // Custom validation
+    const validation = validateForm();
+    
+    if (!validation.isValid) {
       setValidated(true);
+      
+      // Set specific error if needed
+      const errorMessages = Object.values(validation.errors);
+      if (errorMessages.length > 0) {
+        setError(errorMessages.join(' '));
+      }
       return;
     }
     
+    // Prepare data for submission (trim all string fields)
+    const submitData = {
+      name: formData.name.trim(),
+      contact_name: formData.contact_name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim(),
+      address: formData.address.trim()
+    };
+    
     setLoading(true);
-    setError(null);
     
     try {
       let result;
       
       if (isEditMode) {
         // Update existing customer
-        result = await updateCustomer(customer.id, formData);
+        result = await updateCustomer(customer.id, submitData);
       } else {
         // Create new customer
-        result = await createCustomer(formData);
+        result = await createCustomer(submitData);
+      }
+      
+      // Show success state
+      setSuccess(true);
+      setValidated(false); // Reset validation state
+      
+      // Reset form if creating new customer
+      if (!isEditMode) {
+        setTimeout(() => {
+          resetForm();
+        }, 1500);
       }
       
       // Call the onSave callback with the saved customer
       if (onSave) {
-        onSave(result);
+        setTimeout(() => {
+          onSave(result);
+        }, 500);
       }
+      
     } catch (err) {
       console.error('Failed to save customer:', err);
-      setError(
-        err.response?.data?.error || 
-        err.message || 
-        'An error occurred while saving customer data. Please try again.'
-      );
+      
+      // Handle different types of errors
+      let errorMessage;
+      
+      if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.response?.status === 400) {
+        errorMessage = 'Please check your input and try again.';
+      } else if (err.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'An unexpected error occurred. Please try again.';
+      }
+      
+      setError(errorMessage);
+      setValidated(true);
     } finally {
       setLoading(false);
     }
@@ -110,7 +216,13 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
       <Card.Body>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
-            {error}
+            <strong>Error:</strong> {error}
+          </Alert>
+        )}
+        
+        {success && (
+          <Alert variant="success" dismissible onClose={() => setSuccess(false)}>
+            <strong>Success!</strong> Customer {isEditMode ? 'updated' : 'created'} successfully.
           </Alert>
         )}
         
@@ -127,6 +239,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                   placeholder="Enter customer name"
                   required
                   autoFocus
+                  isInvalid={validated && !formData.name.trim()}
                 />
                 <Form.Control.Feedback type="invalid">
                   Customer name is required.
@@ -165,6 +278,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Contact email address"
+                  isInvalid={validated && formData.email.trim() && !isValidEmail(formData.email)}
                 />
                 <Form.Control.Feedback type="invalid">
                   Please enter a valid email address.
@@ -189,7 +303,10 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
             <Button 
               variant="outline-secondary" 
               className="me-2" 
-              onClick={onCancel}
+              onClick={() => {
+                resetForm();
+                if (onCancel) onCancel();
+              }}
               disabled={loading}
               type="button"
             >
@@ -198,13 +315,15 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
             <Button 
               type="submit" 
               variant="primary" 
-              disabled={loading}
+              disabled={loading || success}
             >
               {loading ? (
                 <>
                   <Spinner as="span" animation="border" size="sm" className="me-2" />
                   {isEditMode ? 'Updating...' : 'Creating...'}
                 </>
+              ) : success ? (
+                <>{isEditMode ? 'Updated!' : 'Created!'}</>
               ) : (
                 <>{isEditMode ? 'Update Customer' : 'Save Customer'}</>
               )}

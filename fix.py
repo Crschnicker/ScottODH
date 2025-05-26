@@ -1,41 +1,68 @@
+# database_migration.py
+# Run this script to add the new door fields to your existing database
+
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
-import sys
+import sqlite3
+import os
 
-# Import your app or create a minimal version
-# If you can import your existing app:
-# from app import app, db
-
-# If you need to recreate the app connection:
-app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///scott_overhead_doors.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-def fix_door_location():
-    with app.app_context():
-        print("Starting database update...")
+def migrate_door_table():
+    """
+    Add new fields to the Door table for storing rich door information
+    """
+    
+    # Path to your database
+    db_path = 'scott_overhead_doors.db'
+    
+    if not os.path.exists(db_path):
+        print(f"Database {db_path} not found!")
+        return False
+    
+    try:
+        # Connect to the database
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        # First check if column exists
-        try:
-            # Try to execute a query that uses the column
-            result = db.session.execute(text("SELECT location FROM door LIMIT 1"))
-            print("Column 'location' already exists in the door table")
-        except Exception as e:
-            # Column doesn't exist, so add it
-            print("Column 'location' doesn't exist. Adding it...")
-            db.session.execute(text("ALTER TABLE door ADD COLUMN location TEXT"))
-            db.session.commit()
-            print("Column added successfully!")
+        # Check if the new columns already exist
+        cursor.execute("PRAGMA table_info(door)")
+        columns = [column[1] for column in cursor.fetchall()]
         
-        # Now update all existing records to set location to "Fill"
-        result = db.session.execute(text("UPDATE door SET location = 'Fill' WHERE location IS NULL OR location = ''"))
-        db.session.commit()
-        rows_affected = result.rowcount if hasattr(result, 'rowcount') else -1
-        print(f"Updated {rows_affected} door records to have 'Fill' location value")
+        new_columns = [
+            ('location', 'VARCHAR(200)'),
+            ('door_type', 'VARCHAR(50)'),
+            ('width', 'FLOAT'),
+            ('height', 'FLOAT'),
+            ('dimension_unit', 'VARCHAR(10)'),
+            ('labor_description', 'TEXT'),
+            ('notes', 'TEXT')
+        ]
         
-        print("Database update completed successfully!")
+        # Add missing columns
+        for column_name, column_type in new_columns:
+            if column_name not in columns:
+                alter_sql = f"ALTER TABLE door ADD COLUMN {column_name} {column_type}"
+                print(f"Adding column: {column_name}")
+                cursor.execute(alter_sql)
+            else:
+                print(f"Column {column_name} already exists")
+        
+        # Commit changes
+        conn.commit()
+        print("Database migration completed successfully!")
+        
+        # Verify the new columns
+        cursor.execute("PRAGMA table_info(door)")
+        columns_after = [column[1] for column in cursor.fetchall()]
+        print(f"Door table columns after migration: {columns_after}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error during migration: {str(e)}")
+        return False
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
-    fix_door_location()
+    migrate_door_table()

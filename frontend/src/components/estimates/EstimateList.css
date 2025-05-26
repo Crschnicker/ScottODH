@@ -1,7 +1,36 @@
-/* EstimateList.css - Simplified styling for better cross-platform compatibility */
+/* EstimateList.css - Enhanced styling with sticky footer fix */
 
+/* Main layout fixes for sticky footer */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Main content wrapper should grow to push footer down */
+.main-content-wrapper {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Page container that grows to fill available space */
+.page-container {
+  flex: 1;
+  padding: 2rem 0;
+  min-height: calc(100vh - 120px); /* Adjust based on header/footer height */
+}
+
+/* Estimate list specific styles */
 .estimate-list-container {
   margin-bottom: 2rem;
+  flex: 1;
 }
 
 .estimate-list-card {
@@ -9,12 +38,14 @@
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   border: none;
   overflow: hidden;
+  min-height: 400px; /* Minimum height to prevent footer jumping */
 }
 
 .estimate-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 1.5rem;
 }
 
 .estimate-list-actions {
@@ -84,11 +115,12 @@
   border-color: #1a2636;
 }
 
-/* Table styling */
+/* Table styling with improved minimum height */
 .estimate-table {
   margin-bottom: 0;
   border-collapse: separate;
   border-spacing: 0;
+  min-height: 300px; /* Ensures table takes minimum space */
 }
 
 .estimate-table th {
@@ -98,6 +130,9 @@
   border-top: none;
   white-space: nowrap;
   padding: 0.75rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .estimate-table td {
@@ -128,11 +163,16 @@
   text-decoration: none;
 }
 
-/* Empty state styling */
+/* Empty state styling with improved height management */
 .empty-state {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: 4rem 1rem;
   color: #6c757d;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .empty-icon {
@@ -142,14 +182,15 @@
   color: #6c757d;
 }
 
-/* Loading state */
+/* Loading state with proper height */
 .loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem;
+  padding: 4rem;
   color: #6c757d;
+  min-height: 400px;
 }
 
 .loading-container p {
@@ -157,11 +198,40 @@
   font-weight: 500;
 }
 
-/* Footer styling */
+/* Footer styling - sticky footer implementation */
+.footer {
+  flex-shrink: 0;
+  background-color: #f8f9fa;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 1rem 0;
+  margin-top: auto;
+}
+
 .list-footer {
   background-color: #f8f9fa;
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   padding: 0.75rem 1.25rem;
+  margin-top: auto;
+}
+
+/* Content wrapper to ensure proper spacing */
+.content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for flexbox */
+}
+
+/* Table container with proper flex behavior */
+.table-container {
+  flex: 1;
+  overflow-x: auto;
+  min-height: 0;
+}
+
+/* Ensure proper spacing between table and footer */
+.table-responsive {
+  margin-bottom: 1rem;
 }
 
 /* Responsive adjustments */
@@ -191,12 +261,28 @@
     width: 100%;
     justify-content: center;
   }
+
+  .page-container {
+    padding: 1rem 0;
+    min-height: calc(100vh - 100px);
+  }
 }
 
 @media (max-width: 767.98px) {
+  /* Mobile-specific layout adjustments */
+  .page-container {
+    padding: 0.5rem 0;
+    min-height: calc(100vh - 80px);
+  }
+
+  .estimate-list-container {
+    margin-bottom: 1rem;
+  }
+
   /* Responsive table for mobile */
   .estimate-table {
     border: 0;
+    min-height: 250px;
   }
   
   .estimate-table thead {
@@ -261,5 +347,63 @@
   .action-btn {
     flex: 1;
     justify-content: center;
+  }
+
+  .empty-state {
+    padding: 2rem 1rem;
+    min-height: 250px;
+  }
+
+  .loading-container {
+    padding: 2rem;
+    min-height: 300px;
+  }
+}
+
+/* Additional utility classes for layout management */
+.h-100 {
+  height: 100% !important;
+}
+
+.min-vh-100 {
+  min-height: 100vh !important;
+}
+
+.flex-grow-1 {
+  flex-grow: 1 !important;
+}
+
+.d-flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Smooth transitions for better UX */
+.estimate-table tr {
+  transition: background-color 0.15s ease-in-out;
+}
+
+.estimate-table tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.action-btn {
+  transition: all 0.15s ease-in-out;
+}
+
+/* Print styles */
+@media print {
+  .estimate-list-header,
+  .action-buttons,
+  .footer {
+    display: none !important;
+  }
+  
+  .estimate-table {
+    font-size: 12px;
+  }
+  
+  .page-container {
+    min-height: auto;
   }
 }

@@ -1,22 +1,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Row, Col, ListGroup, Modal, Form, Alert, Spinner } from 'react-bootstrap';
-import { FaCheckCircle, FaCalendarAlt, FaArrowLeft, FaMapMarkerAlt, FaUserAlt, FaPhoneAlt, FaGlobe, FaTools, FaBoxOpen, FaInfo } from 'react-icons/fa';
+import { 
+  FaCheckCircle, 
+  FaCalendarAlt, 
+  FaArrowLeft, 
+  FaMapMarkerAlt, 
+  FaUserAlt, 
+  FaPhoneAlt, 
+  FaGlobe, 
+  FaTools, 
+  FaBoxOpen, 
+  FaInfo, 
+  FaTimesCircle, 
+  FaExclamationTriangle,
+  FaPlay // Added for the "Start Job" button
+} from 'react-icons/fa';
 import SignatureCanvas from 'react-signature-canvas';
 import { toast } from 'react-toastify';
-import { getJob, updateJobStatus, completeDoor } from '../../services/jobService';
+import { getJob, updateJobStatus, completeDoor, cancelJob } from '../../services/jobService';
 import './JobDetails.css';
+// Assuming MobileJobWorker.js is located in a sibling 'mobile' folder like:
+// src/components/jobs/JobDetails.js
+// src/components/mobile/MobileJobWorker.js
+import MobileJobWorker from './MobileJobWorker'; 
 
 /**
  * Enhanced JobDetails Component
  * 
  * Displays comprehensive job information with a modern UI
- * and improved mobile responsiveness
+ * and improved mobile responsiveness.
+ * Includes functionality to launch the MobileJobWorker flow.
  */
 const JobDetails = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedDoor, setSelectedDoor] = useState(null);
   const [signature, setSignature] = useState(null);
   const [photo, setPhoto] = useState(null);
@@ -24,7 +44,13 @@ const JobDetails = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   
-  const { jobId } = useParams();
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // State to control rendering of MobileJobWorker
+  const [showMobileWorker, setShowMobileWorker] = useState(false);
+  
+  const { jobId } = useParams(); // jobId from URL params (string)
   const navigate = useNavigate();
   let sigCanvas = null;
   
@@ -36,7 +62,12 @@ const JobDetails = () => {
     setError(null);
     
     try {
-      const data = await getJob(jobId);
+      const data = await getJob(jobId); // Use jobId from params for API call
+      
+      if (data && data.scheduled_date) {
+        console.log('Raw scheduled date from API:', data.scheduled_date);
+      }
+      
       setJob(data);
     } catch (err) {
       console.error('Error loading job:', err);
@@ -64,6 +95,34 @@ const JobDetails = () => {
     } catch (error) {
       console.error('Error updating job status:', error);
       toast.error('Error updating job status');
+    }
+  };
+  
+  /**
+   * Cancel a job by calling the dedicated cancel endpoint
+   * Also captures optional cancellation reason if provided
+   */
+  const handleCancelJob = async () => {
+    try {
+      setIsCancelling(true);
+      
+      const cancelData = {};
+      if (cancellationReason.trim()) {
+        cancelData.reason = cancellationReason.trim();
+      }
+      
+      await cancelJob(job.id, cancelData);
+      
+      toast.success('Job has been cancelled successfully');
+      
+      setCancellationReason('');
+      setShowCancelModal(false);
+      loadJob();
+    } catch (error) {
+      console.error('Error cancelling job:', error);
+      toast.error(`Error cancelling job: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsCancelling(false);
     }
   };
   
@@ -130,12 +189,10 @@ const JobDetails = () => {
     
     setIsSubmitting(true);
     try {
-      // In a real app, we would upload files to the server
-      // Here we'll just simulate a successful submission
       await completeDoor(job.id, selectedDoor.id, {
         signature: signature,
-        photo_file: 'simulated_photo.jpg', // Would be actual file in real app
-        video_file: 'simulated_video.mp4'  // Would be actual file in real app
+        photo_file: 'simulated_photo.jpg',
+        video_file: 'simulated_video.mp4'
       });
       
       toast.success(`Door #${selectedDoor.door_number} marked as completed`);
@@ -149,15 +206,65 @@ const JobDetails = () => {
     }
   };
   
-  /**
-   * Format date for display
-   */
+  const parseDatePreservingDay = (dateStr) => {
+    if (!dateStr) return null;
+    console.log('Parsing date:', dateStr);
+    try {
+      if (dateStr.includes('T')) {
+        dateStr = dateStr.split('T')[0];
+      }
+      if (dateStr.includes(',')) {
+        const tempDate = new Date(dateStr);
+        const year = tempDate.getUTCFullYear();
+        const month = tempDate.getUTCMonth();
+        const day = tempDate.getUTCDate();
+        return new Date(year, month, day, 12, 0, 0);
+      }
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+      }
+      const date = new Date(dateStr);
+      date.setHours(12, 0, 0, 0);
+      return date;
+    } catch (e) {
+      console.error('Error parsing date:', e, dateStr);
+      return null;
+    }
+  };
+  
   const formatDate = (dateString) => {
     if (!dateString) return 'Not Scheduled';
-    
+    const parsedDate = parseDatePreservingDay(dateString);
+    if (!parsedDate || isNaN(parsedDate.getTime())) {
+      console.warn('Invalid date:', dateString);
+      return 'Invalid Date';
+    }
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString(undefined, options);
+    return parsedDate.toLocaleDateString(undefined, options);
   };
+  
+  const getFormattedDateInfo = (dateString) => {
+    if (!dateString) return 'Not Scheduled';
+    const originalDate = new Date(dateString);
+    const parsedDate = parseDatePreservingDay(dateString);
+    return {
+      original: dateString,
+      standardParsed: originalDate.toLocaleDateString(),
+      fixedParsed: parsedDate.toLocaleDateString(),
+      fixedComponents: {
+        year: parsedDate.getFullYear(),
+        month: parsedDate.getMonth() + 1,
+        day: parsedDate.getDate()
+      }
+    };
+  };
+  
+  useEffect(() => {
+    if (job && job.scheduled_date) {
+      console.log('Date formatting info:', getFormattedDateInfo(job.scheduled_date));
+    }
+  }, [job]);
   
   /**
    * Render loading state
@@ -205,7 +312,18 @@ const JobDetails = () => {
       </Alert>
     );
   }
+
+  // If showMobileWorker is true, render MobileJobWorker instead of JobDetails UI
+  // Pass job.id (which is the numeric ID from DB) as a string to MobileJobWorker
+  if (showMobileWorker) {
+    return <MobileJobWorker jobId={job.id.toString()} />;
+  }
   
+  const displayDate = job.formatted_date || formatDate(job.scheduled_date);
+  const isJobCancelled = job.status === 'cancelled';
+  // Condition for showing "Start Job" button
+  const canStartJobMobile = job && !isJobCancelled && job.status !== 'completed';
+
   return (
     <div className="job-details-container">
       <div className="job-details-header">
@@ -215,28 +333,63 @@ const JobDetails = () => {
             <span className="status-label me-3">
               Status:
             </span>
-            <span className="status-text">
+            <span className={`status-text ${isJobCancelled ? 'text-danger' : ''}`}>
               {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1).replace(/_/g, ' ') : 'No Status'}
             </span>
           </div>
         </div>
         <div className="job-actions">
-          <Button 
-            variant="outline-primary" 
-            className="action-button"
-            onClick={() => navigate(`/schedule?jobId=${job.id}`)}
-          >
-            <FaCalendarAlt className="me-2" /> Schedule
-          </Button>
+          {canStartJobMobile && (
+            <Button
+              variant="success"
+              className="action-button"
+              onClick={() => setShowMobileWorker(true)}
+            >
+              <FaPlay className="me-2" /> Start Job (Mobile)
+            </Button>
+          )}
+          {!isJobCancelled && (
+            <>
+              <Button 
+                variant="outline-primary" 
+                className="action-button"
+                onClick={() => navigate(`/schedule/job/${job.id}`)}
+              >
+                <FaCalendarAlt className="me-2" /> Schedule
+              </Button>
+              <Button 
+                variant="outline-danger" 
+                className="action-button"
+                onClick={() => setShowCancelModal(true)}
+              >
+                <FaTimesCircle className="me-2" /> Cancel Job
+              </Button>
+            </>
+          )}
           <Button 
             variant="outline-secondary" 
             className="action-button"
-            onClick={() => navigate('/jobs')}
+            onClick={() => {
+              if (showMobileWorker) setShowMobileWorker(false); // Optionally allow exiting mobile worker view
+              else navigate('/jobs');
+            }}
           >
             <FaArrowLeft className="me-2" /> Back to Jobs
           </Button>
         </div>
       </div>
+      
+      {isJobCancelled && (
+        <Alert variant="danger" className="mb-4">
+          <Alert.Heading>
+            <FaExclamationTriangle className="me-2" /> This job has been cancelled
+          </Alert.Heading>
+          <p>
+            This job is marked as cancelled and is no longer active. 
+            You can view the details, but no further actions can be taken.
+          </p>
+        </Alert>
+      )}
       
       <Row className="job-info-row">
         <Col lg={6} className="mb-3 mb-lg-0">
@@ -280,7 +433,7 @@ const JobDetails = () => {
                 </div>
                 <div className="info-item">
                   <span className="info-label">
-                    <FaTools className="me-2" /> Scope
+                    <FaTools className="me-2" /> Additional Notes
                   </span>
                   <span className="info-value">{job.job_scope || 'N/A'}</span>
                 </div>
@@ -302,12 +455,12 @@ const JobDetails = () => {
                   <span className="info-label">Scheduled Date</span>
                   <span className="info-value">
                     <FaCalendarAlt className="me-2" />
-                    {formatDate(job.scheduled_date)}
+                    {displayDate}
                   </span>
                 </div>
                 <div className="info-item">
                   <span className="info-label">Status</span>
-                  <span className="status-text">
+                  <span className={`status-text ${isJobCancelled ? 'text-danger' : ''}`}>
                     {job.status ? job.status.charAt(0).toUpperCase() + job.status.slice(1).replace(/_/g, ' ') : 'No Status'}
                   </span>
                 </div>
@@ -328,51 +481,53 @@ const JobDetails = () => {
                 </div>
               </div>
               
-              <div className="status-actions">
-                <div className="status-label">Update Status:</div>
-                <div className="status-buttons">
-                  <Button 
-                    variant={job.status === 'unscheduled' ? 'secondary' : 'outline-secondary'} 
-                    size="sm"
-                    onClick={() => handleStatusChange('unscheduled')}
-                    className="status-btn"
-                  >
-                    Unscheduled
-                  </Button>
-                  <Button 
-                    variant={job.status === 'scheduled' ? 'primary' : 'outline-primary'} 
-                    size="sm"
-                    onClick={() => handleStatusChange('scheduled')}
-                    className="status-btn"
-                  >
-                    Scheduled
-                  </Button>
-                  <Button 
-                    variant={job.status === 'waiting_for_parts' ? 'warning' : 'outline-warning'} 
-                    size="sm"
-                    onClick={() => handleStatusChange('waiting_for_parts')}
-                    className="status-btn"
-                  >
-                    Waiting
-                  </Button>
-                  <Button 
-                    variant={job.status === 'on_hold' ? 'danger' : 'outline-danger'} 
-                    size="sm"
-                    onClick={() => handleStatusChange('on_hold')}
-                    className="status-btn"
-                  >
-                    On Hold
-                  </Button>
-                  <Button 
-                    variant={job.status === 'completed' ? 'success' : 'outline-success'} 
-                    size="sm"
-                    onClick={() => handleStatusChange('completed')}
-                    className="status-btn"
-                  >
-                    Completed
-                  </Button>
+              {!isJobCancelled && (
+                <div className="status-actions">
+                  <div className="status-label">Update Status:</div>
+                  <div className="status-buttons">
+                    <Button 
+                      variant={job.status === 'unscheduled' ? 'secondary' : 'outline-secondary'} 
+                      size="sm"
+                      onClick={() => handleStatusChange('unscheduled')}
+                      className="status-btn"
+                    >
+                      Unscheduled
+                    </Button>
+                    <Button 
+                      variant={job.status === 'scheduled' ? 'primary' : 'outline-primary'} 
+                      size="sm"
+                      onClick={() => handleStatusChange('scheduled')}
+                      className="status-btn"
+                    >
+                      Scheduled
+                    </Button>
+                    <Button 
+                      variant={job.status === 'waiting_for_parts' ? 'warning' : 'outline-warning'} 
+                      size="sm"
+                      onClick={() => handleStatusChange('waiting_for_parts')}
+                      className="status-btn"
+                    >
+                      Waiting
+                    </Button>
+                    <Button 
+                      variant={job.status === 'on_hold' ? 'danger' : 'outline-danger'} 
+                      size="sm"
+                      onClick={() => handleStatusChange('on_hold')}
+                      className="status-btn"
+                    >
+                      On Hold
+                    </Button>
+                    <Button 
+                      variant={job.status === 'completed' ? 'success' : 'outline-success'} 
+                      size="sm"
+                      onClick={() => handleStatusChange('completed')}
+                      className="status-btn"
+                    >
+                      Completed
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </Card.Body>
           </Card>
         </Col>
@@ -385,13 +540,13 @@ const JobDetails = () => {
           </h5>
         </Card.Header>
         <Card.Body>
-          {job.doors.length === 0 ? (
+          {job.doors && job.doors.length === 0 ? (
             <Alert variant="info">
               No doors associated with this job.
             </Alert>
           ) : (
             <ListGroup variant="flush" className="door-list">
-              {job.doors.map(door => (
+              {job.doors && job.doors.map(door => (
                 <ListGroup.Item 
                   key={door.id}
                   className="door-list-item"
@@ -403,7 +558,7 @@ const JobDetails = () => {
                     </span>
                   </div>
                   <div className="door-actions">
-                    {!door.completed && (
+                    {!door.completed && !isJobCancelled && (
                       <Button 
                         variant="primary" 
                         size="sm"
@@ -520,6 +675,87 @@ const JobDetails = () => {
             </div>
           </Form>
         </Modal.Body>
+      </Modal>
+      
+      {/* Cancel Job Confirmation Modal */}
+      <Modal
+        show={showCancelModal}
+        onHide={() => setShowCancelModal(false)}
+        centered
+        className="cancel-job-modal"
+      >
+        <Modal.Header closeButton className="bg-danger text-white">
+          <Modal.Title>
+            <FaExclamationTriangle className="me-2" /> 
+            Confirm Job Cancellation
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="text-center mb-4">
+            <FaExclamationTriangle className="text-danger" style={{ fontSize: '3rem' }} />
+          </div>
+          
+          <p className="fw-bold text-center">
+            Are you sure you want to cancel Job #{job.job_number}?
+          </p>
+          
+          <Alert variant="warning">
+            <p className="mb-0">
+              <strong>Warning:</strong> This action will mark the job as cancelled. 
+              Cancelled jobs cannot be scheduled or worked on. This action cannot be easily undone.
+            </p>
+          </Alert>
+          
+          <p>
+            Customer: <strong>{job.customer_name}</strong><br />
+            Address: <strong>{job.address || 'N/A'}</strong><br />
+            Scheduled Date: <strong>{displayDate}</strong>
+          </p>
+          
+          <Form.Group className="mb-3">
+            <Form.Label>Reason for cancellation (optional):</Form.Label>
+            <Form.Control
+              as="textarea"
+              rows={3}
+              placeholder="Enter reason for cancellation..."
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+            />
+            <Form.Text className="text-muted">
+              This will be recorded in the job history for reference.
+            </Form.Text>
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowCancelModal(false)}
+            disabled={isCancelling}
+          >
+            No, Keep Job Active
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={handleCancelJob}
+            disabled={isCancelling}
+          >
+            {isCancelling ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                  className="me-2"
+                />
+                Cancelling...
+              </>
+            ) : (
+              <>Yes, Cancel Job</>
+            )}
+          </Button>
+        </Modal.Footer>
       </Modal>
     </div>
   );

@@ -35,3 +35,71 @@
     max-width: 100%;
   }
 }
+.line-item-table-container {
+  margin-bottom: 30px;
+}
+
+.cost-summary {
+  max-width: 400px;
+  margin-left: auto;
+  margin-top: 20px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 15px;
+  background-color: #f8f9fa;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+}
+
+.summary-row.total {
+  border-top: 1px solid #dee2e6;
+  margin-top: 10px;
+  padding-top: 10px;
+  font-weight: bold;
+}
+
+/* Make numeric input fields more compact */
+.numeric-input {
+  padding: 0.25rem 0.5rem !important;
+  text-align: right;
+}
+
+/* Adjust the description field to take more space and handle multiple lines */
+.description-input {
+  min-width: 100%;
+  height: auto !important;
+  resize: vertical;
+  overflow-y: auto;
+  line-height: 1.4;
+}
+
+/* Adjust button sizes in the action column */
+.action-buttons .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* Make the new item row stand out */
+.new-item-row {
+  background-color: rgba(40, 167, 69, 0.05) !important;
+}
+
+.new-item-row input {
+  font-size: 0.9rem;
+  padding: 0.25rem 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .cost-summary {
+    max-width: 100%;
+  }
+  
+  /* Adjust column display on smaller screens */
+  .table-responsive {
+    overflow-x: auto;
+  }
+}

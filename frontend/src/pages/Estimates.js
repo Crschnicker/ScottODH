@@ -57,13 +57,6 @@ const Estimates = () => {
               <Card.Header>
                 <div className="d-flex justify-content-between align-items-center">
                   <span>Estimate List</span>
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm"
-                    onClick={() => setShowForm(true)}
-                  >
-                    <FaPlus className="me-1" /> Create New
-                  </Button>
                 </div>
               </Card.Header>
               <Card.Body>
