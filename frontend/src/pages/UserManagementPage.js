@@ -856,7 +856,7 @@ const UserManagementPage = ({ currentUser }) => {
       <div className="page-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl font-bold flex items-center">
-            <Users className="h-10 w-10 mr-4 text-black-300" />
+            <Users className="h-10 w-10 mr-4 text-blue-300" />
             User Management
           </h1>
           <p>Manage user accounts, roles, and permissions with advanced controls.</p>

@@ -122,104 +122,132 @@ const EstimateForm = ({ onEstimateCreated, onCancel }) => {
     setIncludeScheduling(!includeScheduling);
   };
   
-  /**
-   * Handle form submission
-   * @param {Event} e - Submit event
-   */
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Validate form data
-      if (!formData.customer_id || !formData.site_id) {
-        throw new Error('Please select a customer and site.');
-      }
-      
-      if (!formData.title) {
-        throw new Error('Estimate title is required.');
-      }
-      
-      // Validate scheduling data if scheduling is included
-      if (includeScheduling) {
-        if (!formData.schedule_date || !formData.schedule_time) {
-          throw new Error('Please select both date and time for scheduling.');
-        }
-        
-        // Construct scheduled date
-        const [year, month, day] = formData.schedule_date.split('-').map(num => parseInt(num, 10));
-        
-        // Parse AM/PM time string
-        const timeString = formData.schedule_time; // e.g., "10:00 AM" or "2:30 PM"
-        const timeParts = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
-
-        if (!timeParts) {
-            // This should ideally not happen if timeOptions are correctly populated and selected
-            throw new Error('Invalid time format selected. Please re-select a valid time.');
-        }
-
-        let hours = parseInt(timeParts[1], 10);
-        const minutes = parseInt(timeParts[2], 10);
-        const ampm = timeParts[3].toUpperCase();
-
-        if (ampm === 'PM' && hours < 12) { // e.g., 1 PM to 11 PM
-            hours += 12;
-        } else if (ampm === 'AM' && hours === 12) { // 12 AM (midnight)
-            hours = 0;
-        }
-        // For 12 PM (noon), hours is 12 and ampm is PM, no change needed.
-        // For 1 AM to 11 AM, hours is 1-11 and ampm is AM, no change needed.
-
-        const scheduledDateTime = new Date(year, month - 1, day, hours, minutes);
-        
-        // Don't allow scheduling in the past
-        if (scheduledDateTime < new Date()) {
-          // Compare against current time, reset seconds/ms for fair comparison if needed,
-          // but a simple comparison is often fine.
-          const now = new Date();
-          // To be more precise, one might want to compare date/time parts or ignore seconds/ms
-          // For this check, if scheduledDateTime is even slightly before now, it's in the past.
-          if (scheduledDateTime < now) {
-            throw new Error('Cannot schedule an estimate in the past.');
-          }
-        }
-        
-        // Add the scheduled date to the submission data
-        const submissionData = {
-          ...formData,
-          scheduled_date: scheduledDateTime.toISOString()
-        };
-        
-        // Send data to API
-        const result = await createEstimate(submissionData);
-        
-        // Notify parent component of success
-        if (onEstimateCreated) {
-          onEstimateCreated(result);
-        }
-      } else {
-        // Send data without scheduling information
-        const { 
-          schedule_date, schedule_time, estimator_id, estimator_name, 
-          duration, schedule_notes, ...submissionData 
-        } = formData;
-        
-        // Send data to API
-        const result = await createEstimate(submissionData);
-        
-        // Notify parent component of success
-        if (onEstimateCreated) {
-          onEstimateCreated(result);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to create estimate:', err);
-      setError(err.message || 'Failed to create estimate. Please try again.');
-    } finally {
-      setLoading(false);
+/**
+ * Handle form submission with improved error handling and validation
+ * @param {Event} e - Submit event
+ */
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // Validate form data
+    if (!formData.customer_id || !formData.site_id) {
+      throw new Error('Please select a customer and site.');
     }
-  };
+    
+    if (!formData.title || formData.title.trim().length === 0) {
+      throw new Error('Estimate title is required.');
+    }
+    
+    // Validate scheduling data if scheduling is included
+    if (includeScheduling) {
+      if (!formData.schedule_date || !formData.schedule_time) {
+        throw new Error('Please select both date and time for scheduling.');
+      }
+      
+      // Construct scheduled date
+      const [year, month, day] = formData.schedule_date.split('-').map(num => parseInt(num, 10));
+      
+      // Parse AM/PM time string
+      const timeString = formData.schedule_time; // e.g., "10:00 AM" or "2:30 PM"
+      const timeParts = timeString.match(/(\d+):(\d+)\s*(AM|PM)/i);
+
+      if (!timeParts) {
+        throw new Error('Invalid time format selected. Please re-select a valid time.');
+      }
+
+      let hours = parseInt(timeParts[1], 10);
+      const minutes = parseInt(timeParts[2], 10);
+      const ampm = timeParts[3].toUpperCase();
+
+      if (ampm === 'PM' && hours < 12) {
+        hours += 12;
+      } else if (ampm === 'AM' && hours === 12) {
+        hours = 0;
+      }
+
+      const scheduledDateTime = new Date(year, month - 1, day, hours, minutes);
+      
+      // Don't allow scheduling in the past
+      const now = new Date();
+      if (scheduledDateTime < now) {
+        throw new Error('Cannot schedule an estimate in the past.');
+      }
+      
+      // Prepare submission data with scheduling
+      const submissionData = {
+        ...formData,
+        scheduled_date: scheduledDateTime.toISOString(),
+        // Clean up any undefined fields
+        estimated_hours: formData.estimated_hours || null,
+        estimated_cost: formData.estimated_cost || null,
+        description: formData.description || null,
+        notes: formData.notes || null
+      };
+      
+      console.log('[ESTIMATE FORM] Submitting with scheduling:', submissionData);
+      
+      // Send data to API with retry logic
+      const result = await createEstimate(submissionData);
+      
+      console.log('[ESTIMATE FORM] Successfully created estimate:', result);
+      
+      // Notify parent component of success
+      if (onEstimateCreated) {
+        onEstimateCreated(result);
+      }
+    } else {
+      // Prepare submission data without scheduling information
+      const { 
+        schedule_date, schedule_time, estimator_id, estimator_name, 
+        duration, schedule_notes, ...submissionData 
+      } = formData;
+      
+      // Clean up any undefined fields
+      submissionData.estimated_hours = submissionData.estimated_hours || null;
+      submissionData.estimated_cost = submissionData.estimated_cost || null;
+      submissionData.description = submissionData.description || null;
+      submissionData.notes = submissionData.notes || null;
+      
+      console.log('[ESTIMATE FORM] Submitting without scheduling:', submissionData);
+      
+      // Send data to API with retry logic
+      const result = await createEstimate(submissionData);
+      
+      console.log('[ESTIMATE FORM] Successfully created estimate:', result);
+      
+      // Notify parent component of success
+      if (onEstimateCreated) {
+        onEstimateCreated(result);
+      }
+    }
+  } catch (err) {
+    console.error('[ESTIMATE FORM] Failed to create estimate:', err);
+    
+    // Extract the most relevant error message
+    let errorMessage = 'Failed to create estimate. Please try again.';
+    
+    if (err.message) {
+      errorMessage = err.message;
+    } else if (err.originalError && err.originalError.message) {
+      errorMessage = err.originalError.message;
+    }
+    
+    // Add retry information if available
+    if (err.retryCount !== undefined && err.retryCount > 0) {
+      errorMessage += ` (Attempted ${err.retryCount + 1} times)`;
+    }
+    
+    setError(errorMessage);
+    
+    // Scroll to top to show error message
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } finally {
+    setLoading(false);
+  }
+};
   
   /**
    * Go back to customer selection step
@@ -271,6 +299,11 @@ const EstimateForm = ({ onEstimateCreated, onCancel }) => {
   // No changes needed in the JSX part for this request.
   return (
     <Card className="shadow-sm">
+      <Card.Header>
+        <h5 className="mb-0">
+          {step === 1 ? 'Select Customer & Site' : 'Create New Estimate'}
+        </h5>
+      </Card.Header>
       <Card.Body>
         {/* Step 1: Customer & Site Selection */}
         {step === 1 && (

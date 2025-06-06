@@ -1,69 +1,119 @@
+/* --- Base Container & Header --- */
 .bid-form-container {
-  margin-bottom: 2rem; /* Consistent spacing unit */
-  }
-  .bid-header {
+  margin-bottom: 2rem;
+}
+
+.bid-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem; /* Consistent spacing /
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #dee2e6; / Add subtle separation */
-  }
-  .bid-header h2 {
-  margin-bottom: 0; /* Prevent extra margin on heading */
-  }
-  .bid-actions {
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.bid-header h2 {
+  margin-bottom: 0;
+}
+
+.bid-actions {
   display: flex;
-  flex-wrap: wrap; /* Allow wrapping on smaller screens /
-  gap: 0.5rem; / Space between buttons */
+  gap: 0.5rem;
   align-items: center;
-  }
-  .bid-actions .btn {
-  display: flex; /* Align icon and text /
-  align-items: center;
-  gap: 0.5rem; / Space between icon and text */
-  }
-  .bid-actions {
-  width: 100%; /* Make actions take full width /
-  justify-content: flex-start; / Align buttons to the start */
-  }
-  .bid-summary {
-  max-width: 600px; /* Slightly wider /
-  margin: 0 auto; / Center summary content /
-  padding: 1rem 0; / Add some vertical padding */
-  }
-  .summary-item {
+}
+
+/* --- Card & Content Styling --- */
+.card {
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  border: 1px solid #e9ecef;
+  border-radius: 0.375rem; /* Softer corners */
+}
+
+.card-header {
+  background-color: #f8f9fa; /* Lighter, standard header color */
+  font-weight: 600;
+  color: #212529; /* Darker text for better contrast */
+}
+
+/*
+ * --- Tab Navigation (Primary Fix) ---
+ * The following rules increase the contrast of the tab links
+ * to make them readable against the white background.
+*/
+.nav-tabs .nav-link {
+  /* Make inactive tab text much darker and easier to read */
+  color: #6c757d; 
+  font-weight: 500;
+  border-bottom-width: 2px;
+}
+
+/* Darken text on hover for better feedback */
+.nav-tabs .nav-link:not(.active):hover,
+.nav-tabs .nav-link:not(.active):focus {
+  color: #212529;
+  border-color: #e9ecef #e9ecef #dee2e6;
+}
+
+/* Style the active tab to make it stand out */
+.nav-tabs .nav-link.active {
+  color: #0d6efd; /* Use a primary color to show it's active and selected */
+  font-weight: 700;
+  border-color: #dee2e6 #dee2e6 #fff;
+}
+
+
+/* --- Summary Section --- */
+.bid-summary {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 1rem 0;
+}
+
+.summary-item {
   display: flex;
   justify-content: space-between;
-  padding: 0.75rem 0; /* Adjusted padding /
-  border-bottom: 1px solid #eee;
-  font-size: 0.95rem; / Slightly adjust font size */
-  }
-  .summary-item:last-of-type {
-  border-bottom: none; /* Remove border from last item before total */
-  }
-  .summary-item.total {
+  padding: 0.8rem 0.25rem;
+  border-bottom: 1px solid #f1f3f5; /* Lighter border for a cleaner look */
+  font-size: 1rem;
+}
+
+.summary-item span:first-child {
+  color: #495057; /* Softer text color for labels */
+}
+
+.summary-item span:last-child {
+  font-weight: 600; /* Make all values stand out */
+}
+
+.summary-item:last-of-type {
+  border-bottom: none;
+}
+
+.summary-item.total {
   font-weight: bold;
-  font-size: 1.25em; /* Slightly larger total */
+  font-size: 1.25em;
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 2px solid #333;
-  border-bottom: none;
-  }
-  .summary-item span:last-child {
-  font-weight: 500; /* Slightly bolder values */
-  }
-  .summary-item.total span:last-child {
-  font-weight: bold; /* Ensure total value is bold */
-  }
-  /* Door summary table styling */
-  .door-summary-table {
+  border-top: 2px solid #343a40;
+  color: #212529;
+}
+
+.summary-item.total span:last-child {
+  font-weight: bold;
+}
+
+/* --- Door Summary Table --- */
+.door-summary-table {
   margin-top: 2rem;
-  }
-  .door-summary-table th {
+}
+
+.door-summary-table th {
   background-color: #f8f9fa;
   font-weight: 600;
-  }
-  .door-summary-table td {
+}
+
+.door-summary-table td {
   vertical-align: middle;
-  }
+}

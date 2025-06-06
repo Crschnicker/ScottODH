@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
-import { Card, Button, Badge, ListGroup, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Card, Button, Badge, ListGroup } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { getJobs } from '../../services/jobService';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -44,9 +44,6 @@ const JobCalendar = ({ region, onSelectDate }) => {
     return moment(date).format('h:mm A');
   };
   
-  /**
-   * Load jobs from the API with filtering options
-   */
   const loadScheduledJobs = useCallback(async () => {
     try {
       setLoading(true);
@@ -57,37 +54,47 @@ const JobCalendar = ({ region, onSelectDate }) => {
       
       const fetchedJobs = await getJobs(params);
       
-      // Transform jobs into events for the calendar
-      const jobEvents = fetchedJobs.map(job => {
-        // Parse date and set to noon to avoid timezone issues
-        let jobDate;
-        
-        if (job.scheduled_date) {
-          // Parse the date string to a Date object
-          jobDate = new Date(job.scheduled_date);
-          // Ensure it's set to noon to avoid timezone issues
-          jobDate.setHours(12, 0, 0, 0);
-        } else {
-          jobDate = new Date();
-          jobDate.setHours(12, 0, 0, 0);
+      // --- REVISED LOGIC: Filter and Map in one pass using reduce ---
+      const jobEvents = fetchedJobs.reduce((events, job) => {
+        // 1. First, check if a scheduled_date even exists and is not an empty string.
+        if (!job.scheduled_date) {
+          // This job is unscheduled, so we simply skip it.
+          return events; // Return the accumulator unchanged.
         }
-        
-        // Create an end date (1 hour after start)
-        const endDate = new Date(jobDate);
-        endDate.setHours(endDate.getHours() + 1);
-        
-        return {
-          id: job.id,
-          title: `${job.job_number}: ${job.customer_name}`,
-          start: jobDate,
-          end: endDate,
-          resource: job // Store the original job data
-        };
-      });
+
+        // 2. Now, attempt to parse the date and move it to noon to avoid timezone issues.
+        const startMoment = moment(job.scheduled_date, ['YYYY-MM-DD', 'MM/DD/YYYY'])
+                              .startOf('day')
+                              .add(12, 'hours');
+
+        // 3. Check if the parsed date is valid.
+        if (startMoment.isValid()) {
+          // If valid, create the event object and add it to our array.
+          const startDate = startMoment.toDate();
+          const endDate = moment(startMoment).add(1, 'hour').toDate();
+
+          events.push({
+            id: job.id,
+            title: `${job.job_number}: ${job.customer_name}`,
+            start: startDate,
+            end: endDate,
+            resource: job
+          });
+        } else {
+          // The date string was present but malformed. Log it for debugging and skip it.
+          console.warn(
+            `Skipping job due to malformed scheduled_date: '${job.scheduled_date}'`,
+            job
+          );
+        }
+
+        // Return the accumulator for the next iteration.
+        return events;
+      }, []); // The initial value of our accumulator is an empty array [].
       
       setJobs(jobEvents);
       
-      // Update selected date jobs
+      // Update the sidebar list with the correctly filtered and formed events
       updateSelectedDateJobs(calendarDate, jobEvents);
     } catch (error) {
       console.error('Error loading scheduled jobs:', error);
@@ -122,7 +129,6 @@ const JobCalendar = ({ region, onSelectDate }) => {
    * @param {Object} slotInfo - Information about the selected slot
    */
   const handleSelectSlot = ({ start }) => {
-    // Create a new date with time fixed at noon to avoid timezone shifts
     const selectedDate = new Date(start);
     selectedDate.setHours(12, 0, 0, 0);
     
@@ -186,9 +192,11 @@ const JobCalendar = ({ region, onSelectDate }) => {
     return (
       <div className="d-flex justify-content-between align-items-center mb-2">
         <div>
-          <Button variant="outline-secondary" size="sm" onClick={goToBack}>&lt;</Button>
+          {/* CORRECTED SYNTAX */}
+          <Button variant="outline-secondary" size="sm" onClick={goToBack}>{'<'}</Button>
           <Button variant="outline-primary" size="sm" onClick={goToToday} className="mx-2">Today</Button>
-          <Button variant="outline-secondary" size="sm" onClick={goToNext}>&gt;</Button>
+          {/* CORRECTED SYNTAX */}
+          <Button variant="outline-secondary" size="sm" onClick={goToNext}>{'>'}</Button>
           <span className="ms-2 fw-bold">{toolbar.label}</span>
         </div>
         <div className="btn-group">
@@ -214,16 +222,15 @@ const JobCalendar = ({ region, onSelectDate }) => {
    * Custom styling for calendar events
    */
   const eventStyleGetter = (event) => {
-    // Extract job status from the resource
     const status = event.resource?.status?.toLowerCase() || 'scheduled';
     
-    let backgroundColor = '#007bff'; // Default blue
+    let backgroundColor = '#007bff';
     
     switch (status) {
-      case 'completed': backgroundColor = '#28a745'; break; // Green
-      case 'in_progress': backgroundColor = '#ffc107'; break; // Yellow
-      case 'cancelled': backgroundColor = '#dc3545'; break; // Red
-      default: backgroundColor = '#007bff'; // Blue for scheduled
+      case 'completed': backgroundColor = '#28a745'; break;
+      case 'in_progress': backgroundColor = '#ffc107'; break;
+      case 'cancelled': backgroundColor = '#dc3545'; break;
+      default: backgroundColor = '#007bff';
     }
     
     return {
@@ -290,22 +297,16 @@ const JobCalendar = ({ region, onSelectDate }) => {
   
   /**
    * HourlyTimeline component to display jobs in a timeline view
-   * Similar to the one in EstimateCalendar
    */
   const HourlyTimeline = () => {
     const startHour = 6; 
     const endHour = 17;  
     const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
     
-    // Function to calculate job position and height in the timeline
     const calculateJobPosition = (job) => {
-      // For this example, we'll just position all jobs at 9 AM and make them 2 hours long
-      // In a real app, you would use the actual scheduled time
-      const jobHour = 9; // Default to 9 AM
-      const jobDuration = 2; // 2 hours
-      
+      const jobHour = 9; 
+      const jobDuration = 2;
       const totalTimelineSpanHours = endHour - startHour;
-      
       const topPosition = ((jobHour - startHour) / totalTimelineSpanHours) * 100;
       const heightPercentage = (jobDuration / totalTimelineSpanHours) * 100;
       

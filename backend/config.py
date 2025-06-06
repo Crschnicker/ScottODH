@@ -28,6 +28,9 @@ class Config:
         'http://127.0.0.1:5000'
     ]
     
+    # API prefix for easier endpoint management
+    API_PREFIX = "/api/"
+    
     # Session configuration for Flask-Login
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
@@ -85,7 +88,7 @@ class Config:
     }
 
 class DevelopmentConfig(Config):
-    """Development environment configuration"""
+    """Development environment configuration with enhanced ngrok support"""
     DEBUG = True
     TESTING = False
     
@@ -95,26 +98,50 @@ class DevelopmentConfig(Config):
     # Development database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///scott_overhead_doors_dev.db'
     
-    # Enhanced CORS for development including ngrok and local variations
-    CORS_ORIGINS = [
-        # Standard local development
-        'http://localhost:3000',
-        'http://localhost:3001', 
-        'http://localhost:3002',  # Additional port
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:3001',
-        'http://127.0.0.1:3002',
-        'http://localhost:5000',
-        'http://127.0.0.1:5000',
-        'http://0.0.0.0:3000',    # Docker/container support
-        'http://0.0.0.0:5000',
+    # Dynamic CORS for development that supports any ngrok URL
+    def get_cors_origins():
+        """Dynamic CORS origins that supports any ngrok tunnel"""
+        base_origins = [
+            # Standard local development
+            'http://localhost:3000',
+            'http://localhost:3001', 
+            'http://localhost:3002',
+            'http://localhost:3003',  # Additional ports
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001',
+            'http://127.0.0.1:3002',
+            'http://127.0.0.1:3003',
+            'http://localhost:5000',
+            'http://127.0.0.1:5000',
+            'http://0.0.0.0:3000',    # Docker/container support
+            'http://0.0.0.0:5000',
+            
+            # Common ngrok patterns (will be supplemented by runtime detection)
+            'https://*.ngrok.io',
+            'https://*.ngrok.app',
+            'https://*.ngrok-free.app',
+        ]
         
-        # ngrok tunnel URLs
-        'https://ScottOhd-api.ngrok.io',      # Your specific ngrok URL
-        'https://scottohd-api.ngrok.io',      # Lowercase variant
+        # Add environment-specific origins
+        additional_origins = os.environ.get('ADDITIONAL_CORS_ORIGINS', '')
+        if additional_origins:
+            base_origins.extend([origin.strip() for origin in additional_origins.split(',') if origin.strip()])
         
-        # Add any additional origins from environment variable
-    ] + (os.environ.get('ADDITIONAL_CORS_ORIGINS', '').split(',') if os.environ.get('ADDITIONAL_CORS_ORIGINS') else [])
+        # Add current ngrok URL from environment if set
+        ngrok_url = os.environ.get('NGROK_URL')
+        if ngrok_url:
+            base_origins.append(ngrok_url)
+            # Also add HTTP version if HTTPS is provided
+            if ngrok_url.startswith('https://'):
+                base_origins.append(ngrok_url.replace('https://', 'http://'))
+        
+        return base_origins
+    
+    CORS_ORIGINS = get_cors_origins()
+    
+    # Session configuration for ngrok tunnels
+    SESSION_COOKIE_SECURE = False  # Allow HTTP for ngrok tunnels in development
+    SESSION_COOKIE_SAMESITE = 'None' if os.environ.get('NGROK_URL') else 'Lax'
 
 class ProductionConfig(Config):
     """Production environment configuration"""
@@ -126,6 +153,7 @@ class ProductionConfig(Config):
     
     # Secure session cookies in production
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
     
     # Production database
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
