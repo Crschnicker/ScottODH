@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+migrations/
+instance/
+*.db
+.dockerignore
+Dockerfile
+*.log
+mobile_uploads/
+uploads/
