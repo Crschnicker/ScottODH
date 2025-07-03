@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Container, Row, Col, Button, Card } from 'react-bootstrap';
+import React, { useState, useCallback, useRef } from 'react';
+import { Button, Modal } from 'react-bootstrap';
 import { FaUserPlus } from 'react-icons/fa';
 import CustomerList from '../components/customers/CustomerList';
 import CustomerForm from '../components/customers/CustomerForm';
@@ -7,102 +7,147 @@ import SiteForm from '../components/customers/SiteForm';
 import './Customers.css';
 
 const Customers = () => {
+  // --- State for Modals and Forms ---
+
+  // State for the Customer form modal
   const [showCustomerForm, setShowCustomerForm] = useState(false);
+  
+  // State for the Site form modal
   const [showSiteForm, setShowSiteForm] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [siteFormMode, setSiteFormMode] = useState('add'); // 'add' or 'edit'
   const [siteToEdit, setSiteToEdit] = useState(null);
-  const [refreshCustomerList, setRefreshCustomerList] = useState(false);
 
-  // When a customer is created, close modal and refresh list
-  const handleCustomerCreated = () => {
-    setShowCustomerForm(false);
-    setRefreshCustomerList((prev) => !prev);
+  // --- Callback and Refresh Logic ---
+
+  // Ref to hold the refresh function provided by CustomerList
+  const onSaveCallbackRef = useRef(null);
+
+  // Legacy refresh trigger for components that don't use the callback pattern (like the SiteForm here)
+  const [refreshCustomerList, setRefreshCustomerList] = useState(0);
+
+  /**
+   * This function is passed to CustomerList's `onAddNewClick` prop.
+   * CustomerList calls this function and provides its internal `handleCustomerSaved` function.
+   * @param {Function} onSaveHandler - The refresh handler function from CustomerList.
+   */
+  const handleAddNewClick = (onSaveHandler) => {
+    // 1. Store the refresh function so we can pass it to the form.
+    onSaveCallbackRef.current = onSaveHandler;
+    
+    // 2. Open the modal.
+    setShowCustomerForm(true);
   };
 
-  // When a site is created or edited, close modal and refresh list
-  const handleSiteCreated = () => {
+  /**
+   * This function is passed to CustomerForm's `onSave` prop.
+   * The form calls this function after a successful save.
+   * @param {Object} savedCustomer - The customer data returned from the form's save operation.
+   */
+  const handleCustomerFormSave = (savedCustomer) => {
+    // 1. If the callback from CustomerList exists, call it with the new data.
+    if (onSaveCallbackRef.current) {
+      onSaveCallbackRef.current(savedCustomer);
+    }
+    
+    // 2. Close the modal.
+    setShowCustomerForm(false);
+  };
+  
+  /**
+   * Handles closing the customer form modal.
+   */
+  const handleCustomerFormCancel = () => {
+    setShowCustomerForm(false);
+  };
+
+  // --- Site Form Handlers ---
+  // (These handlers remain largely the same, but now trigger the legacy refresh)
+
+  const triggerLegacyRefresh = useCallback(() => {
+    setRefreshCustomerList(prev => prev + 1);
+  }, []);
+
+  const handleSiteCreated = useCallback(() => {
     setShowSiteForm(false);
     setSelectedCustomer(null);
     setSiteToEdit(null);
-    setRefreshCustomerList((prev) => !prev);
-  };
+    // Trigger a refresh of the customer list to show updated site counts, etc.
+    triggerLegacyRefresh();
+  }, [triggerLegacyRefresh]);
 
-  // Open the site form modal for the selected customer
-  const handleAddSite = (customer) => {
+  const handleAddSite = useCallback((customer) => {
     setSelectedCustomer(customer);
     setSiteFormMode('add');
     setSiteToEdit(null);
     setShowSiteForm(true);
-  };
+  }, []);
 
-  // Open the site form modal for editing a site
-  const handleEditSite = (customer, site) => {
+  const handleEditSite = useCallback((customer, site) => {
     setSelectedCustomer(customer);
     setSiteFormMode('edit');
     setSiteToEdit(site);
     setShowSiteForm(true);
-  };
+  }, []);
 
-  // Cancel the site form modal
-  const handleCancelSite = () => {
+  const handleCancelSite = useCallback(() => {
     setShowSiteForm(false);
     setSelectedCustomer(null);
     setSiteToEdit(null);
-  };
+  }, []);
 
   return (
     <div style={{ background: '#f7f8fa', minHeight: '100vh', padding: '32px' }}>
       <div className="customer-list-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', maxWidth: '100%', margin: '0 0 24px 0' }}>
         <h4 className="customer-list-title" style={{ margin: 0 }}>Customers</h4>
-        <Button variant="primary" onClick={() => setShowCustomerForm(true)} className="customer-add-btn">
-          <FaUserPlus style={{ marginRight: 8, fontSize: 18 }} /> Add Customer
-        </Button>
+        {/* The "Add Customer" button is now inside CustomerList for better encapsulation,
+            as it's directly tied to the list's functionality. */}
       </div>
       <div className="customer-list-table-container" style={{ width: '100%', maxWidth: '100%', overflowX: 'auto' }}>
         <CustomerList 
-          onAddNewClick={() => setShowCustomerForm(true)} 
-          refreshTrigger={refreshCustomerList} 
+          onAddNewClick={handleAddNewClick} 
+          // The refreshTrigger is kept for the SiteForm to refresh the list
+          refreshTrigger={refreshCustomerList}
         />
       </div>
-      {/* Customer form modal */}
-      {showCustomerForm && (
-        <div className="modal fade show customer-modal" style={{ display: 'block', background: 'rgba(0,0,0,0.25)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 410 }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Add New Customer</h5>
-                <button type="button" className="btn-close" aria-label="Close" onClick={() => setShowCustomerForm(false)} />
-              </div>
-              <div className="modal-body">
-                <CustomerForm onCustomerCreated={handleCustomerCreated} onCancel={() => setShowCustomerForm(false)} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Site form modal */}
-      {showSiteForm && selectedCustomer && (
-        <div className="modal fade show site-modal" style={{ display: 'block', background: 'rgba(0,0,0,0.25)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 480 }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">{siteFormMode === 'edit' ? 'Edit Site' : 'Add Site'} for {selectedCustomer.name}</h5>
-                <button type="button" className="btn-close" aria-label="Close" onClick={handleCancelSite} />
-              </div>
-              <div className="modal-body">
-                <SiteForm 
-                  customer={selectedCustomer} 
-                  site={siteToEdit} 
-                  mode={siteFormMode} 
-                  onSave={handleSiteCreated} 
-                  onCancel={handleCancelSite} 
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      
+      {/* Customer Form Modal: Using React-Bootstrap's Modal for better accessibility and state management */}
+      <Modal show={showCustomerForm} onHide={handleCustomerFormCancel} size="lg" centered backdrop="static" keyboard={false}>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1.25rem', fontWeight: '600', color: '#495057' }}>
+            Add New Customer
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: '1.5rem' }}>
+          <CustomerForm 
+            // Add a key to ensure the form resets when opened again
+            key={showCustomerForm ? 'customer-form-open' : 'customer-form-closed'}
+            onSave={handleCustomerFormSave} 
+            onCancel={handleCustomerFormCancel}
+          />
+        </Modal.Body>
+      </Modal>
+      
+      {/* Site Form Modal: Also using React-Bootstrap's Modal for consistency */}
+      <Modal show={showSiteForm} onHide={handleCancelSite} size="lg" centered backdrop="static" keyboard={false}>
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1.25rem', fontWeight: '600', color: '#495057' }}>
+            {siteFormMode === 'edit' ? 'Edit Site' : 'Add New Site'}
+            {selectedCustomer && ` for ${selectedCustomer.name}`}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ padding: '1.5rem' }}>
+          {selectedCustomer && (
+            <SiteForm 
+              customer={selectedCustomer} 
+              site={siteToEdit} 
+              mode={siteFormMode} 
+              onSave={handleSiteCreated} 
+              onCancel={handleCancelSite} 
+            />
+          )}
+        </Modal.Body>
+      </Modal>
     </div>
   );
 };

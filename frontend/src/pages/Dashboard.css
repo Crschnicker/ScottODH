@@ -86,53 +86,182 @@
   margin-bottom: 0;
 }
 
-.recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 0 2px;
+/* Recent Actions Styles */
+.recent-actions-card {
+  border-radius: 14px;
+  border: none;
+  box-shadow: 0 2px 16px rgba(36,50,77,0.08);
+  background: #fff;
 }
 
-.recent-item {
-  padding: 10px 0 10px 0;
+.recent-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.recent-action-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px 8px;
   border-bottom: 1px solid #e9ecef;
-  background: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  transition: background-color 0.2s ease;
+  gap: 16px;
 }
 
-.recent-item:last-child {
+.recent-action-item:last-child {
   border-bottom: none;
 }
 
-.recent-item-header {
+.recent-action-item:hover {
+  background-color: #f8f9fa;
+}
+
+.action-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #f8f9fa;
+  flex-shrink: 0;
+}
+
+.action-icon {
+  font-size: 18px;
+}
+
+.estimates-color {
+  color: #17a2b8;
+}
+
+.bids-color {
+  color: #28a745;
+}
+
+.jobs-color {
+  color: #fd7e14;
+}
+
+.action-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.action-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 3px;
-  gap: 8px;
+  gap: 12px;
 }
 
-.recent-item-title {
+.action-title {
   font-weight: 600;
   color: #24324d;
   font-size: 1.05rem;
   letter-spacing: 0.5px;
 }
 
-.recent-item-details {
+.action-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.action-details {
   display: flex;
   justify-content: space-between;
-  font-size: 0.97em;
+  align-items: center;
+  gap: 12px;
+}
+
+.action-description {
+  font-size: 0.95rem;
   color: #7c8ba1;
+  flex: 1;
+}
+
+.action-date {
+  font-size: 0.9rem;
+  color: #9ca3af;
+  flex-shrink: 0;
 }
 
 .region-label {
   background-color: #e9ecef;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 4px;
-  font-size: 0.8em;
-  margin-left: 8px;
+  font-size: 0.75rem;
   color: #24324d;
+  font-weight: 500;
+}
+
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-draft {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.status-scheduled {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-unscheduled {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status-completed {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .action-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .action-badges {
+    align-self: flex-end;
+  }
+  
+  .action-details {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .action-date {
+    align-self: flex-end;
+  }
 }

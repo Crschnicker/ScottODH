@@ -40,11 +40,73 @@ const Dashboard = () => {
   const unscheduledJobs = jobs.filter(j => j.status === 'unscheduled');
   const scheduledJobs = jobs.filter(j => j.status === 'scheduled');
   
-
+  // Create recent actions by combining all activities
+  const getRecentActions = () => {
+    const actions = [];
+    
+    // Add estimates as actions
+    estimates.forEach(estimate => {
+      actions.push({
+        id: `estimate-${estimate.id}`,
+        type: 'estimate',
+        title: `EST-${estimate.id}`,
+        description: `Estimate created for ${estimate.customer_name}`,
+        status: estimate.status,
+        date: estimate.created_at,
+        link: '/estimates'
+      });
+    });
+    
+    // Add bids as actions
+    bids.forEach(bid => {
+      actions.push({
+        id: `bid-${bid.id}`,
+        type: 'bid',
+        title: `BID-${bid.id}`,
+        description: `Bid ${bid.status} for ${bid.customer_name}`,
+        status: bid.status,
+        date: bid.updated_at || bid.created_at,
+        link: '/bids'
+      });
+    });
+    
+    // Add jobs as actions
+    jobs.forEach(job => {
+      const actionType = job.scheduled_date ? 'scheduled' : 'created';
+      actions.push({
+        id: `job-${job.id}`,
+        type: 'job',
+        title: job.job_number,
+        description: `Job ${actionType} for ${job.customer_name}`,
+        status: job.status,
+        date: job.scheduled_date || job.updated_at || job.created_at,
+        link: '/jobs',
+        region: job.region
+      });
+    });
+    
+    // Sort by date (most recent first) and return top 10
+    return actions
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 10);
+  };
   
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
+  };
+  
+  const getActionIcon = (type) => {
+    switch (type) {
+      case 'estimate':
+        return <FaClipboardList className="action-icon estimates-color" />;
+      case 'bid':
+        return <FaFileInvoiceDollar className="action-icon bids-color" />;
+      case 'job':
+        return <FaTools className="action-icon jobs-color" />;
+      default:
+        return <FaCalendarAlt className="action-icon" />;
+    }
   };
   
   if (loading) {
@@ -118,63 +180,41 @@ const Dashboard = () => {
       </Row>
       
       <Row className="mt-4">
-        <Col md={6}>
-          <Card>
-            <Card.Header>Recent Estimates</Card.Header>
+        <Col md={12}>
+          <Card className="recent-actions-card">
+            <Card.Header>Recent Actions</Card.Header>
             <Card.Body>
-              {estimates.length === 0 ? (
-                <p className="text-muted">No estimates found.</p>
+              {getRecentActions().length === 0 ? (
+                <p className="text-muted">No recent actions found.</p>
               ) : (
-                <div className="recent-list">
-                  {estimates.slice(0, 5).map(estimate => (
-                    <div className="recent-item" key={estimate.id}>
-                      <div className="recent-item-header">
-                        <span className="recent-item-title">EST-{estimate.id}</span>
-                        {estimate.status ? estimate.status.charAt(0).toUpperCase() + estimate.status.slice(1) : 'No Status'}
+                <div className="recent-actions-list">
+                  {getRecentActions().map(action => (
+                    <div className="recent-action-item" key={action.id}>
+                      <div className="action-icon-wrapper">
+                        {getActionIcon(action.type)}
                       </div>
-                      <div className="recent-item-details">
-                        <span>{estimate.customer_name}</span>
-                        <span className="text-muted">{formatDate(estimate.created_at)}</span>
+                      <div className="action-content">
+                        <div className="action-header">
+                          <span className="action-title">{action.title}</span>
+                          <div className="action-badges">
+                            {action.region && (
+                              <span className="region-label">{action.region}</span>
+                            )}
+                            <span className={`status-badge status-${action.status}`}>
+                              {action.status ? action.status.charAt(0).toUpperCase() + action.status.slice(1) : 'No Status'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="action-details">
+                          <span className="action-description">{action.description}</span>
+                          <span className="action-date">{formatDate(action.date)}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </Card.Body>
-            <Card.Footer>
-              <Link to="/estimates">View All Estimates</Link>
-            </Card.Footer>
-          </Card>
-        </Col>
-        
-        <Col md={6}>
-          <Card>
-            <Card.Header>Upcoming Jobs</Card.Header>
-            <Card.Body>
-              {scheduledJobs.length === 0 ? (
-                <p className="text-muted">No upcoming jobs found.</p>
-              ) : (
-                <div className="recent-list">
-                  {scheduledJobs.slice(0, 5).map(job => (
-                    <div className="recent-item" key={job.id}>
-                      <div className="recent-item-header">
-                        <span className="recent-item-title">{job.job_number}</span>
-                        <span className="region-label">{job.region}</span>
-                      </div>
-                      <div className="recent-item-details">
-                        <span>{job.customer_name}</span>
-                        <span className="text-muted">
-                          {job.scheduled_date ? formatDate(job.scheduled_date) : 'Not scheduled'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card.Body>
-            <Card.Footer>
-              <Link to="/jobs">View All Jobs</Link>
-            </Card.Footer>
           </Card>
         </Col>
       </Row>

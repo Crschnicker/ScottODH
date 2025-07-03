@@ -1,0 +1,66 @@
+/* SiteForm.css */
+
+.site-form {
+  /* Base form styling */
+}
+
+.site-form .form-label {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.site-form .form-control {
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.site-form .form-control:focus {
+  border-color: #86b7fe;
+  outline: 0;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.site-form .form-control:disabled {
+  background-color: #f8f9fa;
+  opacity: 0.65;
+}
+
+.site-form .form-text {
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.site-form .btn {
+  border-radius: 0.375rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.site-form .btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.site-form .alert {
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+}
+
+.site-form .bg-light {
+  background-color: #f8f9fa !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .site-form .d-flex {
+    flex-direction: column;
+  }
+  
+  .site-form .me-2 {
+    margin-right: 0 !important;
+    margin-bottom: 0.5rem;
+  }
+}

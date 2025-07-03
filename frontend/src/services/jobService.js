@@ -20,6 +20,123 @@ const logDateOperation = (operation, input, output, message = '') => {
 };
 
 /**
+ * Enhanced authentication debugging helper
+ * @param {string} operation - The operation being performed
+ * @param {Object} error - The error object
+ * @param {Object} config - The request configuration
+ */
+const logAuthenticationError = (operation, error, config = {}) => {
+  console.error(`[AUTH ERROR - ${operation}]`, {
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    errorData: error.response?.data,
+    requestUrl: error.config?.url,
+    requestMethod: error.config?.method,
+    requestHeaders: error.config?.headers,
+    withCredentials: error.config?.withCredentials,
+    baseURL: error.config?.baseURL,
+    timestamp: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    origin: window.location.origin,
+    currentPath: window.location.pathname
+  });
+  
+  // Additional debugging for common auth issues
+  if (error.response?.status === 401) {
+    console.warn('[AUTH DEBUG] 401 Unauthorized - Common causes:', {
+      possibleIssues: [
+        'Session cookie expired or missing',
+        'CORS credentials not being sent',
+        'Authentication header missing',
+        'Server session storage issue',
+        'Cross-domain cookie settings'
+      ],
+      recommendations: [
+        'Check if withCredentials is set to true',
+        'Verify CORS_SUPPORTS_CREDENTIALS on server',
+        'Check browser dev tools for cookie presence',
+        'Verify API base URL configuration',
+        'Try logging out and back in'
+      ]
+    });
+  }
+  
+  if (error.response?.status === 403) {
+    console.warn('[AUTH DEBUG] 403 Forbidden - Possible permission issue:', {
+      possibleIssues: [
+        'User authenticated but lacks required permissions',
+        'Admin role required for this operation',
+        'User account deactivated'
+      ]
+    });
+  }
+};
+
+/**
+ * Test authentication status and API connectivity
+ * @returns {Promise<Object>} Authentication status and user info
+ */
+export const testAuthentication = async () => {
+  try {
+    console.log('[AUTH TEST] Testing authentication status...');
+    
+    // First, try to get current user info
+    const userResponse = await api.get('/auth/me');
+    console.log('[AUTH TEST] User authenticated successfully:', userResponse.data);
+    
+    // Test a simple API endpoint
+    const healthResponse = await api.get('/health');
+    console.log('[AUTH TEST] API health check passed:', healthResponse.data);
+    
+    return {
+      authenticated: true,
+      user: userResponse.data,
+      apiConnected: true,
+      timestamp: new Date().toISOString()
+    };
+  } catch (error) {
+    console.error('[AUTH TEST] Authentication test failed:', error);
+    logAuthenticationError('AUTH_TEST', error);
+    
+    return {
+      authenticated: false,
+      user: null,
+      apiConnected: false,
+      error: error.message,
+      status: error.response?.status,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+/**
+ * Retry failed requests with fresh authentication
+ * @param {Function} requestFunction - The original request function
+ * @param {Array} args - Arguments for the request function
+ * @param {number} maxRetries - Maximum number of retry attempts
+ * @returns {Promise<any>} Result of the request
+ */
+const retryWithAuth = async (requestFunction, args, maxRetries = 1) => {
+  try {
+    return await requestFunction(...args);
+  } catch (error) {
+    if (error.response?.status === 401 && maxRetries > 0) {
+      console.warn('[RETRY AUTH] 401 detected, testing authentication...');
+      
+      const authStatus = await testAuthentication();
+      if (authStatus.authenticated) {
+        console.log('[RETRY AUTH] Authentication valid, retrying request...');
+        return await requestFunction(...args);
+      } else {
+        console.error('[RETRY AUTH] Authentication invalid, cannot retry');
+        throw new Error('Authentication required. Please log in again.');
+      }
+    }
+    throw error;
+  }
+};
+
+/**
  * Formats a date to YYYY-MM-DD format for job scheduling
  * @param {Date} date - The date to format
  * @returns {string} Formatted date string
@@ -118,7 +235,10 @@ export const getJobs = async (params = {}) => {
   try {
     console.log('[GET JOBS] Requesting with params:', params);
     
-    const response = await api.get('/jobs', { params });
+    const response = await retryWithAuth(
+      async () => await api.get('/jobs', { params }),
+      []
+    );
     
     // Process dates to prevent timezone issues when displaying
     const processedJobs = response.data.map(job => {
@@ -153,6 +273,7 @@ export const getJobs = async (params = {}) => {
     return processedJobs;
   } catch (error) {
     console.error('Error getting jobs:', error);
+    logAuthenticationError('GET_JOBS', error);
     throw error;
   }
 };
@@ -166,7 +287,10 @@ export const getJob = async (id) => {
   try {
     console.log(`[GET JOB] Requesting job #${id}`);
     
-    const response = await api.get(`/jobs/${id}`);
+    const response = await retryWithAuth(
+      async () => await api.get(`/jobs/${id}`),
+      []
+    );
     
     // Fix date handling in the response
     const job = response.data;
@@ -200,6 +324,7 @@ export const getJob = async (id) => {
     return job;
   } catch (error) {
     console.error(`Error getting job ${id}:`, error);
+    logAuthenticationError('GET_JOB', error);
     throw error;
   }
 };
@@ -299,7 +424,10 @@ export const scheduleJob = async (jobId, scheduleData) => {
     console.log(`[SCHEDULE JOB ${jobId}] Sending to server:`, 
       JSON.parse(JSON.stringify(processedData)));
     
-    const response = await api.post(`/jobs/${jobId}/schedule`, processedData);
+    const response = await retryWithAuth(
+      async () => await api.post(`/jobs/${jobId}/schedule`, processedData),
+      []
+    );
     
     // Log the response
     console.log(`[SCHEDULE JOB ${jobId}] Server response:`, response.data);
@@ -326,6 +454,7 @@ export const scheduleJob = async (jobId, scheduleData) => {
     return job;
   } catch (error) {
     console.error(`Error scheduling job ${jobId}:`, error);
+    logAuthenticationError('SCHEDULE_JOB', error);
     
     // Enhanced error logging
     if (error.response) {
@@ -340,7 +469,7 @@ export const scheduleJob = async (jobId, scheduleData) => {
 };
 
 /**
- * Update job status
+ * Update job status with enhanced authentication error handling and debugging
  * @param {number|string} jobId - The job ID
  * @param {Object} statusData - The status data to update
  * @returns {Promise<Object>} Promise resolving to the updated job
@@ -348,8 +477,49 @@ export const scheduleJob = async (jobId, scheduleData) => {
 export const updateJobStatus = async (jobId, statusData) => {
   try {
     console.log(`[UPDATE JOB STATUS] Changing job #${jobId} status:`, statusData);
+    console.log(`[UPDATE JOB STATUS] Request details:`, {
+      url: `/jobs/${jobId}/status`,
+      method: 'PUT',
+      data: statusData,
+      timestamp: new Date().toISOString()
+    });
     
-    const response = await api.put(`/jobs/${jobId}/status`, statusData);
+    // Test authentication before making the request
+    const authTest = await testAuthentication();
+    if (!authTest.authenticated) {
+      console.error('[UPDATE JOB STATUS] Authentication test failed before request:', authTest);
+      throw new Error('Not authenticated. Please log in again.');
+    }
+    
+    console.log('[UPDATE JOB STATUS] Authentication test passed, proceeding with request...');
+    
+    const response = await retryWithAuth(
+      async () => {
+        // Add additional debug logging for the actual request
+        console.log('[UPDATE JOB STATUS] Making API request...');
+        
+        // Verify the api object and its configuration
+        console.log('[UPDATE JOB STATUS] API configuration check:', {
+          apiExists: !!api,
+          apiBaseURL: api?.defaults?.baseURL,
+          apiTimeout: api?.defaults?.timeout,
+          withCredentials: api?.defaults?.withCredentials,
+          headers: api?.defaults?.headers
+        });
+        
+        const result = await api.put(`/jobs/${jobId}/status`, statusData);
+        
+        console.log('[UPDATE JOB STATUS] API request successful:', {
+          status: result.status,
+          statusText: result.statusText,
+          dataReceived: !!result.data
+        });
+        
+        return result;
+      },
+      [],
+      2 // Allow 2 retries for status updates
+    );
     
     // Fix date handling in the response
     const job = response.data;
@@ -369,6 +539,27 @@ export const updateJobStatus = async (jobId, statusData) => {
     return job;
   } catch (error) {
     console.error(`Error updating job ${jobId} status:`, error);
+    logAuthenticationError('UPDATE_JOB_STATUS', error);
+    
+    // Provide more specific error messages based on the error type
+    if (error.response?.status === 401) {
+      const errorMessage = 'Authentication failed. Your session may have expired. Please log out and log back in.';
+      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
+      throw new Error(errorMessage);
+    } else if (error.response?.status === 403) {
+      const errorMessage = 'Access denied. You may not have permission to update job status.';
+      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
+      throw new Error(errorMessage);
+    } else if (error.response?.status === 404) {
+      const errorMessage = `Job #${jobId} not found.`;
+      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
+      throw new Error(errorMessage);
+    } else if (!error.response) {
+      const errorMessage = 'Network error. Please check your connection and try again.';
+      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
+    
     throw error;
   }
 };
@@ -384,13 +575,17 @@ export const completeDoor = async (jobId, doorId, completionData) => {
   try {
     console.log(`[COMPLETE DOOR] Completing door #${doorId} for job #${jobId}:`, completionData);
     
-    const response = await api.post(`/jobs/${jobId}/doors/${doorId}/complete`, completionData);
+    const response = await retryWithAuth(
+      async () => await api.post(`/jobs/${jobId}/doors/${doorId}/complete`, completionData),
+      []
+    );
     
     console.log(`[COMPLETE DOOR] Server response:`, response.data);
     
     return response.data;
   } catch (error) {
     console.error(`Error completing door ${doorId} for job ${jobId}:`, error);
+    logAuthenticationError('COMPLETE_DOOR', error);
     throw error;
   }
 };
@@ -434,7 +629,10 @@ export const getScheduledJobs = async (startDate, endDate, region = null) => {
       params.region = region;
     }
     
-    const response = await api.get('/jobs', { params });
+    const response = await retryWithAuth(
+      async () => await api.get('/jobs', { params }),
+      []
+    );
     
     // Process the dates in each job to fix timezone issues
     const processedJobs = response.data.map(job => {
@@ -464,6 +662,7 @@ export const getScheduledJobs = async (startDate, endDate, region = null) => {
     return processedJobs;
   } catch (error) {
     console.error('Error getting scheduled jobs:', error);
+    logAuthenticationError('GET_SCHEDULED_JOBS', error);
     throw error;
   }
 };
@@ -499,7 +698,10 @@ export const getJobsForDate = async (date, region = null) => {
       params.region = region;
     }
     
-    const response = await api.get('/jobs', { params });
+    const response = await retryWithAuth(
+      async () => await api.get('/jobs', { params }),
+      []
+    );
     
     // Process the dates in each job to fix timezone issues
     const processedJobs = response.data.map(job => {
@@ -529,15 +731,13 @@ export const getJobsForDate = async (date, region = null) => {
     return processedJobs;
   } catch (error) {
     console.error(`Error getting jobs for date ${date}:`, error);
+    logAuthenticationError('GET_JOBS_FOR_DATE', error);
     throw error;
   }
 };
 
-// Add this function to your jobService.js file
-
 /**
  * Cancel a job by calling the dedicated cancel endpoint
- * 
  * @param {number} jobId - The ID of the job to cancel
  * @param {Object} cancelData - Optional data containing cancellation details
  * @param {string} cancelData.reason - Optional reason for cancellation
@@ -545,32 +745,51 @@ export const getJobsForDate = async (date, region = null) => {
  */
 export const cancelJob = async (jobId, cancelData = {}) => {
   try {
-    const response = await fetch(`/api/jobs/${jobId}/cancel`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(cancelData),
-    });
-
-    if (!response.ok) {
-      // Get error details if available
-      let errorData;
-      try {
-        errorData = await response.json();
-      } catch (e) {
-        // If error response is not valid JSON
-        throw new Error(`Failed to cancel job: ${response.status} ${response.statusText}`);
-      }
-      
-      // Throw detailed error
-      throw new Error(errorData.error || `Failed to cancel job: ${response.status}`);
+    console.log(`[CANCEL JOB] Cancelling job #${jobId}:`, cancelData);
+    
+    // Test authentication first
+    const authTest = await testAuthentication();
+    if (!authTest.authenticated) {
+      throw new Error('Not authenticated. Please log in again.');
     }
+    
+    const response = await retryWithAuth(
+      async () => {
+        const result = await fetch(`/api/jobs/${jobId}/cancel`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include', // Include cookies for authentication
+          body: JSON.stringify(cancelData),
+        });
 
-    // Return the successful response data
-    return await response.json();
+        if (!result.ok) {
+          // Get error details if available
+          let errorData;
+          try {
+            errorData = await result.json();
+          } catch (e) {
+            // If error response is not valid JSON
+            throw new Error(`Failed to cancel job: ${result.status} ${result.statusText}`);
+          }
+          
+          // Throw detailed error
+          throw new Error(errorData.error || `Failed to cancel job: ${result.status}`);
+        }
+
+        // Return the successful response data
+        return await result.json();
+      },
+      [],
+      1
+    );
+
+    console.log(`[CANCEL JOB] Job #${jobId} cancelled successfully:`, response);
+    return response;
   } catch (error) {
     console.error('Error in cancelJob service:', error);
+    logAuthenticationError('CANCEL_JOB', error);
     throw error;
   }
 };

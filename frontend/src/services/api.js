@@ -1,603 +1,436 @@
-/**
- * Enhanced api.js - Fixed CORS and connection issues
- * 
- * Key fixes:
- * - Removed problematic headers causing CORS failures
- * - Enhanced ngrok tunnel detection and recovery
- * - Improved error handling for connection issues
- * - Better retry logic for unstable connections
- */
-
 import axios from 'axios';
 
-// Enhanced environment configuration with automatic ngrok detection
-const API_ENDPOINTS = {
-  local: 'http://127.0.0.1:5000/api',
-  ngrok: 'https://ScottOhd-api.ngrok.io/api',
-  production: process.env.REACT_APP_API_URL || 'https://api.yourdomain.com/api'
+/**
+ * Dynamic API base URL detection with proper ngrok support
+ * This function correctly handles ngrok tunnels and local development
+ */
+const getApiBaseUrl = () => {
+  const currentHost = window.location.hostname;
+  const currentProtocol = window.location.protocol;
+  const currentPort = window.location.port;
+  
+  console.log('[API CONFIG] Environment detection:', {
+    url: window.location.href,
+    host: currentHost,
+    protocol: currentProtocol,
+    port: currentPort
+  });
+
+  // Check if we're running on ngrok
+  if (currentHost.includes('ngrok')) {
+    const ngrokApiUrl = `${currentProtocol}//${currentHost}/api`;
+    console.log('[API CONFIG] Detected ngrok environment, using API URL:', ngrokApiUrl);
+    return ngrokApiUrl;
+  }
+  
+  // Check if we're on localhost/127.0.0.1 in development
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+    const localApiUrl = 'http://localhost:5000/api';
+    console.log('[API CONFIG] Detected local development, using API URL:', localApiUrl);
+    return localApiUrl;
+  }
+  
+  // For production or other environments
+  let baseUrl = `${currentProtocol}//${currentHost}`;
+  if (currentPort && currentPort !== '80' && currentPort !== '443') {
+    baseUrl += `:${currentPort}`;
+  }
+  const productionApiUrl = `${baseUrl}/api`;
+  console.log('[API CONFIG] Using production API URL:', productionApiUrl);
+  
+  return productionApiUrl;
 };
 
-// Application environment with intelligent defaults
-const APP_ENV = process.env.REACT_APP_ENV || 'ngrok';
+// Get the correct API base URL
+const API_BASE_URL = getApiBaseUrl();
 
-// Enhanced request configuration with CORS-safe settings
-const REQUEST_CONFIG = {
-  timeout: 15000,
+// Create axios instance with the correct base URL
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 30 second timeout
+  
+  // Enable credentials to send cookies with requests
   withCredentials: true,
+  
+  // Set default headers
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
-    'Cache-Control': 'no-cache'
-    // Removed 'Connection': 'keep-alive' - unsafe header that browsers block
-  },
-  // Enhanced retry configuration for ngrok tunnels
-  retry: {
-    retries: 3,
-    retryDelay: (retryCount) => {
-      return Math.min(1000 * Math.pow(2, retryCount), 5000);
-    },
-    retryCondition: (error) => {
-      // Retry on network errors, timeouts, and 5xx errors, but not CORS errors
-      return !error.response || 
-             (error.response.status >= 500) || 
-             error.code === 'ECONNABORTED' ||
-             error.code === 'ERR_NETWORK';
-    }
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache'
   }
-};
+});
 
 /**
- * Creates the full API configuration based on environment with ngrok detection
+ * Log detailed API request information for debugging
  */
-const createApiConfig = () => {
-  const baseURL = API_ENDPOINTS[APP_ENV] || API_ENDPOINTS.ngrok;
-  
-  return {
-    baseURL,
-    ...REQUEST_CONFIG
-  };
-};
-
-// Create axios instance with enhanced configuration
-const api = axios.create(createApiConfig());
-
-// Connection state tracking for better error handling
-let connectionState = {
-  isOnline: navigator.onLine,
-  consecutiveFailures: 0,
-  lastSuccessfulRequest: Date.now(),
-  ngrokTunnelActive: false,
-  avgResponseTime: 0,
-  requestCount: 0,
-  corsErrorCount: 0, // Track CORS-specific errors
-  lastCorsError: null
-};
-
-/**
- * Enhanced error details extraction with CORS-specific information
- */
-const extractErrorDetails = (error) => {
-  const details = {
-    message: error.message,
-    name: error.name,
-    code: error.code,
-    online: navigator.onLine,
-    isNgrok: api.defaults.baseURL.includes('ngrok'),
-    consecutiveFailures: connectionState.consecutiveFailures,
+const logApiRequest = (config) => {
+  console.log('[API REQUEST]', {
+    method: config.method?.toUpperCase(),
+    url: config.url,
+    baseURL: config.baseURL,
+    fullUrl: `${config.baseURL}${config.url}`,
+    withCredentials: config.withCredentials,
+    headers: config.headers,
+    hasData: !!config.data,
     timestamp: new Date().toISOString()
-  };
-  
-  if (error.response) {
-    details.type = 'response_error';
-    details.status = error.response.status;
-    details.statusText = error.response.statusText;
-    details.data = error.response.data;
-    details.headers = error.response.headers;
-  } else if (error.request) {
-    details.type = 'request_error';
-    details.requestSent = true;
-    details.method = error.config?.method;
-    details.url = error.config?.url;
-    details.timeout = error.config?.timeout;
-    
-    // Check for CORS-specific errors
-    if (error.message.includes('CORS') || error.message.includes('Access-Control')) {
-      details.isCorsError = true;
-      details.corsType = 'preflight_failure';
-      connectionState.corsErrorCount++;
-      connectionState.lastCorsError = Date.now();
-    }
-  } else {
-    details.type = 'setup_error';
-  }
-  
-  // Add ngrok-specific diagnostics
-  if (details.isNgrok) {
-    details.ngrokDiagnostics = {
-      tunnelMayBeExpired: connectionState.consecutiveFailures > 3,
-      avgResponseTime: connectionState.avgResponseTime,
-      timeSinceLastSuccess: Date.now() - connectionState.lastSuccessfulRequest,
-      corsIssues: connectionState.corsErrorCount > 0
-    };
-  }
-  
-  return details;
+  });
 };
 
 /**
- * Enhanced server connection check with CORS-aware testing
+ * Log detailed API response information for debugging
  */
-export const checkServerConnection = async (url, timeout = 8000) => {
-  const endpoint = url || api.defaults.baseURL;
-  
-  try {
-    const startTime = Date.now();
+const logApiResponse = (response) => {
+  console.log('[API RESPONSE]', {
+    status: response.status,
+    statusText: response.statusText,
+    url: response.config?.url,
+    method: response.config?.method?.toUpperCase(),
+    hasData: !!response.data,
+    headers: response.headers,
+    timestamp: new Date().toISOString()
+  });
+};
+
+/**
+ * Log detailed API error information for debugging
+ */
+const logApiError = (error) => {
+  console.error('[API ERROR]', {
+    message: error.message,
+    status: error.response?.status,
+    statusText: error.response?.statusText,
+    url: error.config?.url,
+    method: error.config?.method?.toUpperCase(),
+    responseData: error.response?.data,
+    requestHeaders: error.config?.headers,
+    responseHeaders: error.response?.headers,
+    withCredentials: error.config?.withCredentials,
+    timestamp: new Date().toISOString(),
     
-    // Use GET instead of HEAD to avoid potential CORS preflight issues
-    const response = await axios({
-      method: 'get',
-      url: `${endpoint}/health`, // Assuming a health check endpoint
-      timeout: timeout,
-      withCredentials: true,
-      headers: {
-        'Cache-Control': 'no-cache'
-        // Removed custom headers that might trigger CORS preflight
-      }
+    // Additional debugging information
+    browserInfo: {
+      userAgent: navigator.userAgent,
+      cookieEnabled: navigator.cookieEnabled,
+      onLine: navigator.onLine,
+      language: navigator.language
+    },
+    
+    // Network debugging
+    networkInfo: {
+      origin: window.location.origin,
+      hostname: window.location.hostname,
+      protocol: window.location.protocol,
+      port: window.location.port,
+      detectedApiUrl: API_BASE_URL
+    }
+  });
+
+  // Enhanced error detection for ngrok issues
+  if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+    console.error('[NETWORK ERROR] This is likely a configuration issue:', {
+      issue: 'Cannot reach API server',
+      currentApiUrl: API_BASE_URL,
+      currentLocation: window.location.href,
+      possibleCauses: [
+        'API server not running',
+        'Incorrect API URL configuration',
+        'CORS issues',
+        'Ngrok tunnel configuration mismatch',
+        'Firewall blocking requests'
+      ],
+      debugSteps: [
+        `Try accessing ${API_BASE_URL}/health directly in browser`,
+        'Check if Flask server is running',
+        'Verify ngrok tunnel is forwarding to correct port',
+        'Check Flask CORS configuration',
+        'Verify both frontend and backend are using same ngrok tunnel'
+      ]
     });
-    
-    const pingTime = Date.now() - startTime;
-    
-    // Update connection state on success
-    connectionState.consecutiveFailures = 0;
-    connectionState.lastSuccessfulRequest = Date.now();
-    connectionState.avgResponseTime = (connectionState.avgResponseTime + pingTime) / 2;
-    
-    return {
-      success: true,
-      status: response.status,
-      pingTime,
-      message: `Server responsive (${pingTime}ms)`,
-      isNgrok: endpoint.includes('ngrok'),
-      consecutiveFailures: connectionState.consecutiveFailures
-    };
-  } catch (error) {
-    const errorDetails = extractErrorDetails(error);
-    connectionState.consecutiveFailures++;
-    
-    return {
-      success: false,
-      error: errorDetails,
-      message: `Server unavailable: ${errorDetails.message}`,
-      isNgrok: endpoint.includes('ngrok'),
-      consecutiveFailures: connectionState.consecutiveFailures,
-      timeSinceLastSuccess: Date.now() - connectionState.lastSuccessfulRequest,
-      isCorsError: errorDetails.isCorsError || false
-    };
   }
-};
 
-/**
- * Enhanced environment switching with CORS error reset
- */
-export const setApiEnvironment = (environment) => {
-  if (!API_ENDPOINTS[environment]) {
-    console.error(`Invalid API environment: ${environment}`);
-    return false;
-  }
-  
-  const oldBaseURL = api.defaults.baseURL;
-  api.defaults.baseURL = API_ENDPOINTS[environment];
-  api.defaults.withCredentials = true;
-  
-  console.log(`API environment switched from ${oldBaseURL} to: ${environment} (${api.defaults.baseURL})`);
-  
-  // Reset connection state when switching environments
-  connectionState.consecutiveFailures = 0;
-  connectionState.corsErrorCount = 0; // Reset CORS error count
-  connectionState.lastCorsError = null;
-  connectionState.ngrokTunnelActive = environment === 'ngrok' || API_ENDPOINTS[environment].includes('ngrok');
-  
-  // Store setting for persistence
-  localStorage.setItem('apiEnvironment', environment);
-  
-  // Test new environment immediately
-  checkServerConnection(api.defaults.baseURL, 3000).then(result => {
-    if (result.success) {
-      console.log(`✓ New environment ${environment} is responsive (${result.pingTime}ms)`);
-    } else {
-      console.warn(`⚠ New environment ${environment} may have issues:`, result.message);
-      if (result.isCorsError) {
-        console.warn('⚠ CORS configuration may need attention on the server');
-      }
-    }
-  });
-  
-  return true;
-};
-
-/**
- * Initialize API with enhanced environment detection
- */
-const initializeApi = () => {
-  const savedEnvironment = localStorage.getItem('apiEnvironment');
-  if (savedEnvironment && API_ENDPOINTS[savedEnvironment]) {
-    setApiEnvironment(savedEnvironment);
-  }
-  
-  // Auto-detect ngrok tunnel status
-  if (api.defaults.baseURL.includes('ngrok')) {
-    connectionState.ngrokTunnelActive = true;
-    console.log('🔗 Ngrok tunnel detected - enhanced error handling enabled');
-  }
-  
-  // Set up online/offline event listeners
-  window.addEventListener('online', () => {
-    connectionState.isOnline = true;
-    console.log('🌐 Connection restored');
-  });
-  
-  window.addEventListener('offline', () => {
-    connectionState.isOnline = false;
-    console.log('🚫 Connection lost');
-  });
-};
-
-// Run initialization
-initializeApi();
-
-/**
- * Enhanced error handler with CORS-specific recovery strategies
- */
-const handleApiError = (error) => {
-  const enhancedError = { ...error };
-  const details = extractErrorDetails(error);
-  
-  Object.assign(enhancedError, details);
-  
-  // Enhanced CORS error handling
-  if (details.isCorsError) {
-    console.warn('🚫 CORS error detected - this may require server configuration changes');
-    
-    // Suggest solutions for CORS issues
-    if (details.isNgrok) {
-      console.log('💡 Ngrok CORS solution: Ensure backend allows custom headers in Access-Control-Allow-Headers');
-    }
-    
-    // Dispatch custom event for UI components to handle CORS issues
-    window.dispatchEvent(new CustomEvent('corsError', { 
-      detail: { 
-        corsErrorCount: connectionState.corsErrorCount,
-        lastCorsError: connectionState.lastCorsError,
-        suggestion: 'The server needs to allow custom headers in CORS configuration'
-      } 
-    }));
-  }
-  
-  // Enhanced ngrok tunnel error detection and handling
-  if (details.isNgrok && !details.isCorsError) {
-    // Only treat as tunnel issue if it's not a CORS problem
-    if (details.consecutiveFailures > 2) {
-      console.warn('🔗 Ngrok tunnel may be unstable - consecutive failures:', details.consecutiveFailures);
-      
-      window.dispatchEvent(new CustomEvent('ngrokTunnelIssue', { 
-        detail: { 
-          consecutiveFailures: details.consecutiveFailures,
-          timeSinceLastSuccess: details.timeSinceLastSuccess,
-          suggestion: details.consecutiveFailures > 5 ? 'restart_tunnel' : 'wait_and_retry'
-        } 
-      }));
-    }
-  }
-  
-  // Enhanced authentication error handling
-  if (details.status === 401 || details.status === 403) {
-    console.warn('🔐 Authentication error detected:', details.status);
-    window.dispatchEvent(new CustomEvent('authError', { 
-      detail: { 
-        status: details.status, 
-        message: details.data?.error || details.message,
-        requiresReauth: details.status === 401
-      } 
-    }));
-  }
-  
-  // Log comprehensive error information based on severity
-  if (details.type === 'response_error') {
-    if (details.status >= 500) {
-      console.error(`🚨 Server Error: ${details.status} - ${details.statusText}`);
-    } else if (details.status >= 400) {
-      console.warn(`⚠ Client Error: ${details.status} - ${details.statusText}`);
-    }
-    
-    if (details.data && Object.keys(details.data).length > 0) {
-      console.error('Response data:', details.data);
-    }
-  } else if (details.type === 'request_error') {
-    if (details.isCorsError) {
-      console.error('🚫 CORS policy blocked the request');
-    } else {
-      console.error('🌐 No response received from server');
-    }
-    console.error('Request details:', {
-      method: details.method,
-      url: details.url,
-      timeout: details.timeout,
-      isNgrok: details.isNgrok,
-      isCorsError: details.isCorsError
+  // Log specific authentication issues
+  if (error.response?.status === 401) {
+    console.error('[AUTH ERROR] 401 Unauthorized detected:', {
+      possibleCauses: [
+        'Session cookie missing or expired',
+        'CORS credentials not being sent',
+        'Flask session configuration issue',
+        'Different domain/port blocking cookies'
+      ],
+      debugSteps: [
+        'Check browser dev tools -> Application -> Cookies',
+        'Verify withCredentials is true',
+        'Check Flask CORS configuration',
+        'Try logging out and back in'
+      ]
     });
-  } else {
-    console.error('⚙️ Request setup error:', details.message);
   }
-  
-  // Check for connectivity issues
-  if (!details.online) {
-    console.error('📶 Browser reports offline status - network unavailable');
+
+  if (error.response?.status === 403) {
+    console.error('[PERMISSION ERROR] 403 Forbidden detected:', {
+      possibleCauses: [
+        'User authenticated but lacks required permissions',
+        'Admin role required for this operation',
+        'User account may be deactivated'
+      ]
+    });
   }
-  
-  return enhancedError;
 };
 
-/**
- * Generate simple request ID that won't cause CORS issues
- */
-const generateRequestId = () => {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substr(2, 5);
-  return `${timestamp}-${random}`;
-};
-
-/**
- * Enhanced request interceptor with CORS-safe headers
- */
+// Request interceptor for debugging and authentication
 api.interceptors.request.use(
   (config) => {
-    // Add request metadata with enhanced tracking
-    config.metadata = { 
-      startTime: Date.now(),
-      requestId: generateRequestId(),
-      attempt: 1
-    };
+    // Log the request for debugging
+    logApiRequest(config);
     
-    // Ensure credentials for session-based auth
+    // Ensure credentials are always included
     config.withCredentials = true;
     
-    // CORS-safe headers only - removed problematic custom headers
-    config.headers = {
-      ...config.headers,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Cache-Control': 'no-cache'
-      // Removed: X-Request-ID, X-Ngrok-Request, Connection, User-Agent
-      // These headers can trigger CORS preflight failures
-    };
+    // Add timestamp to prevent caching issues
+    config.headers['X-Request-Timestamp'] = new Date().getTime();
     
-    // Enhanced timeout for ngrok tunnels without custom headers
-    if (connectionState.ngrokTunnelActive) {
-      if (!config.timeout || config.timeout < 20000) {
-        config.timeout = Math.max(config.timeout || 15000, 20000);
-      }
-    }
+    // Add browser information for server-side debugging
+    config.headers['X-Client-Info'] = `${navigator.userAgent.substring(0, 100)}`;
     
-    // Online status check
-    if (!navigator.onLine) {
-      return Promise.reject(new Error('No internet connection available'));
-    }
-    
-    // Log outgoing requests in development with enhanced info
-    if (process.env.NODE_ENV === 'development') {
-      const method = config.method?.toUpperCase();
-      const url = config.url;
-      const isNgrok = config.baseURL?.includes('ngrok') || connectionState.ngrokTunnelActive;
-      console.log(`🚀 API Request [${config.metadata.requestId}]: ${method} ${url}${isNgrok ? ' (ngrok)' : ''}`);
+    // For ngrok environments, add special headers
+    if (window.location.hostname.includes('ngrok')) {
+      config.headers['X-Forwarded-Proto'] = window.location.protocol.replace(':', '');
+      config.headers['X-Forwarded-Host'] = window.location.hostname;
     }
     
     return config;
   },
   (error) => {
-    console.error('⚙️ Request setup error:', error);
-    return Promise.reject(handleApiError(error));
+    console.error('[API REQUEST INTERCEPTOR ERROR]', error);
+    return Promise.reject(error);
   }
 );
 
-/**
- * Enhanced response interceptor with CORS error detection
- */
+// Response interceptor for debugging and error handling
 api.interceptors.response.use(
   (response) => {
-    const metadata = response.config.metadata || {};
-    const requestTime = metadata.startTime;
-    
-    if (requestTime) {
-      const duration = Date.now() - requestTime;
-      
-      // Update connection state on successful request
-      connectionState.consecutiveFailures = 0;
-      connectionState.lastSuccessfulRequest = Date.now();
-      connectionState.requestCount++;
-      connectionState.avgResponseTime = connectionState.requestCount === 1 
-        ? duration 
-        : (connectionState.avgResponseTime + duration) / 2;
-      
-      // Add timing information to response
-      response.metadata = {
-        ...(response.metadata || {}),
-        duration,
-        requestId: metadata.requestId,
-        consecutiveFailures: 0
-      };
-      
-      // Log slow requests with enhanced context
-      const slowThreshold = connectionState.ngrokTunnelActive ? 2000 : 1000;
-      if (duration > slowThreshold) {
-        const method = response.config.method?.toUpperCase();
-        const url = response.config.url;
-        const context = connectionState.ngrokTunnelActive ? ' (ngrok tunnel)' : '';
-        console.warn(`🐌 Slow API call [${metadata.requestId}]: ${method} ${url} took ${duration}ms${context}`);
-      }
-      
-      // Success logging for development
-      if (process.env.NODE_ENV === 'development' && duration > 100) {
-        console.log(`✅ API Response [${metadata.requestId}]: ${duration}ms`);
-      }
-    }
-    
+    // Log successful response for debugging
+    logApiResponse(response);
     return response;
   },
   (error) => {
-    const handledError = handleApiError(error);
+    // Log error details for debugging
+    logApiError(error);
     
-    // Update connection state on error
-    connectionState.consecutiveFailures++;
+    // Handle specific authentication errors
+    if (error.response?.status === 401) {
+      console.warn('[API] Authentication required - session may have expired');
+    }
     
-    // Enhanced CORS error recovery suggestions
-    if (handledError.isCorsError) {
-      console.warn('🚫 CORS error - consider these solutions:');
-      console.warn('   1. Server needs to include custom headers in Access-Control-Allow-Headers');
-      console.warn('   2. Consider using standard headers only');
-      console.warn('   3. Check if preflight requests are being handled correctly');
+    // Handle network errors with enhanced messaging
+    if (!error.response) {
+      console.error('[API] Network error - no response received');
       
-      // For ngrok specifically
-      if (connectionState.ngrokTunnelActive) {
-        console.warn('   4. Ngrok may require additional CORS configuration on the backend');
+      // Provide more specific error message for network issues
+      if (error.code === 'ERR_NETWORK') {
+        error.message = `Network error: Cannot reach API server at ${API_BASE_URL}. Please check server configuration.`;
+      } else {
+        error.message = 'Network error. Please check your connection and try again.';
       }
     }
     
-    // Enhanced ngrok tunnel error recovery (only for non-CORS errors)
-    if (connectionState.ngrokTunnelActive && !handledError.isCorsError && connectionState.consecutiveFailures > 3) {
-      console.warn('🔗 Multiple ngrok failures detected, may need tunnel restart');
-      
-      // Suggest environment switch if local is available
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.log('💡 Consider switching to local environment');
-        window.dispatchEvent(new CustomEvent('suggestEnvironmentSwitch', { 
-          detail: { 
-            currentEnv: 'ngrok',
-            suggestedEnv: 'local',
-            reason: 'ngrok_instability'
-          } 
-        }));
-      }
-    }
-    
-    return Promise.reject(handledError);
+    return Promise.reject(error);
   }
 );
 
 /**
- * Enhanced connection monitoring with CORS-aware checks
+ * Test API connectivity and authentication
+ * @returns {Promise<Object>} API health status
  */
-export const monitorServerConnection = (callback, interval = 8000) => {
-  let timerId = null;
-  let attempts = 0;
-  let consecutiveSuccesses = 0;
-  
-  const checkConnection = async () => {
-    attempts++;
-    
-    const result = await checkServerConnection();
-    
-    if (result.success) {
-      consecutiveSuccesses++;
-      
-      if (typeof callback === 'function') {
-        callback({
-          ...result,
-          attempts,
-          consecutiveSuccesses,
-          recoveryComplete: consecutiveSuccesses >= 2
-        });
-      }
-      
-      // Stop monitoring after successful recovery (2 consecutive successes)
-      if (consecutiveSuccesses >= 2) {
-        console.log(`✅ Connection stable after ${attempts} attempts`);
-        stop();
-      }
-    } else {
-      consecutiveSuccesses = 0;
-      
-      // Enhanced logging for different error types
-      if (result.isCorsError) {
-        if (attempts % 2 === 0) { // Less frequent logging for CORS errors
-          console.log(`🚫 CORS issue check ${attempts}: Server configuration needed`);
-        }
-      } else if (result.isNgrok && attempts % 3 === 0) {
-        console.log(`🔗 Ngrok tunnel check ${attempts}: Still unavailable (${result.consecutiveFailures} consecutive failures)`);
-        
-        if (attempts > 10) {
-          console.warn('🔗 Consider restarting ngrok tunnel - extended unavailability detected');
-        }
-      } else if (!result.isNgrok && attempts % 5 === 0) {
-        console.log(`🌐 Server check ${attempts}: Still unavailable`);
-      }
-    }
-  };
-  
-  // Start polling with initial check
-  timerId = setInterval(checkConnection, interval);
-  checkConnection(); // Initial check
-  
-  const stop = () => {
-    if (timerId !== null) {
-      clearInterval(timerId);
-      timerId = null;
-    }
-  };
-  
-  return { 
-    stop,
-    getStats: () => ({
-      attempts,
-      consecutiveSuccesses,
-      interval,
-      isNgrok: connectionState.ngrokTunnelActive,
-      corsErrorCount: connectionState.corsErrorCount
-    })
-  };
-};
-
-/**
- * Enhanced authentication status check with CORS-safe headers
- */
-export const checkAuthStatus = async () => {
+export const testApiConnection = async () => {
   try {
-    const response = await api.get('/auth/me', { 
-      timeout: 5000,
-      headers: {
-        'Cache-Control': 'no-cache'
-        // Only standard headers to avoid CORS issues
-      }
-    });
+    console.log('[API TEST] Testing API connectivity and authentication...');
+    console.log('[API TEST] Using API URL:', API_BASE_URL);
     
-    // Reset auth failure count on successful auth check
-    connectionState.consecutiveAuthFailures = 0;
+    const healthResponse = await api.get('/health');
+    console.log('[API TEST] Health check passed:', healthResponse.data);
     
-    return {
-      authenticated: true,
-      user: response.data,
-      sessionValid: true
-    };
+    // Test authentication
+    try {
+      const authResponse = await api.get('/auth/me');
+      console.log('[API TEST] Authentication check passed:', authResponse.data);
+      
+      return {
+        connected: true,
+        authenticated: true,
+        user: authResponse.data,
+        health: healthResponse.data,
+        apiUrl: API_BASE_URL,
+        timestamp: new Date().toISOString()
+      };
+    } catch (authError) {
+      console.warn('[API TEST] Authentication check failed:', authError.response?.status);
+      
+      return {
+        connected: true,
+        authenticated: false,
+        authError: authError.response?.status,
+        health: healthResponse.data,
+        apiUrl: API_BASE_URL,
+        timestamp: new Date().toISOString()
+      };
+    }
   } catch (error) {
-    console.log('🔐 Auth check failed:', error.message);
-    
-    connectionState.consecutiveAuthFailures = (connectionState.consecutiveAuthFailures || 0) + 1;
+    console.error('[API TEST] API connectivity test failed:', error);
     
     return {
+      connected: false,
       authenticated: false,
       error: error.message,
-      sessionValid: false,
-      consecutiveFailures: connectionState.consecutiveAuthFailures,
-      isCorsError: error.message.includes('CORS') || error.message.includes('Access-Control')
+      status: error.response?.status,
+      apiUrl: API_BASE_URL,
+      timestamp: new Date().toISOString()
     };
   }
 };
 
-// Export connection state for debugging
-export const getConnectionState = () => ({ 
-  ...connectionState,
-  corsErrorCount: connectionState.corsErrorCount,
-  lastCorsError: connectionState.lastCorsError 
+/**
+ * Helper function to handle authentication-required scenarios
+ * @returns {Promise<boolean>} True if authenticated, false otherwise
+ */
+export const ensureAuthenticated = async () => {
+  try {
+    const authResponse = await api.get('/auth/me');
+    console.log('[AUTH CHECK] User is authenticated:', authResponse.data);
+    return true;
+  } catch (error) {
+    console.warn('[AUTH CHECK] User is not authenticated:', error.response?.status);
+    return false;
+  }
+};
+
+/**
+ * Login function that properly handles session creation
+ * @param {string} username - Username
+ * @param {string} password - Password
+ * @returns {Promise<Object>} Login response
+ */
+export const login = async (username, password) => {
+  try {
+    console.log('[LOGIN] Attempting to log in user:', username);
+    console.log('[LOGIN] Using API URL:', API_BASE_URL);
+    
+    const response = await api.post('/auth/login', {
+      username,
+      password
+    });
+    
+    console.log('[LOGIN] Login successful:', response.data);
+    
+    // Test that the session was created properly
+    const testAuth = await ensureAuthenticated();
+    if (!testAuth) {
+      throw new Error('Login appeared successful but session was not created properly');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('[LOGIN] Login failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Logout function that properly clears the session
+ * @returns {Promise<Object>} Logout response
+ */
+export const logout = async () => {
+  try {
+    console.log('[LOGOUT] Logging out user...');
+    
+    const response = await api.post('/auth/logout');
+    
+    console.log('[LOGOUT] Logout successful:', response.data);
+    
+    return response.data;
+  } catch (error) {
+    console.error('[LOGOUT] Logout failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Debug function to check current configuration
+ */
+export const debugApiConfiguration = () => {
+  const config = {
+    baseURL: api.defaults.baseURL,
+    timeout: api.defaults.timeout,
+    withCredentials: api.defaults.withCredentials,
+    headers: api.defaults.headers,
+    detectedApiUrl: API_BASE_URL,
+    
+    // Environment information
+    environment: {
+      nodeEnv: process.env.NODE_ENV,
+      currentUrl: window.location.href,
+      currentOrigin: window.location.origin,
+      currentHost: window.location.hostname,
+      currentPort: window.location.port,
+      currentProtocol: window.location.protocol,
+      isNgrok: window.location.hostname.includes('ngrok'),
+      isLocalhost: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    },
+    
+    // Browser information
+    browser: {
+      userAgent: navigator.userAgent,
+      cookieEnabled: navigator.cookieEnabled,
+      onLine: navigator.onLine,
+      language: navigator.language
+    }
+  };
+  
+  console.log('[API DEBUG] Current API configuration:', config);
+  
+  return config;
+};
+
+/**
+ * Quick fix test - call this to verify the configuration is working
+ */
+export const quickConnectivityTest = async () => {
+  try {
+    console.log('[QUICK TEST] Testing API connectivity...');
+    console.log('[QUICK TEST] Current window location:', window.location.href);
+    console.log('[QUICK TEST] Detected API URL:', API_BASE_URL);
+    
+    // Test the health endpoint
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('[QUICK TEST] ✅ API connectivity successful:', data);
+      return { success: true, data };
+    } else {
+      console.error('[QUICK TEST] ❌ API returned error:', response.status, response.statusText);
+      return { success: false, error: `${response.status} ${response.statusText}` };
+    }
+  } catch (error) {
+    console.error('[QUICK TEST] ❌ API connectivity failed:', error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+// Log the configuration when the module loads
+console.log('[API CONFIG] Initialized with:', {
+  apiBaseUrl: API_BASE_URL,
+  currentLocation: window.location.href,
+  isNgrok: window.location.hostname.includes('ngrok'),
+  timestamp: new Date().toISOString()
 });
 
-// Export configured axios instance as default
+// Export the configured axios instance
 export default api;

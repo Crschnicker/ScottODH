@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_from_directory, make_response, Blueprint
+from flask import Flask, request, jsonify, render_template, send_from_directory, make_response, Blueprint, url_for, redirect, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime, date, timezone
@@ -26,6 +26,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from functools import wraps
 import jwt
 from datetime import timedelta
+from sqlalchemy import func
 
 import logging
 
@@ -52,6 +53,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///scott_overhead_doors.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['TIMEZONE'] = 'America/Los_Angeles'  # Or your local timezone
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 CORS(app, 
      origins=[
@@ -247,6 +249,7 @@ class Job(db.Model):
     bid_id = db.Column(db.Integer, db.ForeignKey('bid.id'), nullable=False)
     status = db.Column(db.String(20), default='unscheduled')  
     scheduled_date = db.Column(db.Date, nullable=True)
+    truck_assignment = db.Column(db.String(100), nullable=True) # Add this line
     material_ready = db.Column(db.Boolean, default=False)
     material_location = db.Column(db.String(1))  # S for Shop, C for Client
     region = db.Column(db.String(2))  # OC, LA, IE
@@ -322,6 +325,22 @@ class DoorMedia(db.Model):
     door = db.relationship('Door', backref=db.backref('media', lazy=True))
     job = db.relationship('Job', backref=db.backref('door_media', lazy=True))
 
+class DispatchAssignment(db.Model):
+    """Stores daily job assignments to trucks."""
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
+    assignment_date = db.Column(db.Date, nullable=False)
+    truck_id = db.Column(db.Integer, nullable=False)
+    job_order = db.Column(db.Integer, nullable=False) # Order of the job on the truck for the day
+    is_visible = db.Column(db.Boolean, default=True, nullable=False) # Visibility for the field tech
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    job = db.relationship('Job', backref='dispatch_assignments')
+
+    __table_args__ = (
+        db.UniqueConstraint('job_id', 'assignment_date', name='_job_date_uc'),
+    )
+
 class MobileJobLineItem(db.Model):
     """Track line item completion status for mobile workers"""
     id = db.Column(db.Integer, primary_key=True)
@@ -376,9 +395,12 @@ def create_default_users():
     
     # Field Accounts for Installers
     field_users = [
-        {'username': 'tech1', 'email': 'tech1@scottoverheaddoors.com', 'first_name': 'Tech', 'last_name': 'One', 'role': 'field'},
-        {'username': 'tech2', 'email': 'tech2@scottoverheaddoors.com', 'first_name': 'Tech', 'last_name': 'Two', 'role': 'field'},
-        {'username': 'tech3', 'email': 'tech3@scottoverheaddoors.com', 'first_name': 'Tech', 'last_name': 'Three', 'role': 'field'},
+        {'username': 'truck1', 'email': 'truck1@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'One', 'role': 'field'},
+        {'username': 'truck2', 'email': 'truck2@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'Two', 'role': 'field'},
+        {'username': 'truck3', 'email': 'truck3@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'Three', 'role': 'field'},
+        {'username': 'truck4', 'email': 'truck4@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'Four', 'role': 'field'},
+        {'username': 'truck5', 'email': 'truck5@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'Five', 'role': 'field'},
+        {'username': 'truck6', 'email': 'truck6@scottoverheaddoors.com', 'first_name': 'Truck', 'last_name': 'Six', 'role': 'field'},
     ]
     
     all_users = admin_users + field_users
@@ -397,6 +419,398 @@ def create_default_users():
     
     db.session.commit()
     print("Default users created successfully")
+
+
+def _get_job_mobile_status(job):
+    """Helper function to determine the mobile status of a job."""
+    # Check if the job is definitively completed
+    final_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='final').first()
+    if final_signature or job.status == 'completed':
+        return "completed"
+
+    # Check if the job has been started
+    start_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='start').first()
+    time_tracking_entry = JobTimeTracking.query.filter_by(job_id=job.id).first()
+    if start_signature or time_tracking_entry:
+        return "started"
+
+    # Otherwise, it's not started
+    return "not_started"
+
+def _get_job_progress_and_time(job):
+    """Helper function to calculate job progress and total time."""
+    # Calculate door progress
+    total_doors = len(job.bid.doors) if job.bid and job.bid.doors else 0
+    completed_doors = 0
+    if total_doors > 0:
+        completed_doors = JobSignature.query.filter_by(
+            job_id=job.id,
+            signature_type='door_complete'
+        ).count()
+
+    completion_percentage = round((completed_doors / total_doors * 100), 1) if total_doors > 0 else 0
+
+    # Calculate total time worked
+    total_minutes = 0
+    
+    # Sum of all completed/paused sessions
+    completed_minutes = db.session.query(func.sum(JobTimeTracking.total_minutes)).filter(
+        JobTimeTracking.job_id == job.id,
+        JobTimeTracking.status.in_(['completed', 'paused'])
+    ).scalar() or 0
+    total_minutes += completed_minutes
+    
+    # Add time from any currently active session
+    active_session = JobTimeTracking.query.filter_by(job_id=job.id, status='active').first()
+    if active_session and active_session.start_time:
+        active_duration = datetime.utcnow() - active_session.start_time
+        total_minutes += int(active_duration.total_seconds() / 60)
+        
+    total_time_hours = round(total_minutes / 60, 2)
+
+    return {
+        'total_doors': total_doors,
+        'completed_doors': completed_doors,
+        'completion_percentage': completion_percentage,
+        'total_time_hours': total_time_hours,
+        'total_minutes': total_minutes
+    }
+
+
+def serialize_job_for_dispatch(job, assignment=None):
+    """Helper to format job data for the dispatch board."""
+    if not job or not job.bid or not job.bid.estimate or not job.bid.estimate.site:
+        return None # Skip jobs with incomplete data
+    
+    data = {
+        'id': job.id,
+        'job_number': job.job_number,
+        'customer_name': job.bid.estimate.customer_direct_link.name,
+        'address': job.bid.estimate.site.address,
+        'contact_name': job.bid.estimate.site.contact_name,
+        'phone': job.bid.estimate.site.phone,
+        'job_scope': job.job_scope,
+        'estimated_hours': job.bid.estimate.estimated_hours,
+        'material_ready': job.material_ready,
+        'material_location': job.material_location,
+        'region': job.region,
+        'status': job.status,
+    }
+    # Add assignment-specific data if available
+    if assignment:
+        data['is_visible'] = assignment.is_visible
+        data['job_order'] = assignment.job_order
+    
+    return data
+
+@app.route('/api/dispatch/<string:date_str>', methods=['GET'])
+@login_required
+def get_dispatch_for_date(date_str):
+    """
+    Gets all jobs for a specific date, organized by unassigned and truck assignments.
+    """
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+    # Get all jobs scheduled for the target date
+    scheduled_jobs = Job.query.filter(
+        Job.scheduled_date == target_date,
+        # FIX: Replaced the not_(Job.status.in_(...)) with the more direct .notin_() method
+        Job.status.notin_(['completed', 'cancelled'])
+    ).all()
+
+    # Get all assignments for that date
+    assignments = DispatchAssignment.query.filter_by(assignment_date=target_date).all()
+    assigned_job_ids = {a.job_id for a in assignments}
+    
+    # 1. Find unassigned jobs
+    unassigned_jobs = [
+        job for job in scheduled_jobs if job.id not in assigned_job_ids
+    ]
+    
+    # 2. Organize assigned jobs by truck
+    trucks = {}
+    for assignment in assignments:
+        # Find the full job object from the scheduled_jobs list
+        job = next((j for j in scheduled_jobs if j.id == assignment.job_id), None)
+        if not job:
+            continue
+
+        truck_id_str = str(assignment.truck_id)
+        if truck_id_str not in trucks:
+            trucks[truck_id_str] = []
+        
+        serialized_job = serialize_job_for_dispatch(job, assignment)
+        if serialized_job:
+            trucks[truck_id_str].append(serialized_job)
+            
+    # Sort jobs within each truck by their order
+    for truck_id_str in trucks:
+        trucks[truck_id_str].sort(key=lambda x: x.get('job_order', 0))
+
+    # Filter out None values from serialization failures
+    serialized_unassigned = [serialize_job_for_dispatch(j) for j in unassigned_jobs]
+    
+    response_data = {
+        'unassigned': [j for j in serialized_unassigned if j is not None],
+        'trucks': trucks
+    }
+    
+    return jsonify(response_data)
+
+@app.route('/api/dispatch', methods=['POST'])
+@login_required
+def save_dispatch_for_date():
+    """
+    Saves the entire dispatch board state for a given date.
+    This will delete existing assignments for the date and create new ones.
+    """
+    data = request.get_json()
+    date_str = data.get('date')
+    assignments_data = data.get('assignments', [])
+
+    if not date_str:
+        return jsonify({'error': 'Date is required.'}), 400
+
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+    try:
+        # Delete all existing assignments for the target date
+        DispatchAssignment.query.filter_by(assignment_date=target_date).delete()
+
+        # Create new assignments from the request
+        for item in assignments_data:
+            new_assignment = DispatchAssignment(
+                assignment_date=target_date,
+                job_id=item['job_id'],
+                truck_id=item['truck_id'],
+                job_order=item['job_order'],
+                is_visible=item.get('is_visible', True)
+            )
+            db.session.add(new_assignment)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Dispatch for {date_str} saved successfully.'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error saving dispatch for {date_str}: {e}", exc_info=True)
+        return jsonify({'error': 'An internal error occurred while saving the dispatch board.'}), 500
+
+
+@app.route('/api/mobile/field-jobs', methods=['GET'])
+@login_required
+def get_field_worker_jobs():
+    """
+    Get all visible jobs for the current day for the field tech dashboard.
+    Now filters jobs based on truck assignment for the current user.
+    Returns a list of jobs and a summary.
+    """
+    try:
+        # Get date from query or default to today in the server's timezone
+        date_str = request.args.get('date')
+        if date_str:
+            target_date = parse_job_date(date_str)
+        else:
+            target_date = datetime.now(SERVER_TIMEZONE).date()
+
+        # Determine truck assignment based on current user
+        truck_id = None
+        if current_user.role == 'field':
+            # Extract truck number from username (tech1 = truck 1, tech2 = truck 2, etc.)
+            if current_user.username.startswith('tech') and current_user.username[4:].isdigit():
+                truck_id = int(current_user.username[4:])
+                logger.info(f"Field tech {current_user.username} assigned to truck {truck_id}")
+            else:
+                logger.warning(f"Unable to determine truck assignment for user {current_user.username}")
+                return jsonify({
+                    'error': 'Unable to determine truck assignment. Please contact your supervisor.',
+                    'jobs': [],
+                    'summary': {'total_visible_jobs': 0, 'jobs_by_status': {'completed': 0, 'started': 0, 'not_started': 0}}
+                }), 400
+
+        # Get jobs assigned to this truck for the target date
+        if truck_id:
+            # Query jobs through dispatch assignments
+            assigned_jobs_query = db.session.query(Job).join(
+                DispatchAssignment, Job.id == DispatchAssignment.job_id
+            ).filter(
+                DispatchAssignment.assignment_date == target_date,
+                DispatchAssignment.truck_id == truck_id,
+                DispatchAssignment.is_visible == True,  # Only visible jobs
+                Job.status.in_(['scheduled', 'in_progress', 'waiting_for_parts', 'on_hold'])
+            ).order_by(DispatchAssignment.job_order).all()
+            
+            logger.info(f"Found {len(assigned_jobs_query)} jobs assigned to truck {truck_id} for {target_date}")
+        else:
+            # For admin users or users without truck assignment, show all jobs (existing behavior)
+            assigned_jobs_query = Job.query.filter(
+                Job.scheduled_date == target_date,
+                Job.status.in_(['scheduled', 'in_progress', 'waiting_for_parts', 'on_hold'])
+            ).order_by(Job.id).all()
+
+        job_list_response = []
+        status_counts = {'completed': 0, 'started': 0, 'not_started': 0}
+
+        for job in assigned_jobs_query:
+            if not (job.bid and job.bid.estimate and job.bid.estimate.customer_direct_link and job.bid.estimate.site):
+                logger.warning(f"Skipping job {job.id} due to missing related data.")
+                continue
+
+            mobile_status = _get_job_mobile_status(job)
+            progress_data = _get_job_progress_and_time(job)
+            
+            # Update summary status counts
+            status_counts[mobile_status] += 1
+            
+            # Get truck assignment info
+            truck_assignment = f'Truck {truck_id}' if truck_id else f'Truck {(job.id % 3) + 1}'
+            
+            job_list_response.append({
+                'id': job.id,
+                'job_number': job.job_number,
+                'customer_name': job.bid.estimate.customer_direct_link.name,
+                'address': job.bid.estimate.site.address,
+                'mobile_status': mobile_status,
+                'truck_assignment': truck_assignment,
+                'total_time_hours': progress_data['total_time_hours'],
+                'total_doors': progress_data['total_doors'],
+                'completed_doors': progress_data['completed_doors'],
+                'completion_percentage': progress_data['completion_percentage']
+            })
+        
+        summary_response = {
+            'total_visible_jobs': len(job_list_response),
+            'jobs_by_status': status_counts,
+            'truck_assignment': truck_id,
+            'date': target_date.isoformat()
+        }
+
+        logger.info(f"Retrieved {len(job_list_response)} field jobs for truck {truck_id} on {target_date} for user {current_user.username}")
+        return jsonify({'jobs': job_list_response, 'summary': summary_response}), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching field worker jobs: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': 'Failed to retrieve job assignments',
+            'jobs': [],
+            'summary': {'total_visible_jobs': 0, 'jobs_by_status': {'completed': 0, 'started': 0, 'not_started': 0}}
+        }), 500
+
+@app.route('/api/mobile/field-jobs/<int:job_id>', methods=['GET'])
+@login_required
+def get_field_worker_job_detail(job_id):
+    """
+    Get detailed information for a single job for the field tech detail view.
+    Now validates that the job is assigned to the current user's truck.
+    """
+    try:
+        job = Job.query.get_or_404(job_id)
+        
+        # Ensure all related data exists to prevent errors
+        if not (job.bid and job.bid.estimate and job.bid.estimate.customer_direct_link and job.bid.estimate.site):
+            return jsonify({'error': 'Job is missing critical associated data (bid, estimate, customer, or site)'}), 500
+
+        # Determine truck assignment and validate access for field users
+        truck_id = None
+        if current_user.role == 'field':
+            if current_user.username.startswith('tech') and current_user.username[4:].isdigit():
+                truck_id = int(current_user.username[4:])
+                
+                # Validate that this job is assigned to the user's truck for today
+                today = datetime.now(SERVER_TIMEZONE).date()
+                dispatch_assignment = DispatchAssignment.query.filter_by(
+                    job_id=job_id,
+                    assignment_date=today,
+                    truck_id=truck_id,
+                    is_visible=True
+                ).first()
+                
+                if not dispatch_assignment:
+                    logger.warning(f"User {current_user.username} attempted to access job {job_id} not assigned to truck {truck_id}")
+                    return jsonify({'error': 'This job is not assigned to your truck or is not visible'}), 403
+            else:
+                return jsonify({'error': 'Unable to determine truck assignment'}), 400
+
+        site_info = job.bid.estimate.site
+        customer_info = job.bid.estimate.customer_direct_link
+        mobile_status = _get_job_mobile_status(job)
+        progress_data = _get_job_progress_and_time(job)
+
+        # Get truck assignment for display
+        truck_assignment = f'Truck {truck_id}' if truck_id else f'Truck {(job.id % 3) + 1}'
+
+        job_detail_response = {
+            'id': job.id,
+            'job_number': job.job_number,
+            'customer_name': customer_info.name,
+            'address': site_info.address,
+            'contact_name': site_info.contact_name,
+            'phone': site_info.phone,
+            'email': site_info.email,
+            'region': job.region,
+            'job_scope': job.job_scope,
+            'scheduled_date': format_date_for_response(job.scheduled_date),
+            'status': job.status,
+            'material_ready': job.material_ready,
+            'material_location': job.material_location,
+            'truck_assignment': truck_assignment,
+            'mobile_status': mobile_status,
+            'total_doors': progress_data['total_doors'],
+            'completed_doors': progress_data['completed_doors'],
+            'completion_percentage': progress_data['completion_percentage'],
+            'time_tracking': {
+                'total_hours': progress_data['total_time_hours'],
+                'total_minutes': progress_data['total_minutes'],
+            }
+        }
+        
+        logger.info(f"Retrieved field job detail for job {job_id} by user {current_user.username} (truck {truck_id})")
+        return jsonify(job_detail_response), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching field worker job detail for job {job_id}: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to retrieve job details'}), 500
+
+@app.route('/api/mobile/field-summary', methods=['GET'])
+@login_required
+def get_field_worker_summary():
+    """
+    Get summary data for the field tech dashboard.
+    Note: This logic is also included in the /api/mobile/field-jobs endpoint.
+    """
+    try:
+        # Default to today in the server's timezone
+        target_date = datetime.now(SERVER_TIMEZONE).date()
+
+        jobs_query = Job.query.filter(
+            Job.scheduled_date == target_date,
+            Job.status.in_(['scheduled', 'in_progress', 'waiting_for_parts', 'on_hold'])
+        ).all()
+        
+        status_counts = {'completed': 0, 'started': 0, 'not_started': 0}
+        
+        for job in jobs_query:
+            mobile_status = _get_job_mobile_status(job)
+            status_counts[mobile_status] += 1
+
+        summary_response = {
+            'total_visible_jobs': len(jobs_query),
+            'jobs_by_status': status_counts,
+            'date': target_date.isoformat()
+        }
+        
+        logger.info(f"Retrieved field summary for {target_date} by user {current_user.username}")
+        return jsonify(summary_response), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching field worker summary: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to retrieve summary data'}), 500
 
 # Authentication Routes
 @app.route('/api/auth/login', methods=['POST'])
@@ -438,13 +852,121 @@ def login():
         logger.error(f"Login error: {str(e)}")
         return jsonify({'error': 'Login failed'}), 500
 
-@app.route('/api/auth/logout', methods=['POST'])
-@login_required
+@app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
 def logout():
-    """Handle user logout"""
-    logout_user()
-    return jsonify({'message': 'Logout successful'}), 200
+    """
+    Handle user logout with comprehensive session cleanup and CORS support
+    Completely clears all session data to prevent automatic re-authentication
+    """
+    try:
+        # Handle CORS preflight requests for ngrok compatibility
+        if request.method == 'OPTIONS':
+            response = make_response()
+            origin = request.headers.get('Origin')
+            if origin and ('ngrok' in origin or 'localhost' in origin or '127.0.0.1' in origin):
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin'
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Access-Control-Max-Age'] = '86400'
+            return response, 200
 
+        # Get user information before logout (if available)
+        user_info = "Unknown"
+        user_was_authenticated = False
+        
+        try:
+            if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
+                user_info = f"{current_user.username} (ID: {current_user.id})"
+                user_was_authenticated = True
+        except Exception as user_check_error:
+            logger.warning(f"Could not check user authentication state: {str(user_check_error)}")
+        
+        # Log the logout attempt
+        logger.info(f"Logout attempt for user: {user_info}, was_authenticated: {user_was_authenticated}")
+        
+        # Always attempt logout, regardless of current state
+        try:
+            logout_user()
+            logger.info(f"Flask-Login logout_user() called successfully")
+        except Exception as logout_error:
+            logger.warning(f"logout_user() encountered error (continuing anyway): {str(logout_error)}")
+        
+        # Comprehensive session cleanup
+        try:
+            from flask import session
+            session.clear()
+            logger.info("Flask session cleared successfully")
+        except Exception as session_error:
+            logger.warning(f"Session clear encountered error: {str(session_error)}")
+        
+        # Create response with complete session termination
+        response_data = {
+            'message': 'Logout successful',
+            'success': True,
+            'timestamp': datetime.utcnow().isoformat(),
+            'was_authenticated': user_was_authenticated,
+            'cleared_session': True,
+            'force_reauth_required': True
+        }
+        
+        response = make_response(jsonify(response_data))
+        response.headers['Content-Type'] = 'application/json'
+        
+        # Add CORS headers for ngrok tunnel compatibility
+        origin = request.headers.get('Origin')
+        if origin and ('ngrok' in origin or 'localhost' in origin or '127.0.0.1' in origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        
+        # Aggressively clear all possible session cookies
+        cookie_names = ['session', 'remember_token', 'auth_token', 'user_session', 'flask_session']
+        for cookie_name in cookie_names:
+            response.set_cookie(
+                cookie_name, 
+                '', 
+                expires=0, 
+                path='/',
+                domain=None,
+                secure=False,
+                httponly=True,
+                samesite='Lax'
+            )
+        
+        logger.info(f"Logout completed successfully for user: {user_info}, all cookies cleared")
+        return response, 200
+        
+    except Exception as e:
+        # Always succeed on logout for security - log the error but don't fail
+        logger.error(f"Logout endpoint error (returning success anyway): {str(e)}")
+        
+        response_data = {
+            'message': 'Logout completed',
+            'success': True,
+            'timestamp': datetime.utcnow().isoformat(),
+            'note': 'Logout forced due to server error - session cleared',
+            'force_reauth_required': True
+        }
+        
+        response = make_response(jsonify(response_data))
+        response.headers['Content-Type'] = 'application/json'
+        
+        # Add CORS headers even in error cases
+        origin = request.headers.get('Origin')
+        if origin and ('ngrok' in origin or 'localhost' in origin or '127.0.0.1' in origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        # Clear session cookies even on error
+        cookie_names = ['session', 'remember_token', 'auth_token', 'user_session', 'flask_session']
+        for cookie_name in cookie_names:
+            response.set_cookie(cookie_name, '', expires=0, path='/')
+        
+        return response, 200
+    
 @app.route('/api/auth/me', methods=['GET'])
 @login_required
 def get_current_user():
@@ -496,216 +1018,260 @@ def get_users():
 # MOBILE JOB WORKER ROUTES
 # ============================================================================
 
-@app.route('/api/mobile/jobs/<int:job_id>', methods=['GET'])
+@app.before_request
+def handle_mobile_preflight():
+    """
+    Enhanced CORS handling specifically for mobile job worker requests
+    """
+    if request.method == 'OPTIONS':
+        response = make_response()
+        origin = request.headers.get('Origin')
+        
+        # Allow requests from ngrok tunnels and localhost
+        if origin and any(domain in origin for domain in ['ngrok.io', 'ngrok.app', 'localhost', '127.0.0.1']):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            return response
+
+# Fix the mobile job data endpoint to handle undefined cases better
+@app.route('/api/mobile/jobs/<int:job_id>', methods=['GET', 'OPTIONS'])
 @login_required
 def get_mobile_job_data(job_id):
     """
-    Enhanced mobile job data endpoint with comprehensive media tracking and validation.
-    Returns complete job information including door media status for mobile worker interface.
+    Enhanced mobile job data endpoint with better error handling and offline support
     """
-    if request.method == 'OPTIONS': # For CORS preflight
+    if request.method == 'OPTIONS':
         return jsonify({'status': 'ok'}), 200
         
     try:
-        # Comprehensive authentication validation
+        # Enhanced authentication validation
         if not current_user.is_authenticated:
-            logging.warning(f"Unauthenticated request to mobile job {job_id}")
+            logger.warning(f"Unauthenticated request to mobile job {job_id}")
             return jsonify({
                 'error': 'Authentication required', 
-                'code': 'NOT_AUTHENTICATED'
+                'code': 'NOT_AUTHENTICATED',
+                'login_url': '/api/auth/login'
             }), 401
             
         user = User.query.get(current_user.id)
         if not user or not user.is_active:
-            logging.warning(f"Inactive user {current_user.id} attempted to access job {job_id}")
-            logout_user() # Log out inactive user
+            logger.warning(f"Inactive user {current_user.id} attempted to access job {job_id}")
+            logout_user()
             return jsonify({
                 'error': 'User account is no longer active', 
                 'code': 'ACCOUNT_INACTIVE'
             }), 401
         
         if not job_id or job_id <= 0:
-            return jsonify({'error': 'Invalid job ID provided'}), 400
+            return jsonify({
+                'error': 'Invalid job ID provided',
+                'code': 'INVALID_JOB_ID'
+            }), 400
             
         job = Job.query.get(job_id)
         if not job:
-            logging.warning(f"Job {job_id} not found for user {current_user.username}")
-            return jsonify({'error': f'Job #{job_id} not found'}), 404
+            logger.warning(f"Job {job_id} not found for user {current_user.username}")
+            return jsonify({
+                'error': f'Job #{job_id} not found',
+                'code': 'JOB_NOT_FOUND'
+            }), 404
 
+        # Validate job has required related data
         if not job.bid or not job.bid.estimate or not job.bid.estimate.customer_direct_link:
             missing_data = []
-            if not job.bid: missing_data.append("bid data")
-            elif not job.bid.estimate: missing_data.append("estimate data")
-            elif not job.bid.estimate.customer_direct_link: missing_data.append("customer data")
-            logging.error(f"Job {job_id} missing associated data: {', '.join(missing_data)}")
-            return jsonify({'error': f'Job is missing critical associated data: {", ".join(missing_data)}'}), 500
+            if not job.bid: 
+                missing_data.append("bid data")
+            elif not job.bid.estimate: 
+                missing_data.append("estimate data")
+            elif not job.bid.estimate.customer_direct_link: 
+                missing_data.append("customer data")
+            
+            logger.error(f"Job {job_id} missing associated data: {', '.join(missing_data)}")
+            return jsonify({
+                'error': f'Job is missing critical data: {", ".join(missing_data)}',
+                'code': 'INCOMPLETE_DATA'
+            }), 500
 
-        # Enhanced time tracking logic
+        # Get time tracking data with enhanced error handling
         mobile_status = 'not_started'
         start_time_iso = None
         total_job_minutes = 0
         current_session_start = None
         job_timing_status = 'not_started'
 
-        # Get all time tracking for this job
-        all_time_tracking = JobTimeTracking.query.filter_by(job_id=job.id).order_by(JobTimeTracking.start_time.desc()).all()
-        active_time_tracking = None
+        try:
+            # Get all time tracking for this job
+            all_time_tracking = JobTimeTracking.query.filter_by(job_id=job.id).order_by(JobTimeTracking.start_time.desc()).all()
+            active_time_tracking = None
 
-        # Calculate total time and find active session
-        for tracking in all_time_tracking:
-            if tracking.status == 'active':
-                active_time_tracking = tracking
-                current_session_start = tracking.start_time
-                # Add current session time
-                if tracking.start_time:
-                    current_delta = datetime.utcnow() - tracking.start_time
-                    current_minutes = int(current_delta.total_seconds() / 60)
-                    total_job_minutes += current_minutes
-            elif tracking.total_minutes:
-                total_job_minutes += tracking.total_minutes
+            # Calculate total time and find active session
+            for tracking in all_time_tracking:
+                if tracking.status == 'active':
+                    active_time_tracking = tracking
+                    current_session_start = tracking.start_time
+                    # Add current session time
+                    if tracking.start_time:
+                        current_delta = datetime.utcnow() - tracking.start_time
+                        current_minutes = int(current_delta.total_seconds() / 60)
+                        total_job_minutes += current_minutes
+                elif tracking.total_minutes:
+                    total_job_minutes += tracking.total_minutes
 
-        # Get signatures for status determination
-        start_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='start').first()
-        final_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='final').first()
+            # Get signatures for status determination
+            start_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='start').first()
+            final_signature = JobSignature.query.filter_by(job_id=job.id, signature_type='final').first()
 
-        # Determine mobile status and timing status
-        if final_signature or job.status == 'completed':
-            mobile_status = 'completed'
-            job_timing_status = 'completed'
-            if current_session_start:
-                start_time_iso = current_session_start.isoformat()
-            elif all_time_tracking and all_time_tracking[0].start_time:
-                start_time_iso = all_time_tracking[0].start_time.isoformat()
-        elif active_time_tracking or start_signature or all_time_tracking:
-            mobile_status = 'started'
-            if active_time_tracking:
-                job_timing_status = 'active'
-                start_time_iso = current_session_start.isoformat()
-            elif all_time_tracking:
-                job_timing_status = 'paused'
-                # Use the most recent session start time
-                if all_time_tracking[0].start_time:
+            # Determine mobile status and timing status
+            if final_signature or job.status == 'completed':
+                mobile_status = 'completed'
+                job_timing_status = 'completed'
+                if current_session_start:
+                    start_time_iso = current_session_start.isoformat()
+                elif all_time_tracking and all_time_tracking[0].start_time:
                     start_time_iso = all_time_tracking[0].start_time.isoformat()
-            else:
-                job_timing_status = 'started'
-        elif job.status == 'cancelled':
-            mobile_status = 'cancelled'
-            job_timing_status = 'cancelled'
+            elif active_time_tracking or start_signature or all_time_tracking:
+                mobile_status = 'started'
+                if active_time_tracking:
+                    job_timing_status = 'active'
+                    start_time_iso = current_session_start.isoformat()
+                elif all_time_tracking:
+                    job_timing_status = 'paused'
+                    if all_time_tracking[0].start_time:
+                        start_time_iso = all_time_tracking[0].start_time.isoformat()
+                else:
+                    job_timing_status = 'started'
+            elif job.status == 'cancelled':
+                mobile_status = 'cancelled'
+                job_timing_status = 'cancelled'
 
+        except Exception as timing_error:
+            logger.error(f"Error calculating time tracking for job {job_id}: {str(timing_error)}")
+            # Continue with defaults if time tracking fails
+
+        # Process doors data with enhanced error handling
         doors_details = []
         mobile_completed_doors_count = 0
         job_doors = job.bid.doors if job.bid and job.bid.doors else []
         
-        for door_model in job_doors:
-            line_items_details = []
-            for line_item in door_model.line_items:
-                mobile_line_completion = MobileJobLineItem.query.filter_by(
-                    job_id=job.id, line_item_id=line_item.id
+        try:
+            for door_model in job_doors:
+                # Get line items with error handling
+                line_items_details = []
+                try:
+                    for line_item in door_model.line_items:
+                        mobile_line_completion = MobileJobLineItem.query.filter_by(
+                            job_id=job.id, line_item_id=line_item.id
+                        ).first()
+                        is_completed = mobile_line_completion.completed if mobile_line_completion else False
+                        
+                        line_items_details.append({
+                            'id': line_item.id,
+                            'description': line_item.description or f'Work item {line_item.id}',
+                            'part_number': line_item.part_number or '',
+                            'quantity': line_item.quantity or 1,
+                            'completed': is_completed,
+                            'completed_at': mobile_line_completion.completed_at.isoformat() if mobile_line_completion and mobile_line_completion.completed_at else None,
+                            'completed_by': mobile_line_completion.completed_by if mobile_line_completion else None
+                        })
+                except Exception as line_item_error:
+                    logger.error(f"Error processing line items for door {door_model.id}: {str(line_item_error)}")
+
+                # Get media with error handling
+                latest_photo = None
+                latest_video = None
+                try:
+                    latest_photo = DoorMedia.query.filter_by(
+                        job_id=job.id, door_id=door_model.id, media_type='photo'
+                    ).order_by(DoorMedia.uploaded_at.desc()).first()
+
+                    latest_video = DoorMedia.query.filter_by(
+                        job_id=job.id, door_id=door_model.id, media_type='video'
+                    ).order_by(DoorMedia.uploaded_at.desc()).first()
+                except Exception as media_error:
+                    logger.error(f"Error getting media for door {door_model.id}: {str(media_error)}")
+
+                # Build photo and video info
+                photo_info_data = None
+                if latest_photo:
+                    photo_info_data = {
+                        'id': latest_photo.id,
+                        'url': f'/api/mobile/media/{latest_photo.id}/photo',
+                        'thumbnail_url': f'/api/mobile/media/{latest_photo.id}/thumbnail',
+                        'uploaded_at': latest_photo.uploaded_at.isoformat() if latest_photo.uploaded_at else None
+                    }
+                
+                video_info_data = None
+                if latest_video:
+                    video_info_data = {
+                        'id': latest_video.id,
+                        'url': f'/api/mobile/media/{latest_video.id}/video',
+                        'thumbnail_url': None,
+                        'uploaded_at': latest_video.uploaded_at.isoformat() if latest_video.uploaded_at else None
+                    }
+
+                # Check door completion
+                door_completion_signature = JobSignature.query.filter_by(
+                    job_id=job.id, door_id=door_model.id, signature_type='door_complete'
                 ).first()
-                is_completed = mobile_line_completion.completed if mobile_line_completion else False
-                line_items_details.append({
-                    'id': line_item.id,
-                    'description': line_item.description or f'Work item {line_item.id}',
-                    'part_number': line_item.part_number or '',
-                    'quantity': line_item.quantity or 1,
-                    'completed': is_completed,
-                    'completed_at': mobile_line_completion.completed_at.isoformat() if mobile_line_completion and mobile_line_completion.completed_at else None,
-                    'completed_by': mobile_line_completion.completed_by if mobile_line_completion else None
-                })
+                is_door_completed = door_completion_signature is not None
+                if is_door_completed:
+                    mobile_completed_doors_count += 1
 
-            latest_photo = DoorMedia.query.filter_by(
-                job_id=job.id, door_id=door_model.id, media_type='photo'
-            ).order_by(DoorMedia.uploaded_at.desc()).first()
+                # Calculate door progress
+                total_line_items = len(line_items_details)
+                completed_line_items = sum(1 for item in line_items_details if item['completed'])
+                door_progress = (completed_line_items / total_line_items * 100) if total_line_items > 0 else 0
 
-            latest_video = DoorMedia.query.filter_by(
-                job_id=job.id, door_id=door_model.id, media_type='video'
-            ).order_by(DoorMedia.uploaded_at.desc()).first()
-
-            photo_info_data = None
-            if latest_photo:
-                photo_info_data = {
-                    'id': latest_photo.id,
-                    'url': f'/api/mobile/media/{latest_photo.id}/photo',
-                    'thumbnail_url': f'/api/mobile/media/{latest_photo.id}/thumbnail',
-                    'uploaded_at': latest_photo.uploaded_at.isoformat() if latest_photo.uploaded_at else None
+                door_detail = {
+                    'id': door_model.id,
+                    'door_number': door_model.door_number or (job_doors.index(door_model) + 1),
+                    'location': door_model.location or f'Door #{door_model.door_number or (job_doors.index(door_model) + 1)}',
+                    'labor_description': door_model.labor_description or 'Standard door work',
+                    'door_type': door_model.door_type or 'Standard',
+                    'width': door_model.width,
+                    'height': door_model.height,
+                    'dimension_unit': door_model.dimension_unit or 'ft',
+                    'notes': door_model.notes,
+                    'line_items': line_items_details,
+                    'completed': is_door_completed,
+                    'completion_percentage': round(door_progress, 1),
+                    'has_photo': bool(latest_photo),
+                    'has_video': bool(latest_video),
+                    'has_signature': is_door_completed,
+                    'photo_info': photo_info_data,
+                    'video_info': video_info_data,
+                    'media_count': {
+                        'photos': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id, media_type='photo').count(),
+                        'videos': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id, media_type='video').count(),
+                        'total': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id).count()
+                    },
+                    'ready_for_completion': (
+                        completed_line_items == total_line_items and 
+                        bool(latest_photo) and 
+                        bool(latest_video) and 
+                        not is_door_completed
+                    )
                 }
-            
-            video_info_data = None
-            if latest_video:
-                video_info_data = {
-                    'id': latest_video.id,
-                    'url': f'/api/mobile/media/{latest_video.id}/video',
-                    'thumbnail_url': None, # Frontend can attempt to generate or use a placeholder
-                    'uploaded_at': latest_video.uploaded_at.isoformat() if latest_video.uploaded_at else None
-                }
+                doors_details.append(door_detail)
 
-            door_completion_signature = JobSignature.query.filter_by(
-                job_id=job.id, door_id=door_model.id, signature_type='door_complete'
-            ).first()
-            is_door_completed = door_completion_signature is not None
-            if is_door_completed:
-                mobile_completed_doors_count += 1
+        except Exception as doors_error:
+            logger.error(f"Error processing doors for job {job_id}: {str(doors_error)}")
 
-            total_line_items = len(line_items_details)
-            completed_line_items = sum(1 for item in line_items_details if item['completed'])
-            door_progress = (completed_line_items / total_line_items * 100) if total_line_items > 0 else 0
+        # Get site information safely
+        site_info = None
+        try:
+            site_info = job.bid.estimate.site if job.bid.estimate.site else None
+        except Exception as site_error:
+            logger.error(f"Error getting site info for job {job_id}: {str(site_error)}")
 
-            door_detail = {
-                'id': door_model.id,
-                'door_number': door_model.door_number or (job_doors.index(door_model) + 1),
-                'location': door_model.location or f'Door #{door_model.door_number or (job_doors.index(door_model) + 1)}',
-                'labor_description': door_model.labor_description or 'Standard door work',
-                'door_type': door_model.door_type or 'Standard',
-                'width': door_model.width,
-                'height': door_model.height,
-                'dimension_unit': door_model.dimension_unit or 'ft',
-                'notes': door_model.notes,
-                'line_items': line_items_details,
-                'completed': is_door_completed,
-                'completion_percentage': round(door_progress, 1),
-                'has_photo': bool(latest_photo),
-                'has_video': bool(latest_video),
-                'has_signature': is_door_completed,
-                'photo_info': photo_info_data,
-                'video_info': video_info_data,
-                'media_count': {
-                    'photos': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id, media_type='photo').count(), # Count all historical
-                    'videos': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id, media_type='video').count(), # Count all historical
-                    'total': DoorMedia.query.filter_by(job_id=job.id, door_id=door_model.id).count()
-                },
-                'ready_for_completion': (
-                    completed_line_items == total_line_items and 
-                    bool(latest_photo) and 
-                    bool(latest_video) and 
-                    not is_door_completed
-                )
-            }
-            doors_details.append(door_detail)
-
-        site_info = job.bid.estimate.site if job.bid.estimate.site else None
+        # Calculate totals
         total_doors_count = len(job_doors)
         job_completion_percentage = (mobile_completed_doors_count / total_doors_count * 100) if total_doors_count > 0 else 0
         
-        # Build sessions data for frontend
-        sessions_data = []
-        for entry in all_time_tracking:
-            session_data = {
-                'id': entry.id,
-                'user_id': entry.user_id,
-                'user_name': entry.user.get_full_name() if entry.user else 'Unknown',
-                'start_time': entry.start_time.isoformat() if entry.start_time else None,
-                'end_time': entry.end_time.isoformat() if entry.end_time else None,
-                'status': entry.status,
-                'minutes': entry.total_minutes or 0
-            }
-            
-            # Add current session minutes for active sessions
-            if entry.status == 'active' and entry.start_time:
-                current_delta = datetime.utcnow() - entry.start_time
-                session_data['current_minutes'] = int(current_delta.total_seconds() / 60)
-            
-            sessions_data.append(session_data)
-        
+        # Build comprehensive response
         response_data = {
             'id': job.id,
             'job_number': job.job_number,
@@ -722,7 +1288,7 @@ def get_mobile_job_data(job_id):
             'completed_doors': mobile_completed_doors_count,
             'completion_percentage': round(job_completion_percentage, 1),
             'scheduled_date': job.scheduled_date.isoformat() if job.scheduled_date else None,
-            'job_status': job.status, # Original system status
+            'job_status': job.status,
             'material_ready': job.material_ready,
             'material_location': job.material_location,
             'region': job.region,
@@ -741,60 +1307,176 @@ def get_mobile_job_data(job_id):
                 'current_session_start': current_session_start.isoformat() if current_session_start else None,
                 'has_active_session': active_time_tracking is not None,
                 'job_timing_status': job_timing_status,
-                'session_count': len(all_time_tracking),
-                'sessions': sessions_data
+                'session_count': len(all_time_tracking) if 'all_time_tracking' in locals() else 0
             },
             
-            'media_summary': { # Reflects latest photo/video for each door for completion status
-                'total_photos': sum(1 for door in doors_details if door['has_photo']),
-                'total_videos': sum(1 for door in doors_details if door['has_video']),
-                'doors_with_media': sum(1 for door in doors_details if door['has_photo'] or door['has_video']),
-                'doors_with_complete_media': sum(1 for door in doors_details if door['has_photo'] and door['has_video'])
-            },
-            'job_readiness': {
-                'can_start': mobile_status == 'not_started',
-                'can_complete': mobile_status == 'started' and mobile_completed_doors_count == total_doors_count,
-                'all_doors_ready': all(door['ready_for_completion'] or door['completed'] for door in doors_details),
-                'missing_requirements': [] # Populated below
-            },
             'response_metadata': {
                 'generated_at': datetime.utcnow().isoformat(),
                 'user_id': current_user.id,
                 'username': current_user.username,
-                'api_version': '1.0.2' # Version increment
+                'api_version': '1.0.3',
+                'offline_supported': True
             }
         }
         
-        missing_reqs = []
-        for door in doors_details:
-            if not door['completed']: # Only check non-completed doors
-                if not all(item['completed'] for item in door['line_items']):
-                    missing_reqs.append(f"Door #{door['door_number']}: Complete all work items")
-                if not door['has_photo']:
-                    missing_reqs.append(f"Door #{door['door_number']}: Capture completion photo")
-                if not door['has_video']:
-                    missing_reqs.append(f"Door #{door['door_number']}: Record operation video")
-        response_data['job_readiness']['missing_requirements'] = missing_reqs
-        
-        logging.info(f"Successfully retrieved mobile job data for job {job_id} by user {current_user.username} - Status: {mobile_status}, Timing: {job_timing_status}, Total Time: {total_job_minutes}min, Doors: {total_doors_count}, Completed: {mobile_completed_doors_count}")
+        logger.info(f"Successfully retrieved mobile job data for job {job_id} by user {current_user.username}")
         return jsonify(response_data), 200
 
     except Exception as e:
-        logging.error(f"Error retrieving mobile job data for job_id {job_id} by user "
-                     f"{current_user.username if current_user.is_authenticated else 'anonymous'}: {str(e)}", 
-                     exc_info=True)
-        error_message = 'Failed to retrieve job data'
+        logger.error(f"Error retrieving mobile job data for job_id {job_id}: {str(e)}", exc_info=True)
+        
+        # Determine error type for better user experience
         error_code = 'INTERNAL_ERROR'
         if 'not found' in str(e).lower():
-            error_message = f'Job #{job_id} not found'
             error_code = 'JOB_NOT_FOUND'
-        # ... (other specific error codes)
+        elif 'permission' in str(e).lower() or 'access' in str(e).lower():
+            error_code = 'ACCESS_DENIED'
+        elif 'database' in str(e).lower() or 'connection' in str(e).lower():
+            error_code = 'DATABASE_ERROR'
+        
         return jsonify({
-            'error': error_message, 'job_id': job_id, 'error_type': type(e).__name__,
-            'code': error_code, 'timestamp': datetime.utcnow().isoformat(),
-            'user_id': current_user.id if current_user.is_authenticated else None
+            'error': f'Failed to retrieve job data: {str(e)}',
+            'code': error_code,
+            'job_id': job_id,
+            'timestamp': datetime.utcnow().isoformat(),
+            'user_id': current_user.id if current_user.is_authenticated else None,
+            'offline_fallback': True  # Hint to mobile worker to try offline cache
+        }), 500
+        
+        
+# Add this new endpoint near the other mobile API routes
+@app.route('/api/mobile/config', methods=['GET'])
+def get_mobile_api_config():
+    """
+    Provide API configuration for mobile job worker offline functionality
+    Returns endpoint information, authentication details, and offline capabilities
+    """
+    try:
+        # Base API configuration
+        config = {
+            'api_version': '1.0.2',
+            'base_url': request.url_root.rstrip('/'),
+            'api_prefix': '/api',
+            'authentication': {
+                'type': 'session',
+                'login_endpoint': '/api/auth/login',
+                'logout_endpoint': '/api/auth/logout',
+                'session_check_endpoint': '/api/auth/me'
+            },
+            
+            # Mobile job worker endpoints
+            'endpoints': {
+                'jobs': {
+                    'get_job': '/api/mobile/jobs/{job_id}',
+                    'start_job': '/api/mobile/jobs/{job_id}/start',
+                    'complete_job': '/api/mobile/jobs/{job_id}/complete',
+                    'pause_job': '/api/mobile/jobs/{job_id}/pause',
+                    'resume_job': '/api/mobile/jobs/{job_id}/resume',
+                    'update_status': '/api/jobs/{job_id}/status',
+                    'time_tracking': '/api/mobile/jobs/{job_id}/time-tracking'
+                },
+                'doors': {
+                    'complete_door': '/api/mobile/doors/{door_id}/complete',
+                    'upload_media': '/api/mobile/doors/{door_id}/media/upload',
+                    'get_media': '/api/mobile/doors/{door_id}/media',
+                    'serve_media': '/api/mobile/media/{media_id}/{media_type}',
+                    'toggle_line_item': '/api/mobile/jobs/{job_id}/line-items/{line_item_id}/toggle'
+                },
+                'signatures': {
+                    'save_signature': '/api/mobile/jobs/signature'
+                },
+                'field_tech': {
+                    'get_jobs': '/api/mobile/field-jobs',
+                    'get_job_detail': '/api/mobile/field-jobs/{job_id}',
+                    'get_summary': '/api/mobile/field-summary'
+                }
+            },
+            
+            # Offline capabilities
+            'offline': {
+                'supported': True,
+                'cache_duration': 24 * 60 * 60 * 1000,  # 24 hours in milliseconds
+                'sync_interval': 5 * 60 * 1000,  # 5 minutes in milliseconds
+                'max_retries': 3,
+                'retry_delay': 1000,  # 1 second
+                'cacheable_endpoints': [
+                    '/api/mobile/jobs/{job_id}',
+                    '/api/mobile/field-jobs',
+                    '/api/mobile/field-jobs/{job_id}'
+                ]
+            },
+            
+            # Media upload configuration
+            'media': {
+                'max_photo_size': MAX_PHOTO_SIZE,
+                'max_video_size': MAX_VIDEO_SIZE,
+                'allowed_photo_types': list(ALLOWED_PHOTO_EXTENSIONS),
+                'allowed_video_types': list(ALLOWED_VIDEO_EXTENSIONS),
+                'upload_endpoint': '/api/mobile/doors/{door_id}/media/upload'
+            },
+            
+            # Session management
+            'session': {
+                'timeout': 30 * 60 * 1000,  # 30 minutes
+                'warning_time': 5 * 60 * 1000,  # 5 minutes before timeout
+                'extend_endpoint': '/api/auth/extend-session'
+            },
+            
+            # Server information
+            'server': {
+                'timezone': str(SERVER_TIMEZONE) if 'SERVER_TIMEZONE' in globals() else 'UTC',
+                'timestamp': datetime.utcnow().isoformat(),
+                'version': '1.0.0'
+            }
+        }
+        
+        # Add user-specific information if authenticated
+        if current_user.is_authenticated:
+            config['user'] = {
+                'id': current_user.id,
+                'username': current_user.username,
+                'role': current_user.role,
+                'full_name': current_user.get_full_name()
+            }
+        
+        logger.info(f"Mobile API config requested by user: {current_user.username if current_user.is_authenticated else 'anonymous'}")
+        
+        return jsonify(config), 200
+        
+    except Exception as e:
+        logger.error(f"Error generating mobile API config: {str(e)}")
+        return jsonify({
+            'error': 'Failed to generate API configuration',
+            'timestamp': datetime.utcnow().isoformat()
         }), 500
 
+# Add session extension endpoint that the mobile job worker might need
+@app.route('/api/auth/extend-session', methods=['POST'])
+@login_required
+def extend_session():
+    """
+    Extend the current user session to prevent timeout during active work
+    """
+    try:
+        # Update the user's last activity
+        current_user.last_login = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Session extended successfully',
+            'expires_at': (datetime.utcnow() + timedelta(minutes=30)).isoformat(),
+            'user_id': current_user.id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error extending session: {str(e)}")
+        return jsonify({
+            'error': 'Failed to extend session',
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500        
+        
+        
 @app.route('/api/doors/<int:door_id>/actions', methods=['GET'])
 @login_required
 def get_door_actions(door_id):

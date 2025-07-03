@@ -7,16 +7,16 @@ import './CustomerForm.css';
  * CustomerForm Component
  * 
  * Form for creating or editing customer information with validation
- * and error handling.
+ * and error handling. It is self-contained and manages its own state.
  * 
- * @param {Object} customer - Existing customer data (for edit mode)
- * @param {Function} onSave - Callback function called after successful save
- * @param {Function} onCancel - Callback function for cancel button
+ * @param {Object} customer - Optional: Existing customer data (for edit mode)
+ * @param {Function} onSave - Callback function called with the saved customer object after a successful save.
+ * @param {Function} onCancel - Callback function for the cancel button.
  */
 const CustomerForm = ({ customer, onSave, onCancel }) => {
   const isEditMode = !!customer;
   
-  // Initialize form state
+  // Form data state
   const [formData, setFormData] = useState({
     name: '',
     contact_name: '',
@@ -33,7 +33,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
   
   // Load customer data if in edit mode
   useEffect(() => {
-    if (customer) {
+    if (isEditMode) {
       setFormData({
         name: customer.name || '',
         contact_name: customer.contact_name || '',
@@ -42,25 +42,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
         address: customer.address || ''
       });
     }
-  }, [customer]);
-  
-  /**
-   * Reset form to initial state
-   */
-  const resetForm = () => {
-    if (!isEditMode) {
-      setFormData({
-        name: '',
-        contact_name: '',
-        phone: '',
-        email: '',
-        address: ''
-      });
-    }
-    setValidated(false);
-    setError(null);
-    setSuccess(false);
-  };
+  }, [customer, isEditMode]);
   
   /**
    * Handle form field changes
@@ -68,13 +50,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
    */
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Reset validation and error states when user types
-    if (validated) setValidated(false);
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (error) setError(null);
     if (success) setSuccess(false);
   };
@@ -85,36 +61,8 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
    * @returns {boolean} - True if valid or empty, false if invalid
    */
   const isValidEmail = (email) => {
-    if (!email.trim()) return true; // Empty email is valid (optional field)
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
-  };
-  
-  /**
-   * Validate form data
-   * @returns {Object} - Validation result with isValid boolean and errors object
-   */
-  const validateForm = () => {
-    const errors = {};
-    const trimmedData = {
-      name: formData.name.trim(),
-      email: formData.email.trim()
-    };
-    
-    // Required field validation
-    if (!trimmedData.name) {
-      errors.name = 'Customer name is required.';
-    }
-    
-    // Email format validation (only if email is provided)
-    if (trimmedData.email && !isValidEmail(trimmedData.email)) {
-      errors.email = 'Please enter a valid email address.';
-    }
-    
-    return {
-      isValid: Object.keys(errors).length === 0,
-      errors
-    };
+    if (!email.trim()) return true; // Empty email is considered valid (optional field)
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   };
   
   /**
@@ -125,32 +73,20 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Clear previous states
     setError(null);
     setSuccess(false);
     
-    // Custom validation
-    const validation = validateForm();
-    
-    if (!validation.isValid) {
+    const form = e.currentTarget;
+    if (form.checkValidity() === false || !isValidEmail(formData.email)) {
       setValidated(true);
-      
-      // Set specific error if needed
-      const errorMessages = Object.values(validation.errors);
-      if (errorMessages.length > 0) {
-        setError(errorMessages.join(' '));
-      }
       return;
     }
     
     // Prepare data for submission (trim all string fields)
-    const submitData = {
-      name: formData.name.trim(),
-      contact_name: formData.contact_name.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email.trim(),
-      address: formData.address.trim()
-    };
+    const submitData = Object.keys(formData).reduce((acc, key) => {
+        acc[key] = typeof formData[key] === 'string' ? formData[key].trim() : formData[key];
+        return acc;
+    }, {});
     
     setLoading(true);
     
@@ -158,61 +94,36 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
       let result;
       
       if (isEditMode) {
-        // Update existing customer
         result = await updateCustomer(customer.id, submitData);
       } else {
-        // Create new customer
         result = await createCustomer(submitData);
       }
       
-      // Show success state
       setSuccess(true);
-      setValidated(false); // Reset validation state
       
-      // Reset form if creating new customer
-      if (!isEditMode) {
-        setTimeout(() => {
-          resetForm();
-        }, 1500);
-      }
-      
-      // Call the onSave callback with the saved customer
+      // Call the onSave callback with the saved customer object
       if (onSave) {
+        // Use a short timeout to allow the success message to be visible before the modal closes
         setTimeout(() => {
           onSave(result);
-        }, 500);
+        }, 800);
       }
       
     } catch (err) {
       console.error('Failed to save customer:', err);
-      
-      // Handle different types of errors
-      let errorMessage;
-      
-      if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (err.response?.status === 400) {
-        errorMessage = 'Please check your input and try again.';
-      } else if (err.response?.status >= 500) {
-        errorMessage = 'Server error. Please try again later.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      } else {
-        errorMessage = 'An unexpected error occurred. Please try again.';
-      }
-      
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'An unexpected error occurred. Please try again.';
       setError(errorMessage);
-      setValidated(true);
     } finally {
-      setLoading(false);
+      // Don't set loading to false immediately if successful, to show the success state on the button
+      if (!success) {
+        setLoading(false);
+      }
     }
   };
   
   return (
-    <Card className="shadow-sm customer-form-card">
-      <Card.Header>
-        <h5 className="mb-0">{isEditMode ? 'Edit Customer' : 'Add New Customer'}</h5>
-      </Card.Header>
+    <Card className="shadow-sm customer-form-card border-0">
+      {/* The header is now in the parent modal, so we remove it from here */}
       <Card.Body>
         {error && (
           <Alert variant="danger" dismissible onClose={() => setError(null)}>
@@ -221,32 +132,36 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
         )}
         
         {success && (
-          <Alert variant="success" dismissible onClose={() => setSuccess(false)}>
-            <strong>Success!</strong> Customer {isEditMode ? 'updated' : 'created'} successfully.
+          <Alert variant="success">
+            <strong>Success!</strong> Customer has been {isEditMode ? 'updated' : 'saved'}.
           </Alert>
         )}
         
         <Form noValidate validated={validated} onSubmit={handleSubmit}>
           <Row>
-            <Col md={6}>
-              <Form.Group className="mb-3">
+            <Col md={12}>
+              <Form.Group className="mb-3" controlId="customerName">
                 <Form.Label>Customer Name*</Form.Label>
                 <Form.Control
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="Enter customer name"
+                  placeholder="Enter customer's business or full name"
                   required
                   autoFocus
+                  disabled={loading || success}
                   isInvalid={validated && !formData.name.trim()}
                 />
                 <Form.Control.Feedback type="invalid">
                   Customer name is required.
                 </Form.Control.Feedback>
               </Form.Group>
-              
-              <Form.Group className="mb-3">
+            </Col>
+          </Row>
+          <Row>
+            <Col md={6}>
+              <Form.Group className="mb-3" controlId="contactName">
                 <Form.Label>Contact Name</Form.Label>
                 <Form.Control
                   type="text"
@@ -254,10 +169,11 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                   value={formData.contact_name}
                   onChange={handleChange}
                   placeholder="Primary contact person"
+                  disabled={loading || success}
                 />
               </Form.Group>
               
-              <Form.Group className="mb-3">
+              <Form.Group className="mb-3" controlId="phone">
                 <Form.Label>Phone</Form.Label>
                 <Form.Control
                   type="tel"
@@ -265,12 +181,13 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                   value={formData.phone}
                   onChange={handleChange}
                   placeholder="Contact phone number"
+                  disabled={loading || success}
                 />
               </Form.Group>
             </Col>
             
             <Col md={6}>
-              <Form.Group className="mb-3">
+              <Form.Group className="mb-3" controlId="email">
                 <Form.Label>Email</Form.Label>
                 <Form.Control
                   type="email"
@@ -278,6 +195,7 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="Contact email address"
+                  disabled={loading || success}
                   isInvalid={validated && formData.email.trim() && !isValidEmail(formData.email)}
                 />
                 <Form.Control.Feedback type="invalid">
@@ -285,29 +203,27 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
                 </Form.Control.Feedback>
               </Form.Group>
               
-              <Form.Group className="mb-3">
+              <Form.Group className="mb-3" controlId="address">
                 <Form.Label>Billing Address</Form.Label>
                 <Form.Control
                   as="textarea"
-                  rows={4}
+                  rows={3}
                   name="address"
                   value={formData.address}
                   onChange={handleChange}
                   placeholder="Full billing address"
+                  disabled={loading || success}
                 />
               </Form.Group>
             </Col>
           </Row>
           
-          <div className="d-flex justify-content-end mt-4">
+          <div className="d-flex justify-content-end mt-3">
             <Button 
               variant="outline-secondary" 
               className="me-2" 
-              onClick={() => {
-                resetForm();
-                if (onCancel) onCancel();
-              }}
-              disabled={loading}
+              onClick={onCancel}
+              disabled={loading || success}
               type="button"
             >
               Cancel
@@ -320,12 +236,12 @@ const CustomerForm = ({ customer, onSave, onCancel }) => {
               {loading ? (
                 <>
                   <Spinner as="span" animation="border" size="sm" className="me-2" />
-                  {isEditMode ? 'Updating...' : 'Creating...'}
+                  Saving...
                 </>
               ) : success ? (
-                <>{isEditMode ? 'Updated!' : 'Created!'}</>
+                isEditMode ? 'Updated!' : 'Saved!'
               ) : (
-                <>{isEditMode ? 'Update Customer' : 'Save Customer'}</>
+                isEditMode ? 'Update Customer' : 'Save Customer'
               )}
             </Button>
           </div>

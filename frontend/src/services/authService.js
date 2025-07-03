@@ -8,6 +8,9 @@ import { API_BASE_URL } from '../config/apiConfig';
 class AuthService {
   constructor() {
     this.baseURL = API_BASE_URL || 'http://localhost:5000';
+    this.isLoggingOut = false; // Track logout state to prevent re-authentication
+    this.logoutCompletedAt = null; // Track when logout completed
+    this.LOGOUT_PROTECTION_TIME = 15000; // 15 seconds of protection after logout
   }
 
   /**
@@ -61,6 +64,12 @@ class AuthService {
    */
   async login(username, password) {
     try {
+      // Clear logout state when logging in
+      this.isLoggingOut = false;
+      this.logoutCompletedAt = null;
+      localStorage.removeItem('lastLogoutTime');
+      localStorage.removeItem('authBlocked');
+      
       const response = await this.makeRequest('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ username, password }),
@@ -80,22 +89,176 @@ class AuthService {
   }
 
   /**
-   * Logout current user
+   * Logout current user with enhanced error handling and forced cleanup
+   * Prevents automatic re-authentication by thoroughly clearing all data
    */
   async logout() {
     try {
-      await this.makeRequest('/api/auth/logout', {
-        method: 'POST',
+      // Set logout flags immediately and aggressively to prevent any re-authentication
+      this.isLoggingOut = true;
+      localStorage.setItem('authBlocked', 'true');
+      localStorage.setItem('lastLogoutTime', Date.now().toString());
+      
+      // Always clear local data first to prevent auto-re-login
+      const userData = this.getStoredUser();
+      const username = userData ? userData.username : 'unknown';
+      
+      console.log(`Attempting logout for user: ${username}`);
+      
+      // Clear stored data immediately and aggressively
+      this.clearAuthData();
+      
+      // Attempt server logout (but don't fail if it doesn't work)
+      try {
+        const response = await this.makeRequest('/api/auth/logout', {
+          method: 'POST',
+        });
+        
+        console.log('Server logout successful:', response);
+        
+        // If server indicates force reauth required, ensure complete cleanup
+        if (response.force_reauth_required) {
+          this.clearAuthData();
+          // Clear any browser cached credentials
+          if (typeof document !== 'undefined') {
+            document.cookie.split(";").forEach(function(c) { 
+              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+          }
+        }
+        
+        // Set logout completed timestamp for extended protection
+        this.logoutCompletedAt = Date.now();
+        
+        return { success: true, message: 'Logout successful' };
+        
+      } catch (serverError) {
+        // Server logout failed, but local logout already succeeded
+        console.warn('Server logout failed, but local logout completed:', serverError);
+        
+        // Still set logout completed timestamp
+        this.logoutCompletedAt = Date.now();
+        
+        // Don't throw error - logout should always succeed from user perspective
+        return { 
+          success: true, 
+          message: 'Logged out locally', 
+          serverError: serverError.message 
+        };
+      }
+      
+    } catch (error) {
+      // Even if everything fails, ensure local data is cleared
+      console.error('Logout error, forcing local cleanup:', error);
+      this.clearAuthData();
+      this.logoutCompletedAt = Date.now();
+      
+      // Always return success for logout
+      return { 
+        success: true, 
+        message: 'Logout completed with errors', 
+        error: error.message 
+      };
+    } finally {
+      // Keep logout flag active for extended period to prevent immediate re-auth
+      setTimeout(() => {
+        this.isLoggingOut = false;
+        localStorage.removeItem('authBlocked');
+      }, this.LOGOUT_PROTECTION_TIME);
+    }
+  }
+
+  /**
+   * Enhanced method to clear all authentication data
+   * Ensures complete cleanup to prevent automatic re-login
+   */
+  clearAuthData() {
+    try {
+      // Remove all possible stored authentication data
+      const keysToRemove = [
+        'currentUser',
+        'authToken', 
+        'sessionData',
+        'userCredentials',
+        'remember_token',
+        'auth_session',
+        'user_session'
+      ];
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.removeItem(key);
+        }
       });
       
-      // Clear stored user data
-      localStorage.removeItem('currentUser');
-      return { success: true };
+      console.log('All authentication data cleared from local storage');
     } catch (error) {
-      console.error('Logout error:', error);
-      // Even if logout fails on server, clear local data
-      localStorage.removeItem('currentUser');
-      throw error;
+      console.error('Error clearing auth data:', error);
+    }
+  }
+
+  /**
+   * Check if authentication is currently blocked due to recent logout
+   * @returns {boolean} True if auth should be blocked
+   */
+  isAuthenticationBlocked() {
+    // Check if currently logging out
+    if (this.isLoggingOut) {
+      console.log('Authentication blocked - logout in progress');
+      return true;
+    }
+
+    // Check for auth blocked flag
+    if (localStorage.getItem('authBlocked') === 'true') {
+      console.log('Authentication blocked - authBlocked flag set');
+      return true;
+    }
+
+    // Check if we recently completed logout
+    if (this.logoutCompletedAt) {
+      const timeSinceLogout = Date.now() - this.logoutCompletedAt;
+      if (timeSinceLogout < this.LOGOUT_PROTECTION_TIME) {
+        console.log('Authentication blocked - recent logout completed');
+        return true;
+      }
+      // Clear old logout timestamp
+      this.logoutCompletedAt = null;
+    }
+
+    // Check localStorage logout timestamp
+    const logoutTimestamp = localStorage.getItem('lastLogoutTime');
+    if (logoutTimestamp) {
+      const timeSinceLogout = Date.now() - parseInt(logoutTimestamp);
+      if (timeSinceLogout < this.LOGOUT_PROTECTION_TIME) {
+        console.log('Authentication blocked - recent logout timestamp');
+        return true;
+      }
+      // Remove old logout timestamp
+      localStorage.removeItem('lastLogoutTime');
+    }
+
+    return false;
+  }
+
+  /**
+   * Validate authentication status with server
+   * Enhanced to prevent automatic re-login loops
+   */
+  async validateSession() {
+    try {
+      // First check if authentication is blocked
+      if (this.isAuthenticationBlocked()) {
+        console.log('Session validation blocked due to recent logout');
+        return false;
+      }
+      
+      const user = await this.getCurrentUser();
+      return user !== null;
+    } catch (error) {
+      // Clear invalid data and don't auto-retry
+      this.clearAuthData();
+      return false;
     }
   }
 
@@ -104,6 +267,12 @@ class AuthService {
    */
   async getCurrentUser() {
     try {
+      // Block if authentication is not allowed
+      if (this.isAuthenticationBlocked()) {
+        console.log('getCurrentUser blocked due to recent logout');
+        return null;
+      }
+      
       const response = await this.makeRequest('/api/auth/me');
       
       if (response.id) {
@@ -144,6 +313,12 @@ class AuthService {
    * Check if user is authenticated (client-side check)
    */
   isAuthenticated() {
+    // Return false if authentication is blocked due to logout
+    if (this.isAuthenticationBlocked()) {
+      console.log('isAuthenticated returning false - authentication blocked');
+      return false;
+    }
+    
     const userData = localStorage.getItem('currentUser');
     return userData !== null;
   }
@@ -153,6 +328,12 @@ class AuthService {
    */
   getStoredUser() {
     try {
+      // Return null if authentication is blocked due to logout
+      if (this.isAuthenticationBlocked()) {
+        console.log('getStoredUser returning null - authentication blocked');
+        return null;
+      }
+      
       const userData = localStorage.getItem('currentUser');
       return userData ? JSON.parse(userData) : null;
     } catch {
@@ -258,26 +439,6 @@ class AuthService {
       console.error('Reset password error:', error);
       throw error;
     }
-  }
-
-  /**
-   * Validate authentication status with server
-   * Use this on app startup or after periods of inactivity
-   */
-  async validateSession() {
-    try {
-      const user = await this.getCurrentUser();
-      return user !== null;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Clear all authentication data (use for logout or on error)
-   */
-  clearAuthData() {
-    localStorage.removeItem('currentUser');
   }
 }
 
