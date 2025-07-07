@@ -1,0 +1,37 @@
+version: 0.1
+components:
+  - name: scott-backend
+    type: service
+    source:
+      path: ./backend
+    spec:
+      container:
+        image: 
+          name: scott-backend
+          tag: latest
+        ports:
+          - containerPort: 5000
+        securityContext:
+          runAsUser: 10014
+          runAsGroup: 10014
+          runAsNonRoot: true
+        env:
+          - name: FLASK_ENV
+            value: production
+          - name: DATABASE_URL
+            value: sqlite:///instance/scott_overhead_doors.db
+  - name: scott-frontend
+    type: webapp
+    source:
+      path: ./frontend
+    spec:
+      container:
+        image:
+          name: scott-frontend
+          tag: latest
+        ports:
+          - containerPort: 8080
+        securityContext:
+          runAsUser: 10014
+          runAsGroup: 10014
+          runAsNonRoot: true
