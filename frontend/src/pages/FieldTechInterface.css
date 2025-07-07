@@ -35,9 +35,9 @@
 /* ===== MAIN CONTAINER ===== */
 .field-tech-interface {
   min-height: 100vh;
-  background-color: var(--field-tech-gray-50);
+  background-color: var(--field-tech-gray-50); /* Light background for default */
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text for default */
   display: flex;
   flex-direction: column;
 }
@@ -72,7 +72,7 @@
 
 .field-tech-subtitle {
   font-size: 0.875rem;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Darker gray for subtitle */
   font-weight: 500;
 }
 
@@ -92,7 +92,7 @@
 .field-tech-username {
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--field-tech-gray-800);
+  color: var(--field-tech-gray-800); /* Even darker gray for username */
 }
 
 .field-tech-network-status {
@@ -108,7 +108,7 @@
 /* ===== OFFLINE BANNER ===== */
 .field-tech-offline-banner {
   background-color: var(--field-tech-warning);
-  color: white;
+  color: white; /* White text on warning color should be fine */
   padding: var(--field-tech-spacing-sm) var(--field-tech-spacing-lg);
   display: flex;
   align-items: center;
@@ -144,13 +144,13 @@
 .field-tech-error p,
 .field-job-detail-loading p,
 .field-job-detail-error p {
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Darker gray text */
   margin: 0;
 }
 
 .field-tech-error h3,
 .field-job-detail-error h3 {
-  color: var(--field-tech-gray-800);
+  color: var(--field-tech-gray-800); /* Even darker gray for headings */
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
@@ -215,7 +215,7 @@
   background-color: var(--field-tech-gray-100);
   border: 1px solid var(--field-tech-gray-300);
   border-radius: var(--field-tech-border-radius);
-  color: var(--field-tech-gray-700);
+  color: var(--field-tech-gray-700); /* Dark gray text */
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -248,8 +248,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background-color: #3b82f6;
-  color: white;
+  background-color: #3b82f6; /* Primary blue */
+  color: white; /* White text on blue */
   padding: 0.25rem 0.75rem;
   border-radius: 1rem;
   font-size: 0.875rem;
@@ -262,7 +262,7 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background-color: #f8fafc;
+  background-color: #f8fafc; /* Light background */
   border-radius: 0.5rem;
 }
 
@@ -274,13 +274,13 @@
   display: block;
   font-size: 1.5rem;
   font-weight: bold;
-  color: #1f2937;
+  color: #1f2937; /* Dark text */
 }
 
 .field-job-summary-label {
   display: block;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: #6b7280; /* Gray text */
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -292,8 +292,8 @@
 }
 
 .field-job-order-badge {
-  background-color: #6b7280;
-  color: white;
+  background-color: #6b7280; /* Gray background */
+  color: white; /* White text */
   padding: 0.125rem 0.375rem;
   border-radius: 0.25rem;
   font-size: 0.75rem;
@@ -305,7 +305,7 @@
   margin: 0 0 var(--field-tech-spacing-md) 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
 }
 
 .field-job-summary-stats {
@@ -315,7 +315,7 @@
 }
 
 .field-job-stat-card {
-  background-color: var(--field-tech-gray-50);
+  background-color: var(--field-tech-gray-50); /* Light background */
   border-radius: var(--field-tech-border-radius);
   padding: var(--field-tech-spacing-md);
   text-align: center;
@@ -326,14 +326,14 @@
   display: block;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--field-tech-primary);
+  color: var(--field-tech-primary); /* Primary blue */
   line-height: 1;
   margin-bottom: var(--field-tech-spacing-xs);
 }
 
 .field-job-stat-label {
   font-size: 0.75rem;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray text */
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -351,7 +351,7 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
 }
 
 /* Job List Container */
@@ -378,12 +378,12 @@
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--field-tech-gray-700);
+  color: var(--field-tech-gray-700); /* Dark gray text */
 }
 
 .field-job-list-empty p {
   margin: 0;
-  color: var(--field-tech-gray-500);
+  color: var(--field-tech-gray-500); /* Gray text */
 }
 
 /* ===== JOB CARD STYLES ===== */
@@ -420,7 +420,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
 }
 
 .field-job-status-badge {
@@ -433,18 +433,18 @@
 }
 
 .field-job-status-badge.status-completed {
-  background-color: #dcfce7;
-  color: #166534;
+  background-color: #dcfce7; /* Light green */
+  color: #166534; /* Dark green */
 }
 
 .field-job-status-badge.status-in-progress {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: #fef3c7; /* Light yellow */
+  color: #92400e; /* Dark orange */
 }
 
 .field-job-status-badge.status-scheduled {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: #dbeafe; /* Light blue */
+  color: #1e40af; /* Dark blue */
 }
 
 .field-job-status-badge.status-default {
@@ -462,17 +462,17 @@
   display: flex;
   align-items: center;
   gap: var(--field-tech-spacing-sm);
+  color: var(--field-tech-gray-700); /* Dark gray text for items */
   font-size: 0.875rem;
-  color: var(--field-tech-gray-700);
 }
 
 .field-job-customer {
   font-weight: 600;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text for customer name */
 }
 
 .field-job-address {
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray text for address */
 }
 
 .field-job-progress {
@@ -483,7 +483,7 @@
 
 .field-job-progress-text {
   font-size: 0.75rem;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray text for progress text */
   margin-bottom: var(--field-tech-spacing-xs);
   display: block;
 }
@@ -529,7 +529,7 @@
   border: 1px solid var(--field-tech-gray-300);
   border-radius: var(--field-tech-border-radius);
   background-color: white;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray icon */
   cursor: pointer;
   transition: all 0.2s ease-in-out;
 }
@@ -550,7 +550,7 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
   line-height: 1.2;
 }
 
@@ -595,7 +595,7 @@
   margin: 0 0 var(--field-tech-spacing-md) 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
   border-bottom: 1px solid var(--field-tech-gray-200);
   padding-bottom: var(--field-tech-spacing-sm);
 }
@@ -618,14 +618,14 @@
   gap: var(--field-tech-spacing-sm);
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray text */
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .field-job-detail-info-value {
   font-size: 1rem;
-  color: var(--field-tech-gray-900);
+  color: var(--field-tech-gray-900); /* Dark text */
   font-weight: 500;
   margin-left: 1.75rem; /* Align with label text after icon */
 }
@@ -666,14 +666,14 @@
   display: block;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--field-tech-primary);
+  color: var(--field-tech-primary); /* Primary blue */
   line-height: 1;
   margin-bottom: var(--field-tech-spacing-xs);
 }
 
 .field-job-detail-progress-label {
   font-size: 0.75rem;
-  color: var(--field-tech-gray-600);
+  color: var(--field-tech-gray-600); /* Gray text */
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -687,7 +687,7 @@
   background-color: var(--field-tech-gray-50);
   border-radius: var(--field-tech-border-radius);
   font-size: 0.875rem;
-  color: var(--field-tech-gray-700);
+  color: var(--field-tech-gray-700); /* Darker gray text */
   font-weight: 500;
 }
 
@@ -721,7 +721,7 @@
   background-color: var(--field-tech-gray-100);
   border: 1px solid var(--field-tech-gray-300);
   border-radius: var(--field-tech-border-radius);
-  color: var(--field-tech-gray-700);
+  color: var(--field-tech-gray-700); /* Dark gray text */
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -773,28 +773,29 @@
   }
 }
 
-/* ===== TEXT COLOR UTILITIES ===== */
-.text-green-600 {
+/* ===== TEXT COLOR UTILITIES (Light Mode Base) ===== */
+/* These are the colors expected to be overwritten in dark mode for contrast */
+.text-green-600 { /* For Wifi icon */
   color: var(--field-tech-success);
 }
 
-.text-red-600 {
+.text-red-600 { /* For WifiOff icon */
   color: var(--field-tech-danger);
 }
 
-.text-blue-600 {
+.text-blue-600 { /* For spinner */
   color: var(--field-tech-primary);
 }
 
-.text-gray-400 {
+.text-gray-400 { /* For some icons or subtle text */
   color: var(--field-tech-gray-400);
 }
 
-.text-gray-500 {
+.text-gray-500 { /* For some text */
   color: var(--field-tech-gray-500);
 }
 
-.text-red-500 {
+.text-red-500 { /* For error icons */
   color: #ef4444;
 }
 
@@ -908,24 +909,99 @@
 
 /* Dark mode support (if needed) */
 @media (prefers-color-scheme: dark) {
+  /* Define dark mode specific variables for text for better control */
+  :root {
+    --field-tech-text-primary-dark-mode: var(--field-tech-gray-50);    /* #f9fafb (very light) */
+    --field-tech-text-secondary-dark-mode: var(--field-tech-gray-300); /* #d1d5db (medium light) */
+    --field-tech-text-tertiary-dark-mode: var(--field-tech-gray-400);  /* #9ca3af (slightly darker light gray) */
+  }
+
   .field-tech-interface {
-    background-color: #111827;
-    color: #f9fafb;
+    background-color: var(--field-tech-gray-900); /* Very dark background */
+    color: var(--field-tech-text-primary-dark-mode); /* Default primary text color for dark mode */
   }
   
   .field-tech-header {
-    background-color: #1f2937;
-    border-bottom-color: #374151;
+    background-color: var(--field-tech-gray-800);
+    border-bottom-color: var(--field-tech-gray-700);
   }
   
   .field-job-summary,
   .field-job-card,
   .field-job-detail-card {
-    background-color: #1f2937;
-    border-color: #374151;
+    background-color: var(--field-tech-gray-800); /* Darker background for cards */
+    border-color: var(--field-tech-gray-700); /* Darker borders */
+    box-shadow: none; /* Remove light shadows in dark mode */
+  }
+
+  /* Override specific text elements to use light colors */
+  .field-tech-subtitle {
+    color: var(--field-tech-text-secondary-dark-mode);
   }
   
-  .field-tech-title {
-    color: #60a5fa;
+  .field-tech-username {
+    color: var(--field-tech-text-primary-dark-mode);
+  }
+
+  .field-job-summary h2,
+  .field-job-list-header h3,
+  .field-job-card-title h4,
+  .field-job-customer,
+  .field-job-detail-title h1,
+  .field-job-detail-card h2,
+  .field-job-detail-info-value {
+    color: var(--field-tech-text-primary-dark-mode);
+  }
+
+  .field-job-info-item,
+  .field-job-address,
+  .field-job-progress-text,
+  .field-job-detail-info-label,
+  .field-job-detail-progress-label,
+  .field-job-detail-time-info,
+  .field-tech-loading p,
+  .field-tech-error p,
+  .field-job-detail-loading p,
+  .field-job-detail-error p {
+    color: var(--field-tech-text-secondary-dark-mode);
+  }
+
+  .field-job-list-empty h4 {
+    color: var(--field-tech-text-secondary-dark-mode);
+  }
+  .field-job-list-empty p {
+    color: var(--field-tech-text-tertiary-dark-mode);
+  }
+  .field-job-list-empty .icon-lg { /* For the icon in empty state */
+    color: var(--field-tech-text-tertiary-dark-mode);
+  }
+
+  .field-job-detail-info-value a {
+    color: var(--field-tech-primary); /* Keep primary color for links */
+  }
+  .field-job-detail-info-value a:hover {
+    color: var(--field-tech-primary-dark);
+  }
+
+  /* Refresh button in dark mode */
+  .field-tech-refresh-button {
+    background-color: var(--field-tech-gray-700); /* Darker background */
+    border-color: var(--field-tech-gray-600); /* Darker border */
+    color: var(--field-tech-text-secondary-dark-mode); /* Light text */
+  }
+  .field-tech-refresh-button:hover:not(:disabled) {
+    background-color: var(--field-tech-gray-600);
+  }
+
+  /* Network status icons might need adjustment too */
+  .field-tech-network-status {
+      background-color: var(--field-tech-gray-700);
+  }
+  /* Keep status badge colors as they are generally meant to be distinct. */
+  /* If they still look bad, consider slightly darker backgrounds for contrast */
+  /* E.g., for status-scheduled, instead of #dbeafe, use a darker blue for background
+     and then use light text. But current colors often maintain meaning. */
+  .field-job-status-badge.status-completed {
+    /* Keep as is for now, as light background with dark text is fine in dark mode */
   }
 }

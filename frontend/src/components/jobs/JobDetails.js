@@ -98,6 +98,9 @@ const JobDetails = () => {
     console.log('🔄 Starting loadDoorTimeTrackingAndActions for doors:', doors?.length || 0);
     
     try {
+      // Variable to store the total job minutes for later use
+      let totalJobMinutes = 0;
+      
       // Load time tracking data for the job
       console.log('📊 Loading job time tracking data for job:', jobId);
       const timeTrackingUrl = `/api/mobile/jobs/${jobId}/time-tracking`;
@@ -112,7 +115,7 @@ const JobDetails = () => {
           console.log('✅ Time tracking data received:', timeData);
           
           // Fix time calculation - properly handle active sessions
-          let totalMinutes = timeData.total_minutes || 0;
+          let calculatedTotalMinutes = timeData.total_minutes || 0;
           const sessions = timeData.sessions || [];
           
           // Calculate time for active sessions
@@ -121,7 +124,7 @@ const JobDetails = () => {
               const startTime = new Date(session.start_time);
               const currentTime = new Date();
               const activeMinutes = Math.floor((currentTime - startTime) / (1000 * 60));
-              totalMinutes += activeMinutes;
+              calculatedTotalMinutes += activeMinutes;
               session.current_minutes = activeMinutes;
               console.log(`⏰ Active session ${session.id}: ${activeMinutes} minutes`);
             }
@@ -129,33 +132,41 @@ const JobDetails = () => {
           
           const processedTimeData = {
             jobId: timeData.job_id,
-            totalMinutes: totalMinutes,
-            totalHours: Math.round((totalMinutes / 60) * 100) / 100,
+            totalMinutes: calculatedTotalMinutes,
+            totalHours: Math.round((calculatedTotalMinutes / 60) * 100) / 100,
             sessions: sessions,
             jobTimingStatus: timeData.job_timing_status || 'not_started'
           };
           
           console.log('🔧 Processed time tracking data:', processedTimeData);
           setDoorTimeTracking(processedTimeData);
+          
+          // Store the total minutes for door time distribution
+          totalJobMinutes = calculatedTotalMinutes;
+          
         } else {
           console.warn('⚠️ Time tracking response not OK:', timeResponse.status, timeResponse.statusText);
-          setDoorTimeTracking({
+          const fallbackTimeData = {
             jobId: parseInt(jobId),
             totalMinutes: 0,
             totalHours: 0,
             sessions: [],
             jobTimingStatus: 'not_started'
-          });
+          };
+          setDoorTimeTracking(fallbackTimeData);
+          totalJobMinutes = 0;
         }
       } catch (timeError) {
         console.error('❌ Error fetching time tracking data:', timeError);
-        setDoorTimeTracking({
+        const errorTimeData = {
           jobId: parseInt(jobId),
           totalMinutes: 0,
           totalHours: 0,
           sessions: [],
           jobTimingStatus: 'error'
-        });
+        };
+        setDoorTimeTracking(errorTimeData);
+        totalJobMinutes = 0;
       }
 
       // Load actions performed for each door
@@ -341,16 +352,21 @@ const JobDetails = () => {
       }
       
       // Calculate time spent per door based on total job time and actions
-      const totalJobMinutes = doorTimeTracking.totalMinutes || 0;
+      console.log(`🕐 Total job minutes for distribution: ${totalJobMinutes}`);
       if (totalJobMinutes > 0) {
         const totalActions = Object.values(doorActionsData).reduce((sum, door) => sum + door.totalActions, 0);
+        console.log(`🕐 Total actions across all doors: ${totalActions}`);
+        
         if (totalActions > 0) {
           Object.keys(doorActionsData).forEach(doorId => {
             const doorActions = doorActionsData[doorId];
             const doorWeight = doorActions.totalActions / totalActions;
             doorActions.timeSpent = Math.round(totalJobMinutes * doorWeight);
+            console.log(`🕐 Door ${doorId} time calculation: ${totalJobMinutes} total mins * ${doorWeight.toFixed(2)} weight = ${doorActions.timeSpent} mins`);
           });
         }
+      } else {
+        console.warn('🕐 No job time to distribute across doors');
       }
       
       console.log('🏁 Final door actions data:', doorActionsData);
@@ -702,136 +718,100 @@ const JobDetails = () => {
   };
 
   const renderDoorTimeAndActions = (door) => {
-    console.log(`🎨 Rendering time and actions for door ${door.id}:`, door);
-    
     const doorActionData = doorActions[door.id];
-    console.log(`📊 Door ${door.id} action data:`, doorActionData);
-    
+
     // Use safe action data with proper defaults
     const safeActionData = doorActionData || {
-      lineItemsCompleted: [],
-      totalActions: 0,
-      timeSpent: 0,
-      lastActivity: null,
-      summary: {
-        lineItemCompletions: 0,
-        timeEntries: 0,
-        mediaUploads: 0,
-        signatures: 0,
-        totalActions: 0
-      },
-      fallback: true,
-      error: 'No action data available'
+      lineItemsCompleted: [], totalActions: 0, timeSpent: 0, lastActivity: null,
+      summary: { lineItemCompletions: 0, timeEntries: 0, mediaUploads: 0, signatures: 0, totalActions: 0 },
+      fallback: true, error: 'No action data available'
     };
-    
-    console.log(`🔧 Safe action data for door ${door.id}:`, safeActionData);
 
-    // Get estimated time for this door
     const estimatedTime = safeActionData.timeSpent || 0;
-    console.log(`⏰ Estimated time for door ${door.id}:`, estimatedTime, 'minutes');
     
-    // Get completed items - prioritize action data over door data
-    let completedItems = [];
-    let totalItems = 0;
-    
-    if (safeActionData.lineItemsCompleted && safeActionData.lineItemsCompleted.length > 0) {
-      // Use line items from actions data (more accurate)
-      completedItems = safeActionData.lineItemsCompleted;
-      totalItems = completedItems.length; // In this case, we only know about completed items
-    } else if (door.line_items && door.line_items.length > 0) {
-      // Fallback to door line items
-      completedItems = door.line_items.filter(item => item.completed);
-      totalItems = door.line_items.length;
-    }
-    
-    console.log(`📋 Door ${door.id} items: ${completedItems.length} completed of ${totalItems} total`);
+    // --- IMPROVED LOGIC FOR WORK ITEMS ---
+    const totalLineItems = door.line_items?.length || 0;
+    const completedLineItems = safeActionData.lineItemsCompleted?.length || 0;
+    const workProgress = totalLineItems > 0 ? Math.round((completedLineItems / totalLineItems) * 100) : (completedLineItems > 0 ? 100 : 0);
+    // --- END IMPROVEMENT ---
 
-    // START FIX: Determine signature status independently of door.completed
-    const hasSignature = (safeActionData?.summary?.signatures || 0) > 0;
-    // END FIX
+    const hasPhoto = door.has_photo || (safeActionData.mediaInfo?.photos || 0) > 0;
+    const hasVideo = door.has_video || (safeActionData.mediaInfo?.videos || 0) > 0;
+    const hasSignature = (safeActionData.summary?.signatures || 0) > 0;
+    
+    // Helper component for status items
+    const StatusItem = ({ icon, label, status, isComplete }) => (
+      <div className="progress-item">
+        <span className="progress-label">
+          {icon} {label}:
+        </span>
+        <span className={`progress-status ${isComplete ? 'status-complete' : 'status-pending'}`}>
+          {status}
+        </span>
+      </div>
+    );
 
     return (
       <div className="door-time-actions">
         <h6 className="time-actions-title">
-          <FaClock className="me-2" />
-          Time & Actions
-          <Badge bg="info" className="ms-2" style={{ fontSize: '0.7em' }}>
-            {safeActionData.totalActions} actions
-          </Badge>
+          <FaTasks className="me-2" />
+          Door Activity Summary
           {safeActionData.fallback && (
-            <Badge bg="warning" className="ms-1" style={{ fontSize: '0.7em' }}>
-              Fallback
+            <Badge bg="warning" text="dark" className="ms-2" style={{ fontSize: '0.7em' }}>
+              Fallback Data
             </Badge>
           )}
         </h6>
         
-        {/* Time Tracking Section */}
-        <div className="time-tracking-section">
-          {estimatedTime > 0 && (
-            <div className="time-stat">
-              <span className="time-label">Estimated Time Spent:</span>
-              <span className="time-value">{formatDuration(estimatedTime)}</span>
-            </div>
-          )}
-          
-          {doorTimeTracking.sessions && doorTimeTracking.sessions.length > 0 && (
-            <div className="time-stat">
-              <span className="time-label">Sessions:</span>
-              <span className="time-value">{doorTimeTracking.sessions.length}</span>
-            </div>
-          )}
-          
-          {safeActionData.lastActivity && (
-            <div className="time-stat">
-              <span className="time-label">Last Activity:</span>
-              <span className="time-value">
-                {new Date(safeActionData.lastActivity).toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-
-
-        {/* Progress Summary */}
-        <div className="progress-summary">
-          <div className="progress-header">
-            <span>Progress Summary</span>
-            <span className="progress-percentage">
-              {totalItems > 0 ? Math.round((completedItems.length / totalItems) * 100) : 
-              completedItems.length > 0 ? 100 : 0}%
-            </span>
+        {/* New "At a Glance" Summary */}
+        <div className="at-a-glance-summary">
+          <div className="glance-item">
+            <div className="glance-value">{formatDuration(estimatedTime)}</div>
+            <div className="glance-label"><FaClock className="me-1"/>Time Spent</div>
           </div>
-          <div className="progress-details">
-            <div className="progress-item">
-              <span>Work Items:</span>
-              <span>{completedItems.length}{totalItems > completedItems.length ? `/${totalItems}` : ''}</span>
-            </div>
-            <div className="progress-item">
-              <span>Photo:</span>
-              <span className={door.has_photo ? 'status-complete' : 'status-pending'}>
-                {door.has_photo ? 'Captured' : 'Pending'}
-              </span>
-            </div>
-            <div className="progress-item">
-              <span>Video:</span>
-              <span className={door.has_video ? 'status-complete' : 'status-pending'}>
-                {door.has_video ? 'Recorded' : 'Pending'}
-              </span>
-            </div>
-            {/* START FIX: Use independent signature status */}
-            <div className="progress-item">
-              <span>Signature:</span>
-              <span className={hasSignature ? 'status-complete' : 'status-pending'}>
-                {hasSignature ? 'Signed Off' : 'Pending'}
-              </span>
-            </div>
-            {/* END FIX */}
-            <div className="progress-item">
-              <span>Total Actions:</span>
-              <span>{safeActionData.totalActions}</span>
-            </div>
+          <div className="glance-item">
+            <div className="glance-value">{safeActionData.totalActions}</div>
+            <div className="glance-label"><FaHistory className="me-1"/>Total Actions</div>
+          </div>
+          <div className="glance-item">
+            <div className="glance-value">{workProgress}%</div>
+            <div className="glance-label"><FaClipboardList className="me-1"/>Work Done</div>
           </div>
         </div>
+
+        {/* Improved Progress Checklist */}
+        <div className="progress-checklist">
+          <StatusItem 
+            icon={<FaClipboardList />} 
+            label="Work Items" 
+            status={`${completedLineItems} / ${totalLineItems} Completed`}
+            isComplete={completedLineItems >= totalLineItems && totalLineItems > 0} 
+          />
+          <StatusItem 
+            icon={<FaImage />} 
+            label="Photo" 
+            status={hasPhoto ? "Captured" : "Pending"}
+            isComplete={hasPhoto}
+          />
+          <StatusItem 
+            icon={<FaVideo />} 
+            label="Video" 
+            status={hasVideo ? "Recorded" : "Pending"}
+            isComplete={hasVideo}
+          />
+          <StatusItem 
+            icon={<FaCheckCircle />} 
+            label="Signature" 
+            status={hasSignature ? "Signed Off" : "Pending"}
+            isComplete={hasSignature}
+          />
+        </div>
+        
+        {safeActionData.lastActivity && (
+          <div className="last-activity-log">
+            <strong>Last Activity:</strong> {new Date(safeActionData.lastActivity).toLocaleString()}
+          </div>
+        )}
       </div>
     );
   };

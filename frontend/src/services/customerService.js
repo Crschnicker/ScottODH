@@ -50,16 +50,6 @@ const apiRequest = async (method, url, data = null, params = null) => {
 
 /**
  * Get all customers with optional search and formatting parameters
- * @param {Object} options - Query options
- * @param {string} options.search - Search term to filter customers
- * @param {string} options.format - Response format ('simple', 'detailed', etc.)
- * @param {number} options.limit - Maximum number of results
- * @param {number} options.offset - Number of results to skip
- * @param {string} options.sortBy - Field to sort by
- * @param {string} options.sortOrder - Sort order ('asc' or 'desc')
- * @param {boolean} options.includeSites - Whether to include associated sites
- * @param {boolean} options.returnMetadata - Whether to return full metadata object or just array
- * @returns {Promise<Array|Object>} Customer data (array by default, object with metadata if requested)
  */
 export const getCustomers = async (options = {}) => {
   try {
@@ -148,10 +138,6 @@ export const getCustomers = async (options = {}) => {
 
 /**
  * Get customer by ID with optional parameters
- * @param {string|number} id - Customer ID
- * @param {Object} options - Query options
- * @param {boolean} options.includeSites - Whether to include associated sites
- * @returns {Promise<Object>} Customer data
  */
 export const getCustomer = async (id, options = {}) => {
   try {
@@ -176,10 +162,6 @@ export const getCustomer = async (id, options = {}) => {
 
 /**
  * Create a new customer with enhanced validation and error handling
- * @param {Object} customerData - Customer data object
- * @param {Object} options - Creation options
- * @param {boolean} options.refreshList - Whether to refresh customer list after creation
- * @returns {Promise<Object>} Created customer data
  */
 export const createCustomer = async (customerData, options = {}) => {
   try {
@@ -225,9 +207,6 @@ export const createCustomer = async (customerData, options = {}) => {
 
 /**
  * Update customer with enhanced validation
- * @param {string|number} id - Customer ID
- * @param {Object} customerData - Updated customer data
- * @returns {Promise<Object>} Updated customer data
  */
 export const updateCustomer = async (id, customerData) => {
   try {
@@ -270,10 +249,6 @@ export const updateCustomer = async (id, customerData) => {
 
 /**
  * Delete customer with confirmation
- * @param {string|number} id - Customer ID
- * @param {Object} options - Deletion options
- * @param {boolean} options.force - Force deletion even if customer has sites
- * @returns {Promise<boolean>} Success status
  */
 export const deleteCustomer = async (id, options = {}) => {
   try {
@@ -295,12 +270,7 @@ export const deleteCustomer = async (id, options = {}) => {
 };
 
 /**
- * Get all sites for a customer with optional filtering
- * @param {string|number} customerId - Customer ID
- * @param {Object} options - Query options
- * @param {string} options.search - Search term for sites
- * @param {boolean} options.activeOnly - Only return active sites
- * @returns {Promise<Array>} Array of sites
+ * Get all sites for a customer with ENHANCED ERROR HANDLING TO PREVENT INFINITE LOOPS
  */
 export const getSitesForCustomer = async (customerId, options = {}) => {
   try {
@@ -322,15 +292,20 @@ export const getSitesForCustomer = async (customerId, options = {}) => {
     return Array.isArray(data) ? data : data.sites || [];
   } catch (error) {
     console.error(`Error getting sites for customer ${customerId}:`, error);
+    
+    // CRITICAL: Handle 404 errors gracefully to prevent infinite loops
+    if (error.status === 404) {
+      console.warn(`Sites endpoint not found for customer ${customerId}, returning empty array`);
+      return []; // Return empty array instead of throwing
+    }
+    
+    // For other errors, still throw to preserve error handling
     throw error;
   }
 };
 
 /**
  * Create a new site for a customer
- * @param {string|number} customerId - Customer ID
- * @param {Object} siteData - Site data object
- * @returns {Promise<Object>} Created site data
  */
 export const createSite = async (customerId, siteData) => {
   try {
@@ -364,9 +339,6 @@ export const createSite = async (customerId, siteData) => {
 
 /**
  * Update a site
- * @param {string|number} siteId - Site ID
- * @param {Object} siteData - Updated site data
- * @returns {Promise<Object>} Updated site data
  */
 export const updateSite = async (siteId, siteData) => {
   try {
@@ -402,8 +374,6 @@ export const updateSite = async (siteId, siteData) => {
 
 /**
  * Delete a site
- * @param {string|number} siteId - Site ID
- * @returns {Promise<boolean>} Success status
  */
 export const deleteSite = async (siteId) => {
   try {
@@ -421,12 +391,6 @@ export const deleteSite = async (siteId) => {
 
 /**
  * Search customers with advanced filtering options
- * @param {string} searchTerm - Search term
- * @param {Object} filters - Additional filters
- * @param {string} filters.email - Email filter
- * @param {string} filters.phone - Phone filter
- * @param {boolean} filters.hasActiveSites - Filter by active sites presence
- * @returns {Promise<Array>} Array of matching customers
  */
 export const searchCustomers = async (searchTerm, filters = {}) => {
   try {
@@ -446,7 +410,6 @@ export const searchCustomers = async (searchTerm, filters = {}) => {
 
 /**
  * Get customer statistics
- * @returns {Promise<Object>} Customer statistics
  */
 export const getCustomerStats = async () => {
   try {
@@ -460,8 +423,6 @@ export const getCustomerStats = async () => {
 
 /**
  * Get customers with full pagination metadata (for advanced usage)
- * @param {Object} options - Same options as getCustomers
- * @returns {Promise<Object>} Full response with customers array and metadata
  */
 export const getCustomersWithMetadata = async (options = {}) => {
   try {
@@ -474,7 +435,6 @@ export const getCustomersWithMetadata = async (options = {}) => {
 
 /**
  * Simple helper to check if the customer service API is responsive
- * @returns {Promise<boolean>} True if API is responsive
  */
 export const checkCustomerServiceHealth = async () => {
   try {

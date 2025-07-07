@@ -2,7 +2,7 @@
 
 /* Main container styling with consistent margins and maximum width */
 .schedule-form-container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -16,34 +16,52 @@
   padding-bottom: 0.75rem;
 }
 
-/* Card styling with subtle shadow and rounded corners */
+/* Enhanced card styling with subtle shadow and rounded corners */
 .schedule-form-card {
   margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
   border: 1px solid #e9ecef;
   overflow: hidden;
+  transition: box-shadow 0.3s ease;
+}
+
+.schedule-form-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 /* Job information display styling */
 .selected-job-info {
-  border-left: 4px solid #0d6efd;
-  padding: 12px 15px;
-  background-color: #f8f9fa;
-  border-radius: 4px;
+  border-left: 4px solid #667eea;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #f1f3f4 100%);
+  border-radius: 8px;
   margin-bottom: 1rem;
+  position: relative;
 }
 
-/* Job number badge styling */
+.selected-job-info::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Enhanced job number badge styling */
 .job-number {
-  font-weight: 600;
-  background-color: #0d6efd;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  margin-right: 10px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  margin-right: 12px;
   display: inline-block;
   font-size: 0.85rem;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 /* Customer name styling */
@@ -51,106 +69,169 @@
   font-weight: 600;
   font-size: 1.1rem;
   display: inline-block;
-  color: #212529;
+  color: #2c3e50;
 }
 
 /* Job address styling */
 .job-address {
-  margin-top: 5px;
+  margin-top: 8px;
   color: #6c757d;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-/* Navigation tabs styling */
+.job-address::before {
+  content: "📍";
+  font-size: 0.8rem;
+}
+
+/* Enhanced navigation tabs styling */
 .schedule-tabs {
   border-bottom: 1px solid #dee2e6;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  display: flex;
+  gap: 0;
+}
+
+.schedule-tabs .nav-item {
+  flex: 1;
+  min-width: 120px;
 }
 
 .schedule-tabs .nav-link {
-  border: none;
+  border: 2px solid #dee2e6;
   color: #495057;
-  padding: 0.5rem 1rem;
+  padding: 12px 16px;
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
+  border-radius: 8px;
+  font-weight: 600;
+  margin: 0 4px 8px 0;
+  background: white;
+  text-align: center;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.schedule-tabs .nav-link:hover {
+  color: #667eea;
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.05);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
 }
 
 .schedule-tabs .nav-link.active {
-  color: #0d6efd;
-  background: none;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transform: translateY(-2px);
+}
+
+.schedule-tabs .nav-link.active:hover {
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  color: white;
+  transform: translateY(-2px);
+}
+
+/* Enhanced selected date display styling */
+.selected-date-display {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.date-label {
   font-weight: 600;
+  margin-right: 8px;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-/* Create an underline for active tab */
-.schedule-tabs .nav-link.active:after {
-  content: '';
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background-color: #0d6efd;
+.date-value {
+  color: white;
+  font-weight: 600;
+  font-size: 1.05rem;
 }
 
-/* Card header styling */
-.card-header {
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+/* Calendar container to ensure proper spacing */
+.calendar-container {
+  margin-bottom: 2rem;
+}
+
+/* Calendar actions card styling */
+.calendar-actions-card {
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.calendar-actions-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+}
+
+/* Enhanced button styling */
+.btn {
+  border-radius: 8px;
   font-weight: 500;
-  padding: 0.75rem 1.25rem;
+  padding: 8px 16px;
+  transition: all 0.2s ease;
 }
 
-/* Form control styling */
-.form-control, .form-select {
-  border-radius: 4px;
-  border: 1px solid #ced4da;
-  padding: 8px 12px;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-.form-control:focus, .form-select:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
-}
-
-/* Form label styling */
-.form-label {
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  color: #212529;
-}
-
-/* Button styling */
 .btn-primary {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-  font-weight: 500;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
 .btn-primary:hover {
-  background-color: #0b5ed7;
-  border-color: #0a58ca;
+  background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-secondary {
   background-color: #6c757d;
   border-color: #6c757d;
-  font-weight: 500;
+  color: white;
 }
 
 .btn-secondary:hover {
   background-color: #5c636a;
   border-color: #565e64;
+  transform: translateY(-1px);
 }
 
 .btn-outline-primary {
-  color: #0d6efd;
-  border-color: #0d6efd;
+  color: #667eea;
+  border-color: #667eea;
+  background: transparent;
 }
 
 .btn-outline-primary:hover {
-  background-color: #0d6efd;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: #667eea;
   color: white;
+  transform: translateY(-1px);
 }
 
 .btn-outline-secondary {
@@ -161,84 +242,91 @@
 .btn-outline-secondary:hover {
   background-color: #6c757d;
   color: white;
+  transform: translateY(-1px);
 }
 
-/* Calendar container to ensure proper spacing */
-.calendar-container {
-  margin-bottom: 2rem;
+/* Success button styling */
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  border: none;
+  color: white;
 }
 
-/* Selected date display styling */
-.selected-date-display {
-  background-color: #e9ecef;
-  padding: 8px 15px;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  margin-bottom: 1rem;
+.btn-success:hover {
+  background: linear-gradient(135deg, #218838 0%, #1da88a 100%);
+  transform: translateY(-1px);
 }
 
-.date-label {
+/* Badge styling */
+.badge {
+  border-radius: 12px;
+  font-size: 0.7rem;
+  padding: 4px 8px;
   font-weight: 600;
-  margin-right: 8px;
+}
+
+/* Card header styling */
+.card-header {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid #dee2e6;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
   color: #495057;
 }
 
-.date-value {
-  color: #0d6efd;
+/* Enhanced form styling */
+.form-control, .form-select {
+  border-radius: 8px;
+  border: 2px solid #e9ecef;
+  padding: 10px 14px;
+  transition: all 0.3s ease;
+  font-size: 0.95rem;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+  outline: none;
+}
+
+.form-control:hover, .form-select:hover {
+  border-color: #ced4da;
+}
+
+/* Form label styling */
+.form-label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #495057;
+  font-size: 0.9rem;
+}
+
+/* Checkbox styling */
+.form-check-input {
+  border-radius: 4px;
+  border: 2px solid #dee2e6;
+}
+
+.form-check-input:checked {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.form-check-input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
+}
+
+.form-check-label {
   font-weight: 500;
+  color: #495057;
 }
 
 /* Job scope textarea styling */
 textarea[name="job_scope"] {
   resize: vertical;
-  min-height: 150px;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .schedule-form-container {
-    padding: 15px;
-  }
-  
-  .selected-job-info {
-    padding: 10px;
-  }
-  
-  .job-number, .customer-name {
-    display: block;
-    margin-bottom: 5px;
-  }
-  
-  .job-number {
-    display: inline-block;
-    margin-bottom: 8px;
-  }
-  
-  .schedule-tabs .nav-link {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.9rem;
-  }
-  
-  .form-group {
-    margin-bottom: 1rem;
-  }
-}
-
-/* Customize job list appearance */
-.list-group-item.job-item {
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease;
-}
-
-.list-group-item.job-item:hover {
-  border-left-color: #0d6efd;
-  background-color: #f8f9fa;
-}
-
-.list-group-item.job-item.active {
-  background-color: rgba(13, 110, 253, 0.1);
-  border-left-color: #0d6efd;
-  color: #212529;
+  min-height: 180px;
+  font-family: inherit;
 }
 
 /* Loading spinner styling */
@@ -253,49 +341,195 @@ textarea[name="job_scope"] {
   background-color: #f8d7da;
   border-color: #f5c2c7;
   color: #842029;
+  border-radius: 8px;
 }
 
-/* Schedule button styling */
-.schedule-button {
-  width: 100%;
-  padding: 0.75rem;
+/* Enhanced form actions styling */
+.form-actions {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  padding: 1.5rem 1.25rem;
+  border-top: 1px solid #dee2e6;
+  margin: 1.5rem -1.25rem -1.25rem;
+  border-radius: 0 0 12px 12px;
+}
+
+/* Continue button special styling */
+.continue-btn {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  border: none;
+  color: white;
   font-weight: 600;
-  font-size: 1rem;
-  margin-top: 1.5rem;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
 
-/* Ensure form row spacing is consistent */
+.continue-btn:hover {
+  background: linear-gradient(135deg, #218838 0%, #1da88a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+/* Back button styling */
+.back-btn {
+  background: transparent;
+  border: 2px solid #6c757d;
+  color: #6c757d;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+  background: #6c757d;
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+  .schedule-form-container {
+    max-width: 100%;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 768px) {
+  .schedule-form-container {
+    padding: 10px;
+  }
+  
+  .selected-job-info {
+    padding: 12px 16px;
+  }
+  
+  .job-number {
+    display: block;
+    margin-bottom: 8px;
+    margin-right: 0;
+  }
+  
+  .customer-name {
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  .schedule-tabs .nav-link {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .selected-date-display {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .form-actions {
+    padding: 1rem;
+  }
+  
+  .btn {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .btn:last-child {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 576px) {
+  .job-number, .customer-name {
+    font-size: 0.9rem;
+  }
+  
+  .schedule-tabs .nav-link {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* Customize job list appearance */
+.list-group-item.job-item {
+  border-left: 3px solid transparent;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.list-group-item.job-item:hover {
+  border-left-color: #667eea;
+  background-color: #f8f9fa;
+  transform: translateX(2px);
+}
+
+.list-group-item.job-item.active {
+  background-color: rgba(102, 126, 234, 0.1);
+  border-left-color: #667eea;
+  color: #212529;
+}
+
+/* Card hover effects */
+.card:hover {
+  transition: box-shadow 0.3s ease;
+}
+
+/* Focus styling for better accessibility */
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus,
+.btn:focus {
+  outline: none;
+}
+
+/* Fix date input styling across browsers */
+input[type="date"] {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+  background: white;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+  cursor: pointer;
+}
+
+/* Ensure proper spacing in form rows */
 .row > [class*="col-"] {
   margin-bottom: 1rem;
 }
 
-/* Fix date input on Safari */
-input[type="date"] {
-  -webkit-appearance: textfield;
-  -moz-appearance: textfield;
-  appearance: textfield;
+/* Special styling for calendar confirmation card */
+.calendar-confirmation-card {
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  transition: all 0.3s ease;
 }
 
-/* Focus styling for form controls */
-.form-control:focus,
-.form-select:focus,
-.form-check-input:focus {
-  border-color: #86b7fe;
-  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+.calendar-confirmation-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
 }
 
-/* Hover effect for interactive elements */
-.card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: box-shadow 0.3s ease;
+/* Animation for smooth transitions */
+.schedule-form-card,
+.calendar-confirmation-card {
+  animation: fadeInUp 0.3s ease-out;
 }
 
-/* Create a sticky footer for the form actions */
-.form-actions {
-  position: sticky;
-  bottom: 0;
-  background-color: white;
-  padding: 1rem;
-  border-top: 1px solid #dee2e6;
-  margin: 1rem -1.25rem -1.25rem;
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

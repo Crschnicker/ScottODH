@@ -1,9 +1,5 @@
 import axios from 'axios';
 
-/**
- * Dynamic API base URL detection with proper ngrok support
- * This function correctly handles ngrok tunnels and local development
- */
 const getApiBaseUrl = () => {
   const currentHost = window.location.hostname;
   const currentProtocol = window.location.protocol;
@@ -18,19 +14,24 @@ const getApiBaseUrl = () => {
 
   // Check if we're running on ngrok
   if (currentHost.includes('ngrok')) {
-    const ngrokApiUrl = `${currentProtocol}//${currentHost}/api`;
+    // IMPORTANT CORRECTION HERE:
+    // Based on your logs, the successful login hit 'https://scottohd.ngrok.io/api/auth/login'.
+    // This strongly suggests 'https://scottohd.ngrok.io' is the *actual and correct* ngrok URL
+    // for your Flask backend (running on port 5000).
+    const backendNgrokUrl = 'https://scottohd.ngrok.io'; // <-- **THIS IS THE CORRECTION**
+    const ngrokApiUrl = `${backendNgrokUrl}/api`;
     console.log('[API CONFIG] Detected ngrok environment, using API URL:', ngrokApiUrl);
     return ngrokApiUrl;
   }
   
-  // Check if we're on localhost/127.0.0.1 in development
+  // For local development (frontend running on 3000), use relative path to trigger package.json proxy
   if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-    const localApiUrl = 'http://localhost:5000/api';
+    const localApiUrl = '/api'; // This will make requests to http://localhost:3000/api and then proxy to 5000
     console.log('[API CONFIG] Detected local development, using API URL:', localApiUrl);
     return localApiUrl;
   }
   
-  // For production or other environments
+  // For production or other environments (e.g. deployed to Azure)
   let baseUrl = `${currentProtocol}//${currentHost}`;
   if (currentPort && currentPort !== '80' && currentPort !== '443') {
     baseUrl += `:${currentPort}`;
@@ -40,6 +41,7 @@ const getApiBaseUrl = () => {
   
   return productionApiUrl;
 };
+
 
 // Get the correct API base URL
 const API_BASE_URL = getApiBaseUrl();

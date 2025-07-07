@@ -7,6 +7,12 @@ import './AudioRecorder.css';
 // Import the iOS-specific component
 import IOSAudioRecorder from './IOSAudioRecorder';
 
+// =================================================================
+// === ADD THIS IMPORT TO USE YOUR CONFIGURED AXIOS INSTANCE       ===
+// =================================================================
+import api from '../../services/api'; 
+// =================================================================
+
 const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
   // Detect if running on iOS
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -60,11 +66,9 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
         setIsRecording(false);
         setRecordingComplete(true);
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
       };
       
-      // Request data every second instead of only at stop
       mediaRecorder.start(1000);
       setIsRecording(true);
     } catch (err) {
@@ -94,15 +98,11 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
       return;
     }
     
-    // Check if file is audio
     if (!file.type.startsWith('audio/')) {
       setError('Please select an audio file');
       return;
     }
     
-    console.log('Selected file:', file);
-    
-    // Create a URL for preview
     const url = URL.createObjectURL(file);
     setSelectedFile(file);
     setAudioUrl(url);
@@ -115,7 +115,6 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
       return;
     }
     
-    // Check file size before upload
     if (selectedFile.size === 0) {
       setError('The audio file is empty. Please try recording again.');
       return;
@@ -126,16 +125,11 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
     
     try {
       console.log('Using estimate ID:', estimateId);
-      console.log('Uploading audio:', {
-        size: selectedFile.size,
-        type: selectedFile.type,
-        name: selectedFile.name || 'recording.wav'
-      });
+      if (!estimateId) {
+        throw new Error('No estimate ID provided. Please ensure you are in a valid estimate context.');
+      }
       
-      // Create FormData for upload
       const formData = new FormData();
-      
-      // Create a proper file with name and type to ensure it's processed correctly
       const fileToUpload = new File(
         [selectedFile], 
         selectedFile.name || 'recording.wav',
@@ -143,40 +137,33 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
       );
       
       formData.append('audio', fileToUpload);
-      
-      // Convert estimateId to a string to ensure proper formatting
-      if (!estimateId) {
-        throw new Error('No estimate ID provided. Please ensure you are in a valid estimate context.');
-      }
-      
       formData.append('estimate_id', String(estimateId));
       
-      // Use the correct API endpoint
-      const apiUrl = 'https://scottohd-api.ngrok.io/api/audio/upload';
-      
-      // Upload using fetch
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        body: formData
+      // =================================================================
+      // === REPLACED FETCH WITH THE CONFIGURED 'api' (AXIOS) INSTANCE ===
+      // =================================================================
+      // The `api` instance automatically includes credentials (cookies)
+      // and points to the correct base URL. This fixes the auth issue.
+      const response = await api.post('/audio/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
+      // =================================================================
+
+      // Axios puts the response JSON in the `data` property
+      const uploadedAudio = response.data;
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Upload failed with status: ${response.status}`);
-      }
-      
-      const uploadedAudio = await response.json();
-      
-      // Reset for next recording
       resetRecording();
       
-      // Notify parent component
       if (onAudioUploaded) {
         onAudioUploaded(uploadedAudio);
       }
     } catch (err) {
       console.error('Error uploading audio:', err);
-      setError(`Failed to upload audio: ${err.message}. Please try again.`);
+      // Axios provides better error details in `err.response`
+      const errorMessage = err.response?.data?.error || err.message || "Failed to upload audio.";
+      setError(`Failed to upload audio: ${errorMessage}. Please try again.`);
       if (onError) onError(err);
     } finally {
       setUploading(false);
@@ -197,7 +184,6 @@ const AudioRecorder = ({ estimateId, onAudioUploaded, onError }) => {
     <div className="audio-recorder">
       {error && <Alert variant="danger">{error}</Alert>}
       
-      {/* Hidden file input */}
       <Form.Control
         type="file"
         ref={fileInputRef}

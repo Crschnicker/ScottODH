@@ -51,13 +51,12 @@ const DoorTabs = ({ doors, activeDoorId, onTabChange, onDoorsChanged, bidId }) =
     setShowDeleteModal(true);
   };
   
-  const handleDuplicateDoor = async () => {
+const handleDuplicateDoor = async () => {
     if (!sourceDoorId || !targetDoors.trim()) {
       toast.error('Please enter target door numbers');
       return;
     }
     
-    // Parse door numbers
     const doorNumbers = targetDoors
       .split(',')
       .map(num => num.trim())
@@ -74,22 +73,38 @@ const DoorTabs = ({ doors, activeDoorId, onTabChange, onDoorsChanged, bidId }) =
       const result = await duplicateDoor(sourceDoorId, {
         target_door_numbers: doorNumbers
       });
+
+      // For debugging, let's confirm what the API returned
+      console.log('API DUPLICATION RESULT:', result);
       
       toast.success(`Door configuration duplicated to ${result.created_doors.length} doors`);
       setShowDuplicateModal(false);
       
-      // Refresh the entire bid data
+      // ==========================================================
+      // === THE FIX: REVERSE THE ORDER OF THESE TWO OPERATIONS ===
+      // ==========================================================
+      
+      // STEP 1: Tell React what the NEW active tab should be.
+      // This queues a state update for the activeDoorId.
+      if (onTabChange && result.created_doors && result.created_doors.length > 0) {
+        console.log('Switching to new door ID:', result.created_doors[0].id);
+        onTabChange(result.created_doors[0].id);
+      }
+      
+      // STEP 2: NOW, refresh the data for the whole component.
+      // This queues a state update for the bid data.
       if (onDoorsChanged) {
         await onDoorsChanged();
       }
-      
-      // Keep the same active door tab after refresh
-      if (onTabChange) {
-        onTabChange(activeDoorId);
-      }
+
+      // React will now batch these state updates and render the UI
+      // with BOTH the new active tab AND the refreshed data,
+      // showing you the correct view.
+
     } catch (error) {
       console.error('Error duplicating door:', error);
-      toast.error('Error duplicating door');
+      const errorMessage = error.response?.data?.error || 'Error duplicating door';
+      toast.error(errorMessage);
     } finally {
       setIsDuplicating(false);
     }

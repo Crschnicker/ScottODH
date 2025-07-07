@@ -1,38 +1,46 @@
+// src/config/apiConfig.js
+
 /**
- * API configuration file
- * Contains API base URL and authentication header utilities
+ * Dynamically determines the API base URL based on the environment.
+ * Detects ngrok, production, and local development environments.
  */
+const getApiBaseUrl = () => {
+  const hostname = window.location.hostname;
 
-// Base URL for API requests - update this to match your backend
-export const API_BASE_URL = 'http://localhost:5000';
+  // Check for ngrok
+  if (hostname.includes('ngrok.io')) {
+    // Use the current origin for ngrok to ensure cookies work correctly
+    return `${window.location.origin}`;
+  }
+  
+  // Add other environments if needed (e.g., production)
+  // if (hostname === 'app.scottohd.com') {
+  //   return 'https://api.scottohd.com';
+  // }
+
+  // Default to local development
+  return 'http://localhost:5000'; // Assuming your local API is at /api
+};
+
+// Export the dynamically determined URL
+export const API_BASE_URL = getApiBaseUrl();
 
 /**
- * Get authentication headers for API requests
- * This retrieves the auth token from localStorage and adds it to request headers
- * 
- * @returns {Object} Authentication headers object
+ * Get authentication headers for API requests.
+ * (This part remains the same)
  */
 export const getAuthHeaders = () => {
   const token = localStorage.getItem('authToken');
-  
-  if (!token) {
-    return {};
-  }
-  
-  return {
-    'Authorization': `Bearer ${token}`
-  };
+  if (!token) return {};
+  return { 'Authorization': `Bearer ${token}` };
 };
 
 /**
- * Format URL with API base
- * Helps create full URLs by combining API_BASE_URL with endpoints
- * 
- * @param {string} endpoint - API endpoint path
- * @returns {string} Complete API URL
+ * Format URL with API base.
+ * (This part remains the same)
  */
 export const formatApiUrl = (endpoint) => {
-  // Remove leading slash if present to avoid double slashes
+  // Remove leading slash from endpoint to prevent double slashes
   const formattedEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
   return `${API_BASE_URL}/${formattedEndpoint}`;
 };

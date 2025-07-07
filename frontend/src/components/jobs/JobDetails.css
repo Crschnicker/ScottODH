@@ -1,7 +1,6 @@
 /* Enhanced JobDetails.css - Updated for Time Tracking and Actions */
 
-/* Existing styles preserved, adding new enhancements */
-
+/* Main Layout & Header */
 .job-details-container {
   padding: 20px;
   max-width: 1400px;
@@ -32,7 +31,7 @@
   text-transform: capitalize;
 }
 
-/* FIXED: Enhanced Job Actions Button Layout */
+/* Enhanced Job Actions Button Layout */
 .job-actions {
   display: flex;
   gap: 12px;
@@ -61,7 +60,6 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* FIXED: Specific Button Type Styles */
 .action-button.btn-success {
   background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
   color: white;
@@ -72,42 +70,6 @@
   background: linear-gradient(135deg, #218838 0%, #1fa485 100%);
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(40, 167, 69, 0.3);
-}
-
-.action-button.btn-primary {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: 1px solid #007bff;
-}
-
-.action-button.btn-primary:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 123, 255, 0.3);
-}
-
-.action-button.btn-danger {
-  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-  color: white;
-  border: 1px solid #dc3545;
-}
-
-.action-button.btn-danger:hover {
-  background: linear-gradient(135deg, #c82333 0%, #a71e2a 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(220, 53, 69, 0.3);
-}
-
-.action-button.btn-secondary {
-  background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
-  color: white;
-  border: 1px solid #6c757d;
-}
-
-.action-button.btn-secondary:hover {
-  background: linear-gradient(135deg, #545b62 0%, #454d55 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(108, 117, 125, 0.3);
 }
 
 .action-button.btn-outline-secondary {
@@ -123,23 +85,10 @@
   box-shadow: 0 3px 8px rgba(108, 117, 125, 0.2);
 }
 
-/* FIXED: Focus states for accessibility */
 .action-button:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
   z-index: 1;
-}
-
-.action-button:active {
-  transform: translateY(1px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.action-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Time Summary Card */
@@ -193,556 +142,6 @@
   color: #212529;
 }
 
-.status-badge.completed {
-  background-color: #6c757d;
-  color: white;
-}
-
-.status-badge.not_started {
-  background-color: #e9ecef;
-  color: #6c757d;
-}
-
-/* Enhanced Door Cards */
-.doors-detailed-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.door-card {
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.door-card:hover {
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-}
-
-.door-card.expanded {
-  border-color: #007bff;
-  box-shadow: 0 4px 12px rgba(0,123,255,0.2);
-}
-
-.door-card-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-bottom: 1px solid #dee2e6;
-  padding: 15px 20px;
-  transition: all 0.3s ease;
-}
-
-.door-card-header:hover {
-  background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
-}
-
-.door-header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-}
-
-.door-header-left {
-  flex: 1;
-}
-
-.door-title {
-  color: #2c3e50;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.door-location {
-  color: #6c757d;
-  font-weight: 400;
-}
-
-.door-summary {
-  margin-top: 8px;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.door-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.expand-icon {
-  color: #6c757d;
-  transition: transform 0.3s ease;
-}
-
-.door-card.expanded .expand-icon {
-  transform: rotate(45deg);
-}
-
-.door-card-body {
-  padding: 20px;
-  background-color: #fff;
-}
-
-/* Time Tracking and Actions Sections */
-.door-time-actions {
-  background-color: #fff3e0;
-  padding: 15px;
-  border-radius: 6px;
-  border-left: 4px solid #ff9800;
-}
-
-.time-actions-title {
-  color: #2c3e50;
-  margin-bottom: 12px;
-  font-weight: 600;
-}
-
-.time-tracking-section {
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #ffe0b2;
-}
-
-.time-stat {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.time-label {
-  font-size: 0.85rem;
-  color: #e65100;
-  font-weight: 500;
-}
-
-.time-value {
-  font-size: 0.85rem;
-  color: #bf360c;
-  font-weight: 600;
-}
-
-.actions-section {
-  margin-bottom: 15px;
-}
-
-.actions-summary {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-  font-size: 0.9rem;
-}
-
-.actions-label {
-  margin-right: 8px;
-  color: #e65100;
-  font-weight: 500;
-}
-
-.actions-count {
-  font-weight: 600;
-  color: #bf360c;
-}
-
-.actions-timeline {
-  margin-top: 10px;
-}
-
-.timeline-title {
-  font-size: 0.8rem;
-  color: #e65100;
-  font-weight: 600;
-  margin-bottom: 8px;
-  display: block;
-}
-
-.actions-list {
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.action-item {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 8px;
-  padding: 8px;
-  background-color: #fafafa;
-  border-radius: 4px;
-  border-left: 3px solid #4caf50;
-}
-
-.action-content {
-  flex: 1;
-  margin-right: 8px;
-}
-
-.action-description {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #2c3e50;
-  margin-bottom: 4px;
-}
-
-.action-metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: #6c757d;
-}
-
-.action-time,
-.action-part,
-.action-quantity {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.action-status {
-  display: flex;
-  align-items: center;
-}
-
-.action-check {
-  color: #4caf50;
-  font-size: 1rem;
-}
-
-.no-actions {
-  text-align: center;
-  padding: 15px;
-  font-style: italic;
-  color: #6c757d;
-}
-
-.progress-summary {
-  background-color: #f1f8e9;
-  padding: 12px;
-  border-radius: 4px;
-  border: 1px solid #c8e6c9;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  font-weight: 600;
-  color: #2e7d32;
-}
-
-.progress-percentage {
-  font-size: 1.1rem;
-  color: #1b5e20;
-}
-
-.progress-details {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.progress-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-  color: #388e3c;
-}
-
-.status-complete {
-  color: #4caf50;
-  font-weight: 600;
-}
-
-.status-pending {
-  color: #ff9800;
-  font-weight: 600;
-}
-
-/* Door Status Summary */
-.door-status-summary {
-  margin-top: 20px;
-  padding: 15px;
-  border-radius: 6px;
-  text-align: center;
-}
-
-.status-completed {
-  background-color: #e8f5e8;
-  border: 1px solid #c3e6c3;
-  color: #2e7d32;
-}
-
-.status-pending {
-  background-color: #fff3e0;
-  border: 1px solid #ffe0b2;
-  color: #e65100;
-}
-
-/* Door Specifications */
-.door-specifications {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 6px;
-  border-left: 4px solid #007bff;
-}
-
-.specs-title {
-  color: #2c3e50;
-  margin-bottom: 12px;
-  font-weight: 600;
-}
-
-.specs-grid {
-  display: grid;
-  gap: 8px;
-}
-
-.spec-item {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: start;
-}
-
-.spec-label {
-  font-weight: 500;
-  color: #495057;
-  display: flex;
-  align-items: center;
-  min-width: 120px;
-}
-
-.spec-value {
-  color: #2c3e50;
-  word-break: break-word;
-}
-
-.door-notes {
-  margin-top: 12px;
-  padding: 10px;
-  background-color: #fff3cd;
-  border-left: 3px solid #ffc107;
-  border-radius: 4px;
-  font-size: 0.9rem;
-}
-
-.door-specs-empty {
-  text-align: center;
-  padding: 20px;
-  color: #6c757d;
-  font-style: italic;
-}
-
-/* Line Items */
-.door-line-items {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 6px;
-  border-left: 4px solid #28a745;
-}
-
-.line-items-title {
-  color: #2c3e50;
-  margin-bottom: 12px;
-  font-weight: 600;
-}
-
-.line-items-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.line-item {
-  border: none !important;
-  padding: 10px 0;
-  border-bottom: 1px solid #e9ecef !important;
-}
-
-.line-item:last-child {
-  border-bottom: none !important;
-}
-
-.line-item-content {
-  width: 100%;
-}
-
-.line-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.line-item-description {
-  font-weight: 500;
-  color: #2c3e50;
-  flex: 1;
-}
-
-.line-item-detail,
-.line-item-details,
-.line-item-completion {
-  margin-top: 4px;
-}
-
-.line-item-completion {
-  padding-top: 4px;
-  border-top: 1px solid #e9ecef;
-}
-
-.door-line-items-empty {
-  text-align: center;
-  padding: 20px;
-  color: #6c757d;
-  font-style: italic;
-}
-
-/* Media Gallery */
-.door-media-section {
-  background-color: #f8f9fa;
-  padding: 15px;
-  border-radius: 6px;
-  border-left: 4px solid #17a2b8;
-}
-
-.media-title {
-  color: #2c3e50;
-  margin-bottom: 12px;
-  font-weight: 600;
-}
-
-.door-media-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  color: #6c757d;
-}
-
-.door-media-empty {
-  text-align: center;
-  padding: 20px;
-  color: #6c757d;
-  font-style: italic;
-}
-
-.door-media-gallery {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.media-section {
-  background-color: white;
-  padding: 12px;
-  border-radius: 4px;
-  border: 1px solid #e9ecef;
-}
-
-.media-section-title {
-  color: #495057;
-  margin-bottom: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-}
-
-.media-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.media-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.door-photo {
-  width: 100%;
-  height: 80px;
-  object-fit: cover;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
-}
-
-.door-photo:hover {
-  transform: scale(1.05);
-}
-
-.door-video {
-  width: 100%;
-  height: 80px;
-  border-radius: 4px;
-  object-fit: cover;
-}
-
-.media-info {
-  text-align: center;
-}
-
-/* FIXED: Status Actions Button Layout */
-.status-actions {
-  margin-top: 15px;
-  padding-top: 15px;
-  border-top: 1px solid #e9ecef;
-}
-
-.status-label {
-  font-weight: 600;
-  color: #495057;
-  margin-bottom: 10px;
-}
-
-.status-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.status-btn {
-  min-width: 100px;
-  height: 34px;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border-radius: 5px;
-  text-align: center;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  line-height: 1.3;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.status-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-
-.status-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.status-btn:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
-}
-
 /* Info Cards */
 .info-card {
   height: 100%;
@@ -751,9 +150,9 @@
 }
 
 .info-card .card-header {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border-bottom: none;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #343a40;
+  border-bottom: 1px solid #dee2e6;
 }
 
 .info-row {
@@ -789,390 +188,269 @@
   word-break: break-word;
 }
 
-/* FIXED: Responsive Design for Better Button Layout */
-@media (max-width: 768px) {
-  .job-details-container {
-    padding: 15px;
-  }
-  
-  .job-details-header {
-    flex-direction: column;
-    gap: 15px;
-    align-items: stretch;
-  }
-  
-  /* FIXED: Mobile button layout improvements */
-  .job-actions {
-    justify-content: stretch;
-    gap: 8px;
-  }
-  
-  .action-button {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.8rem;
-    padding: 10px 8px;
-    height: 42px;
-  }
-  
-  .door-card-body .row {
-    margin: 0;
-  }
-  
-  .door-card-body .col-lg-3 {
-    padding: 0 0 15px 0;
-  }
-  
-  .media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-  }
-  
-  .door-photo,
-  .door-video {
-    height: 60px;
-  }
-  
-  .spec-item {
-    grid-template-columns: 1fr;
-    gap: 4px;
-  }
-  
-  .spec-label {
-    min-width: auto;
-  }
-  
-  /* FIXED: Mobile status button improvements */
-  .status-buttons {
-    justify-content: stretch;
-    gap: 8px;
-  }
-  
-  .status-btn {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.75rem;
-    padding: 8px 6px;
-    height: 36px;
-  }
-  
-  .time-stat-large {
-    padding: 10px;
-  }
-  
-  .time-stat-value {
-    font-size: 1.5rem;
-  }
-  
-  .action-metadata {
-    flex-direction: column;
-    gap: 4px;
-  }
-  
-  .progress-details {
-    gap: 6px;
-  }
-  
-  .door-time-actions {
-    padding: 12px;
-  }
-  
-  .actions-list {
-    max-height: 150px;
-  }
+/* Status Update Actions */
+.status-actions {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #e9ecef;
 }
 
-@media (max-width: 576px) {
-  .door-summary {
-    margin-top: 5px;
-  }
-  
-  .door-summary .badge {
-    font-size: 0.7rem;
-  }
-  
-  .media-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .door-photo,
-  .door-video {
-    height: 50px;
-  }
-  
-  .time-stat {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-  
-  .progress-item {
-    font-size: 0.8rem;
-  }
-  
-  .action-item {
-    padding: 6px;
-  }
-  
-  .action-description {
-    font-size: 0.8rem;
-  }
-  
-  .action-metadata {
-    font-size: 0.7rem;
-  }
-  
-  /* FIXED: Very small screen button adjustments */
-  .job-actions {
-    flex-direction: column;
-  }
-  
-  .action-button {
-    width: 100%;
-    margin-bottom: 4px;
-  }
-  
-  .status-buttons {
-    flex-direction: column;
-  }
-  
-  .status-btn {
-    width: 100%;
-    margin-bottom: 4px;
-  }
+.status-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
-/* Loading and Error States */
-.loading-container {
+.status-btn {
+  min-width: 100px;
+  height: 34px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+/* Doors Section */
+.doors-detailed-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
+  gap: 20px;
 }
 
-.error-alert,
-.not-found-alert {
-  margin: 20px;
-  border-radius: 8px;
-}
-
-/* Cancel Modal */
-.cancel-job-modal .modal-header.bg-danger {
-  border-bottom: 1px solid rgba(255,255,255,0.2);
-}
-
-/* Animation Enhancements */
 .door-card {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.door-card.expanded {
+  border-color: #007bff;
+  box-shadow: 0 4px 12px rgba(0,123,255,0.2);
 }
 
 .door-card-header {
-  transition: all 0.2s ease;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-bottom: 1px solid #dee2e6;
+  padding: 15px 20px;
 }
 
-.badge {
-  transition: all 0.2s ease;
-}
-
-.btn {
-  transition: all 0.2s ease;
-}
-
-.action-item {
-  transition: all 0.2s ease;
-}
-
-.action-item:hover {
-  background-color: #f0f0f0;
-  transform: translateX(2px);
-}
-
-/* Utility Classes */
-.text-primary {
-  color: #007bff !important;
-}
-
-.text-success {
-  color: #28a745 !important;
-}
-
-.text-warning {
-  color: #ffc107 !important;
-}
-
-.text-danger {
-  color: #dc3545 !important;
-}
-
-.text-muted {
-  color: #6c757d !important;
-}
-
-/* FIXED: Enhanced Focus and Accessibility */
-.door-card-header:focus {
-  outline: 2px solid #007bff;
-  outline-offset: 2px;
-}
-
-.btn:focus {
-  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-}
-
-/* FIXED: Button group consistency */
-.btn-group .action-button {
-  border-radius: 0;
-  margin-left: -1px;
-}
-
-.btn-group .action-button:first-child {
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
-  margin-left: 0;
-}
-
-.btn-group .action-button:last-child {
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-}
-
-/* Print Styles */
-@media print {
-  .job-actions,
-  .status-actions,
-  .modal {
-    display: none !important;
-  }
-  
-  .door-card {
-    break-inside: avoid;
-    box-shadow: none;
-    border: 1px solid #000;
-  }
-  
-  .door-card-header {
-    background: none !important;
-    color: #000 !important;
-  }
-  
-  .time-summary-card .card-header {
-    background: none !important;
-    color: #000 !important;
-  }
-  
-  .action-item {
-    background-color: #f8f9fa !important;
-  }
-}
-/* Add these styles to your JobDetails.css file */
-
-/* Media container with overlay functionality */
-.media-container {
-  position: relative;
-  display: inline-block;
-  width: 100%;
-}
-
-/* Media overlay for hover download button */
-.media-overlay {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 10;
-}
-
-/* Show overlay on hover */
-.media-container:hover .media-overlay {
-  opacity: 1;
-}
-
-/* Download button styling */
-.download-btn {
-  background: rgba(0, 123, 255, 0.9) !important;
-  border: none !important;
-  border-radius: 50% !important;
-  width: 32px !important;
-  height: 32px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
-  transition: all 0.2s ease !important;
-}
-
-.download-btn:hover {
-  background: rgba(0, 123, 255, 1) !important;
-  transform: scale(1.1) !important;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4) !important;
-}
-
-.download-btn:focus {
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25) !important;
-}
-
-/* Alternative download button (below media) */
-.download-btn-alt {
-  font-size: 0.75rem !important;
-  padding: 2px 6px !important;
-  border-radius: 4px !important;
-}
-
-/* Enhanced media info section */
-.media-info {
+.door-header-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 4px;
-  background: rgba(248, 249, 250, 0.8);
-  border-radius: 0 0 6px 6px;
-  margin-top: 4px;
+  width: 100%;
 }
 
-/* Media grid improvements */
-.media-grid {
+.door-title {
+  color: #2c3e50;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.door-summary {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.expand-icon {
+  color: #6c757d;
+  transition: transform 0.3s ease;
+}
+
+.door-card.expanded .expand-icon {
+  transform: rotate(45deg);
+}
+
+.door-card-body {
+  padding: 20px;
+  background-color: #fff;
+}
+
+/* Door Specifications */
+.door-specifications {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+}
+
+.specs-title {
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+/* Door Activity Summary - NEW & UPDATED */
+.door-time-actions {
+  background-color: #f8f9fa;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.time-actions-title {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #dee2e6;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #343a40;
+}
+
+.at-a-glance-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 12px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  text-align: center;
+  margin-bottom: 1rem;
 }
 
-/* Media item improvements */
-.media-item {
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  overflow: hidden;
-  background: white;
-  transition: box-shadow 0.2s ease;
+.glance-item {
+  background-color: #ffffff;
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e9ecef;
 }
 
-.media-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.glance-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0d6efd;
 }
 
-/* Door photo styling */
-.door-photo {
-  width: 100%;
-  height: 150px;
-  object-fit: cover;
-  border: none !important;
-  border-radius: 0 !important;
+.glance-label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25rem;
 }
 
-/* Door video styling */
-.door-video {
-  width: 100%;
-  height: 150px;
-  border-radius: 6px 6px 0 0;
+.progress-checklist {
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.375rem;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
 }
 
-/* Media section improvements */
+.progress-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.progress-item:not(:last-child) {
+  border-bottom: 1px dashed #e9ecef;
+}
+
+.progress-label {
+  display: flex;
+  align-items: center;
+  color: #495057;
+}
+
+.progress-label svg {
+  margin-right: 0.75rem;
+  color: #6c757d;
+}
+
+.progress-status {
+  font-weight: 600;
+}
+
+.status-complete {
+  color: #198754;
+}
+
+.status-pending {
+  color: #ff9800;
+}
+
+.last-activity-log {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid #dee2e6;
+  font-size: 0.8rem;
+  color: #6c757d;
+  text-align: center;
+}
+
+/* Door Line Items */
+.door-line-items {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #28a745;
+}
+
+.line-items-title {
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.line-items-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.line-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.door-line-items-empty {
+  text-align: center;
+  padding: 20px;
+  color: #6c757d;
+  font-style: italic;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 2px dashed #dee2e6;
+}
+
+/* Media Gallery - NEW & UPDATED WITH VIDEO ROTATION FIX */
+.door-media-section {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #17a2b8;
+  height: 100%;
+}
+
+.media-title {
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.door-media-loading,
+.door-media-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 2px dashed #dee2e6;
+}
+
 .media-section {
   margin-bottom: 24px;
 }
-
 .media-section:last-child {
   margin-bottom: 0;
 }
@@ -1185,50 +463,238 @@
   border-bottom: 2px solid #e9ecef;
 }
 
-/* Loading and empty states */
-.door-media-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  color: #6c757d;
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
 }
 
-.door-media-empty {
+.media-item {
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  transition: box-shadow 0.2s ease;
+  min-height: 200px; /* Ensure enough space for rotated videos */
+}
+
+.media-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.media-container {
+  position: relative;
+  width: 100%;
+  min-height: 150px; /* Ensure minimum height for rotated videos */
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  color: #6c757d;
-  background: #f8f9fa;
+}
+
+.media-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 10;
+}
+
+.media-container:hover .media-overlay {
+  opacity: 1;
+}
+
+.download-btn {
+  background: rgba(0, 123, 255, 0.9) !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.download-btn-alt {
+  font-size: 0.75rem !important;
+  padding: 2px 6px !important;
+}
+
+.media-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+}
+
+.door-photo {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* VIDEO ROTATION FIX STYLES - NEW */
+
+/* Video Container and Rotation Styles */
+.video-container {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: #000;
+  border-radius: 4px;
+}
+
+.video-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  color: white;
+}
+
+.door-video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* Changed from cover to contain to preserve aspect ratio */
+  border: none !important;
+  border-radius: 0 !important;
+  transition: transform 0.3s ease;
+  background-color: #000;
+}
+
+/* Handle rotated videos */
+.door-video[style*="rotate(90deg)"],
+.door-video[style*="rotate(270deg)"] {
+  /* For 90 or 270 degree rotations, we need to adjust the sizing */
+  width: auto;
+  height: 100%;
+  max-width: none;
+}
+
+/* Alternative approach - add rotation classes */
+.video-rotate-90 {
+  transform: rotate(90deg);
+  transform-origin: center center;
+}
+
+.video-rotate-180 {
+  transform: rotate(180deg);
+  transform-origin: center center;
+}
+
+.video-rotate-270 {
+  transform: rotate(270deg);
+  transform-origin: center center;
+}
+
+/* Video controls styling */
+.video-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rotate-btn:hover {
+  background: rgba(255, 193, 7, 1) !important;
+  transform: scale(1.1);
+}
+
+/* Door Status Summary (at bottom of expanded card) */
+.door-status-summary {
+  margin-top: 20px;
+  padding: 15px;
   border-radius: 6px;
-  border: 2px dashed #dee2e6;
+  text-align: center;
 }
 
-/* Responsive adjustments */
+.status-completed {
+  background-color: #e8f5e8;
+  border: 1px solid #c3e6c3;
+  color: #2e7d32;
+}
+
+.status-pending {
+  background-color: #fff3e0;
+  border: 1px solid #ffe0b2;
+  color: #e65100;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 12px;
+  .job-details-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
   }
   
-  .door-photo,
-  .door-video {
+  .job-actions, .status-buttons {
+    justify-content: stretch;
+    gap: 8px;
+  }
+  
+  .action-button, .status-btn {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  
+  .door-photo {
+    height: 120px;
+  }
+
+  .video-container {
     height: 120px;
   }
   
-  .download-btn {
-    width: 28px !important;
-    height: 28px !important;
+  .media-item {
+    min-height: 160px;
   }
-  
-  .media-info {
+}
+
+@media (max-width: 576px) {
+  .job-actions, .status-buttons {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+  }
+
+  .action-button, .status-btn {
+    width: 100%;
+  }
+
+  .media-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .video-container {
+    height: 100px;
   }
   
-  .download-btn-alt {
-    align-self: flex-end;
+  .media-item {
+    min-height: 140px;
   }
+}
+
+/* Loading and Error States */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+/* Cancel Modal */
+.cancel-job-modal .modal-header.bg-danger {
+  border-bottom: 1px solid rgba(255,255,255,0.2);
 }

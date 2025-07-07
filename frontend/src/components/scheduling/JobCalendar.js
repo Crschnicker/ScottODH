@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
-import { Card, Button, Badge, ListGroup } from 'react-bootstrap';
+import { Card, Button, Badge } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { getJobs } from '../../services/jobService';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -9,8 +9,7 @@ import './Calendar.css';
 
 /**
  * JobCalendar Component
- * Displays scheduled jobs in a calendar view with detailed list for selected date
- * Optimized layout to match EstimateCalendar's space efficiency
+ * Displays scheduled jobs in a calendar view with enhanced sidebar for selected date
  */
 const JobCalendar = ({ region, onSelectDate }) => {
   // State management
@@ -20,8 +19,6 @@ const JobCalendar = ({ region, onSelectDate }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [calendarView, setCalendarView] = useState('month');
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
   
   const navigate = useNavigate();
   const localizer = momentLocalizer(moment);
@@ -36,12 +33,29 @@ const JobCalendar = ({ region, onSelectDate }) => {
   };
   
   /**
-   * Format time for display
-   * @param {Date} date - The date to format
-   * @returns {string} Formatted time string (h:mm A)
+   * Get display name for customer, handling empty/temp values
+   * @param {Object} job - Job object
+   * @returns {string} Formatted customer name
    */
-  const formatTime = (date) => {
-    return moment(date).format('h:mm A');
+  const getDisplayCustomerName = (job) => {
+    if (!job.customer_name || job.customer_name.toLowerCase() === 'temp' || job.customer_name.trim() === '') {
+      return `Customer #${job.job_number || 'Unknown'}`;
+    }
+    return job.customer_name;
+  };
+  
+  /**
+   * Get display address for job, handling empty values
+   * @param {Object} job - Job object
+   * @returns {string} Formatted address or fallback
+   */
+  const getDisplayAddress = (job) => {
+    if (!job.address || job.address.trim() === '') {
+      return 'Address not specified';
+    }
+    // Get first line of address for cleaner display
+    const addressParts = job.address.split(',');
+    return addressParts[0].trim();
   };
   
   const loadScheduledJobs = useCallback(async () => {
@@ -54,47 +68,41 @@ const JobCalendar = ({ region, onSelectDate }) => {
       
       const fetchedJobs = await getJobs(params);
       
-      // --- REVISED LOGIC: Filter and Map in one pass using reduce ---
+      // Filter and Map in one pass using reduce
       const jobEvents = fetchedJobs.reduce((events, job) => {
-        // 1. First, check if a scheduled_date even exists and is not an empty string.
+        // First, check if a scheduled_date even exists and is not an empty string
         if (!job.scheduled_date) {
-          // This job is unscheduled, so we simply skip it.
-          return events; // Return the accumulator unchanged.
+          return events;
         }
 
-        // 2. Now, attempt to parse the date and move it to noon to avoid timezone issues.
+        // Attempt to parse the date and move it to noon to avoid timezone issues
         const startMoment = moment(job.scheduled_date, ['YYYY-MM-DD', 'MM/DD/YYYY'])
                               .startOf('day')
                               .add(12, 'hours');
 
-        // 3. Check if the parsed date is valid.
+        // Check if the parsed date is valid
         if (startMoment.isValid()) {
-          // If valid, create the event object and add it to our array.
           const startDate = startMoment.toDate();
           const endDate = moment(startMoment).add(1, 'hour').toDate();
 
           events.push({
             id: job.id,
-            title: `${job.job_number}: ${job.customer_name}`,
+            title: `${job.job_number}: ${getDisplayCustomerName(job)}`,
             start: startDate,
             end: endDate,
             resource: job
           });
         } else {
-          // The date string was present but malformed. Log it for debugging and skip it.
           console.warn(
             `Skipping job due to malformed scheduled_date: '${job.scheduled_date}'`,
             job
           );
         }
 
-        // Return the accumulator for the next iteration.
         return events;
-      }, []); // The initial value of our accumulator is an empty array [].
+      }, []);
       
       setJobs(jobEvents);
-      
-      // Update the sidebar list with the correctly filtered and formed events
       updateSelectedDateJobs(calendarDate, jobEvents);
     } catch (error) {
       console.error('Error loading scheduled jobs:', error);
@@ -160,26 +168,6 @@ const JobCalendar = ({ region, onSelectDate }) => {
   };
   
   /**
-   * Filter jobs displayed in the sidebar based on search text and status
-   * @returns {Array} Filtered jobs
-   */
-  const getFilteredJobs = () => {
-    if (!searchText && statusFilter === 'all') return selectedDateJobs;
-    
-    return selectedDateJobs.filter(job => {
-      const matchesSearch = !searchText || 
-        job.job_number?.toLowerCase().includes(searchText.toLowerCase()) ||
-        job.customer_name?.toLowerCase().includes(searchText.toLowerCase()) ||
-        job.address?.toLowerCase().includes(searchText.toLowerCase());
-        
-      const matchesStatus = statusFilter === 'all' || 
-        job.status?.toLowerCase() === statusFilter.toLowerCase();
-        
-      return matchesSearch && matchesStatus;
-    });
-  };
-  
-  /**
    * Custom toolbar component for the calendar
    */
   const CustomToolbar = (toolbar) => {
@@ -192,10 +180,8 @@ const JobCalendar = ({ region, onSelectDate }) => {
     return (
       <div className="d-flex justify-content-between align-items-center mb-2">
         <div>
-          {/* CORRECTED SYNTAX */}
           <Button variant="outline-secondary" size="sm" onClick={goToBack}>{'<'}</Button>
           <Button variant="outline-primary" size="sm" onClick={goToToday} className="mx-2">Today</Button>
-          {/* CORRECTED SYNTAX */}
           <Button variant="outline-secondary" size="sm" onClick={goToNext}>{'>'}</Button>
           <span className="ms-2 fw-bold">{toolbar.label}</span>
         </div>
@@ -289,104 +275,22 @@ const JobCalendar = ({ region, onSelectDate }) => {
     }
     
     return (
-      <Badge bg={variant} className="me-2">
+      <Badge bg={variant} className="status-badge">
         {status ? status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1) : 'Scheduled'}
       </Badge>
     );
   };
   
   /**
-   * HourlyTimeline component to display jobs in a timeline view
+   * Enhanced empty state component
    */
-  const HourlyTimeline = () => {
-    const startHour = 6; 
-    const endHour = 17;  
-    const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
-    
-    const calculateJobPosition = (job) => {
-      const jobHour = 9; 
-      const jobDuration = 2;
-      const totalTimelineSpanHours = endHour - startHour;
-      const topPosition = ((jobHour - startHour) / totalTimelineSpanHours) * 100;
-      const heightPercentage = (jobDuration / totalTimelineSpanHours) * 100;
-      
-      return {
-        top: `${Math.max(0, topPosition)}%`, 
-        height: `${Math.max(0, heightPercentage)}%`,
-      };
-    };
-    
-    const getJobColor = (job) => {
-      switch (job.status?.toLowerCase()) {
-        case 'completed': return '#28a745';
-        case 'in_progress': return '#ffc107';
-        case 'cancelled': return '#dc3545';
-        default: return '#007bff';
-      }
-    };
-    
-    return (
-      <div className="hourly-timeline p-3">
-        <h6 className="mb-3">Day Schedule</h6>
-        <div className="timeline-container" style={{ position: 'relative', height: '480px', overflow: 'hidden' }}>
-          {hours.map((hour) => (
-            <div 
-              key={hour} 
-              className="hour-row d-flex align-items-center" 
-              style={{ 
-                position: 'absolute', 
-                width: '100%', 
-                height: `${100 / hours.length}%`, 
-                top: `${((hour - startHour) / hours.length) * 100}%`,
-                borderBottom: (hour < endHour) ? '1px solid #e9ecef' : 'none',
-              }}
-            >
-              <div className="hour-label" style={{ width: '50px', fontSize: '0.8rem', color: '#6c757d', paddingRight: '5px' }}>
-                {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
-              </div>
-            </div>
-          ))}
-          
-          {selectedDateJobs.map((job) => {
-            const positionStyle = calculateJobPosition(job);
-            
-            return (
-              <div
-                key={job.id}
-                className="job-block position-absolute rounded shadow-sm p-1"
-                style={{
-                  left: '60px', 
-                  right: '10px', 
-                  ...positionStyle,
-                  backgroundColor: getJobColor(job),
-                  color: job.status === 'in_progress' ? '#212529' : '#fff', 
-                  cursor: 'pointer',
-                  zIndex: 10,
-                  overflow: 'hidden',
-                  fontSize: '0.8rem', 
-                }}
-                onClick={() => navigate(`/jobs/${job.id}`)}
-                title={`${job.customer_name}\nJob #: ${job.job_number}\nStatus: ${job.status || 'Scheduled'}`}
-              >
-                <div className="d-flex justify-content-between align-items-start">
-                  <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {job.job_number}
-                  </div>
-                  <JobStatusBadge status={job.status} />
-                </div>
-                <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {job.customer_name}
-                </div>
-                <div style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {job.address && job.address.split(',')[0]}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const EmptyJobsState = () => (
+    <div className="empty-jobs-state">
+      <span className="empty-jobs-icon">📅</span>
+      <div className="empty-jobs-text">No jobs scheduled</div>
+      <div className="empty-jobs-subtext">Select a different date or schedule a new job</div>
+    </div>
+  );
   
   if (loading && jobs.length === 0) {
     return (
@@ -409,7 +313,7 @@ const JobCalendar = ({ region, onSelectDate }) => {
   }
   
   return (
-    <div className={`job-calendar-container ${calendarView !== 'month' ? 'single-column' : ''}`}>
+    <div className="job-calendar-container">
       <div className="calendar-section">
         <h3 className="calendar-title mb-3 text-center">Job Schedule</h3>
         <Card className="shadow-sm mb-0">
@@ -438,7 +342,7 @@ const JobCalendar = ({ region, onSelectDate }) => {
               popup
               tooltipAccessor={event => 
                 `${event.resource?.job_number}\n` +
-                `${event.resource?.customer_name}\n` +
+                `${getDisplayCustomerName(event.resource)}\n` +
                 `Status: ${event.resource?.status || 'Scheduled'}`
               }
             />
@@ -446,81 +350,55 @@ const JobCalendar = ({ region, onSelectDate }) => {
         </Card>
       </div>
 
-      {calendarView === 'month' && (
-        <div className="date-details-section">
-          <Card className="date-details">
-            <Card.Header className="py-2">
-              <h5 className="mb-0">{formatDisplayDate(calendarDate)}</h5>
-            </Card.Header>
-            <Card.Body className="p-0">
-              {(() => {
-                if (selectedDateJobs.length === 0) {
-                  return <p className="text-muted p-3 mb-0">No jobs scheduled for this date.</p>;
-                }
-                
-                return (
-                  <>
-                    <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
-                      <h6 className="mb-0">{selectedDateJobs.length} Job{selectedDateJobs.length === 1 ? '' : 's'} Scheduled</h6>
-                      <Button 
-                        variant="outline-secondary" 
-                        size="sm"
-                        onClick={() => loadScheduledJobs()}
-                      >
-                        Refresh
-                      </Button>
-                    </div>
-                    
-                    <HourlyTimeline />
-                    
-                    <div className="p-3 border-top">
-                      <h6 className="mb-2">Job Details</h6>
-                      <ListGroup variant="flush">
-                        {getFilteredJobs().map(job => (
-                          <ListGroup.Item 
-                            key={job.id}
-                            className="px-0 py-2 border-bottom"
-                            action
-                            onClick={() => navigate(`/jobs/${job.id}`)}
-                          >
-                            <div className="d-flex justify-content-between align-items-start">
-                              <div className="job-info">
-                                <div className="d-flex align-items-center mb-1">
-                                  <span className="job-number me-2">{job.job_number}</span>
-                                  <JobStatusBadge status={job.status} />
-                                </div>
-                                <div className="customer-name mb-1">
-                                  {job.customer_name}
-                                </div>
-                                <div className="job-address text-muted small">
-                                  {job.address || 'No address'}
-                                  {job.region && <span className="ms-2 badge bg-light text-dark">{job.region}</span>}
-                                </div>
-                              </div>
-                            </div>
-                          </ListGroup.Item>
-                        ))}
-                      </ListGroup>
-                    </div>
-                  </>
-                );
-              })()}
-              
-              {onSelectDate && (
-                <div className="p-3 border-top">
-                  <Button 
-                    variant="success"
-                    className="w-100"
-                    onClick={() => onSelectDate(calendarDate)}
+      <div className="jobs-sidebar">
+        <Card className="shadow-sm">
+          <Card.Header className="py-3">
+            <h6 className="mb-1 fw-bold">{formatDisplayDate(calendarDate)}</h6>
+            <small>
+              {selectedDateJobs.length} job{selectedDateJobs.length === 1 ? '' : 's'} scheduled
+            </small>
+          </Card.Header>
+          <Card.Body className="p-0">
+            {selectedDateJobs.length === 0 ? (
+              <EmptyJobsState />
+            ) : (
+              <div className="jobs-list">
+                {selectedDateJobs.map(job => (
+                  <div 
+                    key={job.id}
+                    className="job-item cursor-pointer"
+                    onClick={() => navigate(`/jobs/${job.id}`)}
                   >
-                    Schedule Job for This Date
-                  </Button>
-                </div>
-              )}
-            </Card.Body>
-          </Card>
-        </div>
-      )}
+                    <div className="job-info">
+                      <div className="job-header">
+                        <div className="job-number">{job.job_number}</div>
+                        <JobStatusBadge status={job.status} />
+                      </div>
+                      <div className="customer-name">{getDisplayCustomerName(job)}</div>
+                      <div className="job-address">
+                        {getDisplayAddress(job)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {onSelectDate && (
+              <div className="schedule-button-container">
+                <Button 
+                  variant="success"
+                  size="sm"
+                  className="w-100"
+                  onClick={() => onSelectDate(calendarDate)}
+                >
+                  📅 Schedule New Job
+                </Button>
+              </div>
+            )}
+          </Card.Body>
+        </Card>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Form, Button, Card, Row, Col, Nav, Alert } from 'react-bootstrap';
+import { Form, Button, Card, Row, Col, Nav, Alert, Badge } from 'react-bootstrap';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getJob, scheduleJob, getJobs } from '../../services/jobService';
@@ -92,7 +92,7 @@ const ScheduleForm = () => {
       // If the job already has a scheduled date, select it in the calendar
       if (job.scheduled_date) {
         setSelectedDate(parseISODate(job.scheduled_date));
-        setView('form'); // Go directly to form for editing
+        setView('form'); // Go directly to form for editing existing scheduled job
       } else {
         setView('calendar'); // Go to calendar to select a date
       }
@@ -156,7 +156,7 @@ const ScheduleForm = () => {
   
   /**
    * Handle selecting a date from the calendar
-   * Fixed to properly maintain date selection without timezone shifts
+   * Modified to stay on calendar view and show scheduled jobs
    * @param {Date} date - The selected date object from the calendar
    */
   const handleSelectDate = (date) => {
@@ -165,7 +165,7 @@ const ScheduleForm = () => {
     selectedDate.setHours(12, 0, 0, 0); // Standardize the time to avoid timezone issues
     
     setSelectedDate(selectedDate);
-    setView('form');
+    // Don't automatically switch to form view - stay on calendar
     
     // Format date for form using our helper to avoid timezone issues
     const formattedDate = formatDateForForm(selectedDate);
@@ -174,6 +174,17 @@ const ScheduleForm = () => {
       ...formData,
       scheduled_date: formattedDate
     });
+  };
+  
+  /**
+   * Proceed to details form after date selection
+   */
+  const proceedToDetails = () => {
+    if (!selectedDate) {
+      toast.error('Please select a date first');
+      return;
+    }
+    setView('form');
   };
   
   /**
@@ -363,6 +374,16 @@ const ScheduleForm = () => {
         <div className="selected-date-display mb-3">
           <span className="date-label">Selected Date:</span>
           <span className="date-value">{formatDisplayDate(selectedDate)}</span>
+          {view === 'calendar' && (
+            <Button 
+              variant="primary" 
+              size="sm" 
+              className="ms-3"
+              onClick={proceedToDetails}
+            >
+              Continue to Details →
+            </Button>
+          )}
         </div>
       )}
       
@@ -383,6 +404,36 @@ const ScheduleForm = () => {
             region={selectedJob?.region || formData.region}
             onSelectDate={handleSelectDate}
           />
+          
+          {/* Calendar Actions */}
+          {selectedDate && (
+            <Card className="mt-3">
+              <Card.Body className="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong>Ready to schedule for {formatDisplayDate(selectedDate)}?</strong>
+                  <div className="text-muted small">
+                    Review the existing jobs above, then proceed to enter scheduling details.
+                  </div>
+                </div>
+                <div>
+                  <Button 
+                    variant="outline-secondary" 
+                    size="sm" 
+                    className="me-2"
+                    onClick={() => setSelectedDate(null)}
+                  >
+                    Clear Date
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    onClick={proceedToDetails}
+                  >
+                    Continue to Details →
+                  </Button>
+                </div>
+              </Card.Body>
+            </Card>
+          )}
         </div>
       )}
       
@@ -460,22 +511,31 @@ const ScheduleForm = () => {
                 </Col>
               </Row>
               
-              <div className="d-flex justify-content-end mt-4">
+              <div className="d-flex justify-content-between mt-4">
                 <Button 
-                  variant="secondary" 
-                  onClick={handleCancel}
-                  className="me-2"
+                  variant="outline-secondary" 
+                  onClick={() => setView('calendar')}
                   type="button"
                 >
-                  Cancel
+                  ← Back to Calendar
                 </Button>
-                <Button 
-                  variant="primary" 
-                  type="submit"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Scheduling...' : 'Schedule Job'}
-                </Button>
+                <div>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleCancel}
+                    className="me-2"
+                    type="button"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Scheduling...' : 'Schedule Job'}
+                  </Button>
+                </div>
               </div>
             </Form>
           </Card.Body>

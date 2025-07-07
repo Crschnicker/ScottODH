@@ -1,3 +1,5 @@
+// frontend/src/components/jobs/MobileJobWorker.js
+
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Play,
@@ -26,785 +28,125 @@ import {
 } from "lucide-react";
 import "./MobileJobWorker.css"; // Import the CSS file
 
-// Complete Dynamic Mobile API service with all required methods
-const createMobileWorkerService = () => {
-  // Dynamic API base URL detection based on current environment
-  const getApiBaseUrl = () => {
-    const currentUrl = window.location.href;
-    const currentHost = window.location.host;
-    const currentProtocol = window.location.protocol;
+// Import the centralized MobileWorkerService instance
+import mobileWorkerService from "../../services/MobileWorkerService";
 
-    console.log("Current environment detection:", {
-      url: currentUrl,
-      host: currentHost,
-      protocol: currentProtocol,
-    });
-
-    // If we're on ngrok (contains ngrok.io or ngrok.app in hostname)
-    if (currentHost.includes("ngrok.io") || currentHost.includes("ngrok.app")) {
-      // Use the same ngrok host but target the API endpoint
-      const apiUrl = `${currentProtocol}//${currentHost}/api`;
-      console.log("Detected ngrok environment, using API URL:", apiUrl);
-      return apiUrl;
-    }
-
-    // If we're on localhost but on a different port (like 3000), assume Flask is on 5000
-    if (
-      currentHost.includes("localhost") ||
-      currentHost.includes("127.0.0.1")
-    ) {
-      const apiUrl = "http://localhost:5000/api";
-      console.log(
-        "Detected local development environment, using API URL:",
-        apiUrl
-      );
-      return apiUrl;
-    }
-
-    // For production or other environments, use relative URLs
-    const apiUrl = "/api";
-    console.log("Using relative API URL for production:", apiUrl);
-    return apiUrl;
-  };
-
-  const API_BASE_URL = getApiBaseUrl();
-
-  // Enhanced API request function with better error handling and debugging
-  const apiRequest = async (url, options = {}) => {
-    const fullUrl = `${API_BASE_URL}${url}`;
-
-    const defaultOptions = {
-      credentials: "include", // Include cookies for authentication
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...options.headers,
-      },
-    };
-
-    // Merge options
-    const requestOptions = {
-      ...defaultOptions,
-      ...options,
-    };
-
-    console.log("Making API request:", {
-      url: fullUrl,
-      method: requestOptions.method || "GET",
-      headers: requestOptions.headers,
-      hasBody: !!requestOptions.body,
-    });
-
-    try {
-      const response = await fetch(fullUrl, requestOptions);
-
-      console.log("API response received:", {
-        url: fullUrl,
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries()),
-      });
-
-      // Handle different response types
-      if (!response.ok) {
-        let errorData;
-        const contentType = response.headers.get("content-type");
-
-        if (contentType && contentType.includes("application/json")) {
-          try {
-            errorData = await response.json();
-          } catch (parseError) {
-            console.error(
-              "Failed to parse error response as JSON:",
-              parseError
-            );
-            errorData = {
-              error: `HTTP ${response.status}: ${response.statusText}`,
-              details: "Unable to parse error response",
-            };
-          }
-        } else {
-          // Try to get text response for non-JSON errors
-          try {
-            const textResponse = await response.text();
-            errorData = {
-              error: `HTTP ${response.status}: ${response.statusText}`,
-              details: textResponse || "No additional error details",
-            };
-          } catch (textError) {
-            errorData = {
-              error: `HTTP ${response.status}: ${response.statusText}`,
-              details: "Unable to read error response",
-            };
-          }
-        }
-
-        console.error("API request failed:", errorData);
-        throw new Error(
-          errorData.error || `HTTP ${response.status}: ${response.statusText}`
-        );
-      }
-
-      // Parse successful response
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await response.json();
-        console.log("API request successful:", {
-          url: fullUrl,
-          dataKeys: Object.keys(data),
-        });
-        return data;
+// Video rotation utility functions
+const detectVideoOrientation = async (videoBlob) => {
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.onloadedmetadata = () => {
+      const { videoWidth, videoHeight } = video;
+      console.log(`Video dimensions: ${videoWidth}x${videoHeight}`);
+      
+      // If width > height significantly, it's likely a rotated portrait video
+      // This is a heuristic - adjust the ratio threshold as needed
+      if (videoWidth > videoHeight && videoWidth / videoHeight > 1.3) {
+        resolve(90); // Needs 90 degree clockwise rotation
       } else {
-        console.log("API request successful (non-JSON response):", {
-          url: fullUrl,
-        });
-        return response;
+        resolve(0); // No rotation needed
       }
-    } catch (fetchError) {
-      console.error("Network error during API request:", {
-        url: fullUrl,
-        error: fetchError.message,
-        type: fetchError.name,
-        stack: fetchError.stack,
-      });
-
-      // Provide more specific error messages based on error type
-      if (
-        fetchError.name === "TypeError" &&
-        fetchError.message.includes("Failed to fetch")
-      ) {
-        throw new Error(
-          `Network error: Unable to connect to ${fullUrl}. Please check your connection and ensure the server is running.`
-        );
-      } else if (fetchError.name === "AbortError") {
-        throw new Error("Request was cancelled or timed out");
-      } else if (fetchError.message.includes("CORS")) {
-        throw new Error(
-          "CORS error: The server is not configured to accept requests from this origin"
-        );
-      } else {
-        throw new Error(`Network error: ${fetchError.message}`);
-      }
-    }
-  };
-
-  return {
-    // Get current API configuration for debugging
-    getApiConfig: () => {
-      return {
-        baseUrl: API_BASE_URL,
-        currentHost: window.location.host,
-        currentProtocol: window.location.protocol,
-        isNgrok: window.location.host.includes("ngrok"),
-        isLocalhost:
-          window.location.host.includes("localhost") ||
-          window.location.host.includes("127.0.0.1"),
-      };
-    },
-
-    // Get job data from the Flask API with enhanced error handling
-    getJob: async (jobId) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Loading job data for job ID: ${jobId}`);
-        const jobData = await apiRequest(`/mobile/jobs/${jobId}`);
-
-        // Validate response structure
-        if (!jobData || typeof jobData !== "object") {
-          throw new Error("Invalid job data received from server");
-        }
-
-        // Check for required fields
-        const requiredFields = ["id", "job_number", "customer_name"];
-        const missingFields = requiredFields.filter(
-          (field) => !jobData.hasOwnProperty(field)
-        );
-
-        if (missingFields.length > 0) {
-          console.warn("Job data missing required fields:", missingFields);
-        }
-
-        console.log("Loaded job data from API:", {
-          jobId: jobData.id,
-          jobNumber: jobData.job_number,
-          customer: jobData.customer_name,
-          doorsCount: jobData.doors?.length || 0,
-          status: jobData.mobile_status,
-        });
-
-        return jobData;
-      } catch (error) {
-        console.error("Error loading job from API:", error);
-
-        // Add context to the error
-        const enhancedError = new Error(
-          `Failed to load job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.apiConfig = this.getApiConfig();
-
-        throw enhancedError;
-      }
-    },
-
-    // Start a job with enhanced error handling and logging
-    startJob: async (jobId, signature, contactName, title) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Starting job ${jobId} with signature:`, {
-          hasSignature: !!signature,
-          contactName: contactName || "Not provided",
-          title: title || "Not provided",
-        });
-
-        const response = await apiRequest(`/mobile/jobs/${jobId}/start`, {
-          method: "POST",
-          body: JSON.stringify({
-            signature: signature || "",
-            signer_name: contactName || "",
-            signer_title: title || "",
-          }),
-        });
-
-        console.log("Job started successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error starting job via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to start job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "start_job";
-
-        throw enhancedError;
-      }
-    },
-
-    // Pause a job with enhanced error handling and logging  
-    pauseJob: async (jobId, signature, contactName, title) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Pausing job ${jobId} with signature:`, {
-          hasSignature: !!signature,
-          contactName: contactName || "Not provided",
-          title: title || "Not provided",
-        });
-
-        const response = await apiRequest(`/mobile/jobs/${jobId}/pause`, {
-          method: "POST",
-          body: JSON.stringify({
-            signature: signature || "",
-            signer_name: contactName || "",
-            signer_title: title || "",
-          }),
-        });
-
-        console.log("Job paused successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error pausing job via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to pause job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "pause_job";
-
-        throw enhancedError;
-      }
-    },
-
-    // Resume a job with enhanced error handling and logging
-    resumeJob: async (jobId, signature, contactName, title) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Resuming job ${jobId} with signature:`, {
-          hasSignature: !!signature,
-          contactName: contactName || "Not provided",
-          title: title || "Not provided",
-        });
-
-        const response = await apiRequest(`/mobile/jobs/${jobId}/resume`, {
-          method: "POST",
-          body: JSON.stringify({
-            signature: signature || "",
-            signer_name: contactName || "",
-            signer_title: title || "",
-          }),
-        });
-
-        console.log("Job resumed successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error resuming job via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to resume job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "resume_job";
-
-        throw enhancedError;
-      }
-    },
-
-    // Get time tracking data for a job with enhanced error handling
-    getTimeTracking: async (jobId) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Loading time tracking data for job ID: ${jobId}`);
-
-        const timeTrackingData = await apiRequest(`/mobile/jobs/${jobId}/time-tracking`);
-
-        // Validate response structure
-        if (!timeTrackingData || typeof timeTrackingData !== "object") {
-          throw new Error("Invalid time tracking data received from server");
-        }
-
-        console.log("Loaded time tracking data from API:", {
-          jobId: jobId,
-          totalMinutes: timeTrackingData.total_minutes || 0,
-          hasActiveSession: timeTrackingData.has_active_session || false,
-          jobTimingStatus: timeTrackingData.job_timing_status || 'not_started',
-          sessionCount: timeTrackingData.session_count || 0,
-        });
-
-        return timeTrackingData;
-      } catch (error) {
-        console.error("Error loading time tracking data from API:", error);
-
-        const enhancedError = new Error(
-          `Failed to load time tracking for job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "get_time_tracking";
-
-        throw enhancedError;
-      }
-    },
-
-    // Complete a door with enhanced validation and error handling
-    completeDoor: async (doorId, jobId, signature, contactName, title) => {
-      if (!doorId || isNaN(doorId) || doorId <= 0) {
-        throw new Error("Invalid door ID provided");
-      }
-
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Completing door ${doorId} for job ${jobId}:`, {
-          hasSignature: !!signature,
-          contactName: contactName || "Not provided",
-          title: title || "Not provided",
-        });
-
-        const response = await apiRequest(`/mobile/doors/${doorId}/complete`, {
-          method: "POST",
-          body: JSON.stringify({
-            job_id: jobId,
-            signature: signature || "",
-            signer_name: contactName || "",
-            signer_title: title || "",
-          }),
-        });
-
-        console.log("Door completed successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error completing door via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to complete door ${doorId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.doorId = doorId;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "complete_door";
-
-        throw enhancedError;
-      }
-    },
-
-    // Complete entire job with enhanced validation and error handling
-    completeJob: async (jobId, signature, contactName, title) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      try {
-        console.log(`Completing job ${jobId}:`, {
-          hasSignature: !!signature,
-          contactName: contactName || "Not provided",
-          title: title || "Not provided",
-        });
-
-        const response = await apiRequest(`/mobile/jobs/${jobId}/complete`, {
-          method: "POST",
-          body: JSON.stringify({
-            signature: signature || "",
-            signer_name: contactName || "",
-            signer_title: title || "",
-          }),
-        });
-
-        console.log("Job completed successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error completing job via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to complete job ${jobId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "complete_job";
-
-        throw enhancedError;
-      }
-    },
-
-    // Upload door photo with enhanced validation and progress tracking
-    uploadDoorPhoto: async (doorId, jobId, photoData) => {
-      if (!doorId || isNaN(doorId) || doorId <= 0) {
-        throw new Error("Invalid door ID provided");
-      }
-
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      if (
-        !photoData ||
-        typeof photoData !== "string" ||
-        !photoData.startsWith("data:image/")
-      ) {
-        throw new Error("Invalid photo data provided");
-      }
-
-      try {
-        console.log(`Uploading photo for door ${doorId} in job ${jobId}`);
-
-        // Convert base64 data to blob
-        const base64Response = await fetch(photoData);
-        const blob = await base64Response.blob();
-
-        console.log("Photo blob created:", {
-          size: blob.size,
-          type: blob.type,
-          sizeKB: Math.round(blob.size / 1024),
-        });
-
-        // Create form data for file upload
-        const formData = new FormData();
-        formData.append("file", blob, `door_${doorId}_photo.jpg`);
-        formData.append("job_id", jobId.toString());
-        formData.append("media_type", "photo");
-
-        const response = await fetch(
-          `${API_BASE_URL}/mobile/doors/${doorId}/media/upload`,
-          {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            error: `Upload failed: HTTP ${response.status}`,
-          }));
-          throw new Error(
-            errorData.error || `Upload failed: ${response.statusText}`
-          );
-        }
-
-        const result = await response.json();
-        console.log("Photo uploaded successfully via API:", result);
-        return result;
-      } catch (error) {
-        console.error("Error uploading photo via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to upload photo for door ${doorId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.doorId = doorId;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "upload_photo";
-
-        throw enhancedError;
-      }
-    },
-
-    // Upload door video with enhanced validation and progress tracking
-    uploadDoorVideo: async (doorId, jobId, videoData) => {
-      if (!doorId || isNaN(doorId) || doorId <= 0) {
-        throw new Error("Invalid door ID provided");
-      }
-
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      if (!videoData || !(videoData instanceof Blob)) {
-        throw new Error("Invalid video data provided - expected Blob object");
-      }
-
-      try {
-        console.log(`Uploading video for door ${doorId} in job ${jobId}:`, {
-          size: videoData.size,
-          type: videoData.type,
-          sizeMB: Math.round((videoData.size / (1024 * 1024)) * 100) / 100,
-        });
-
-        // Create form data for file upload
-        const formData = new FormData();
-        formData.append("file", videoData, `door_${doorId}_video.webm`);
-        formData.append("job_id", jobId.toString());
-        formData.append("media_type", "video");
-
-        const response = await fetch(
-          `${API_BASE_URL}/mobile/doors/${doorId}/media/upload`,
-          {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            error: `Upload failed: HTTP ${response.status}`,
-          }));
-          throw new Error(
-            errorData.error || `Upload failed: ${response.statusText}`
-          );
-        }
-
-        const result = await response.json();
-        console.log("Video uploaded successfully via API:", result);
-        return result;
-      } catch (error) {
-        console.error("Error uploading video via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to upload video for door ${doorId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.doorId = doorId;
-        enhancedError.jobId = jobId;
-        enhancedError.action = "upload_video";
-
-        throw enhancedError;
-      }
-    },
-
-    // Toggle line item completion with enhanced validation
-    toggleLineItem: async (jobId, lineItemId) => {
-      if (!jobId || isNaN(jobId) || jobId <= 0) {
-        throw new Error("Invalid job ID provided");
-      }
-
-      if (!lineItemId || isNaN(lineItemId) || lineItemId <= 0) {
-        throw new Error("Invalid line item ID provided");
-      }
-
-      try {
-        console.log(`Toggling line item ${lineItemId} for job ${jobId}`);
-
-        const response = await apiRequest(
-          `/mobile/jobs/${jobId}/line-items/${lineItemId}/toggle`,
-          {
-            method: "PUT",
-          }
-        );
-
-        console.log("Line item toggled successfully via API:", response);
-        return response;
-      } catch (error) {
-        console.error("Error toggling line item via API:", error);
-
-        const enhancedError = new Error(
-          `Failed to toggle line item ${lineItemId}: ${error.message}`
-        );
-        enhancedError.originalError = error;
-        enhancedError.jobId = jobId;
-        enhancedError.lineItemId = lineItemId;
-        enhancedError.action = "toggle_line_item";
-
-        throw enhancedError;
-      }
-    },
-
-    // Test API connectivity
-    testConnection: async () => {
-      try {
-        console.log("Testing API connectivity...");
-        const response = await apiRequest("/mobile/test");
-        console.log("API connectivity test successful:", response);
-        return { success: true, data: response };
-      } catch (error) {
-        console.error("API connectivity test failed:", error);
-        return {
-          success: false,
-          error: error.message,
-          config: this.getApiConfig(),
-        };
-      }
-    },
-
-    // Cache and offline functionality with better logging
-    getCachedJob: () => {
-      try {
-        const cached = localStorage.getItem("cached_job_data");
-        const data = cached ? JSON.parse(cached) : null;
-        console.log(
-          "Retrieved cached job data:",
-          data ? `Job ${data.id}` : "No cached data"
-        );
-        return data;
-      } catch (error) {
-        console.error("Error retrieving cached job:", error);
-        return null;
-      }
-    },
-
-    cacheJobForOffline: async (data) => {
-      try {
-        localStorage.setItem("cached_job_data", JSON.stringify(data));
-        console.log("Cached job data for offline use:", `Job ${data.id}`);
-        return Promise.resolve();
-      } catch (error) {
-        console.error("Error caching job data:", error);
-        throw error;
-      }
-    },
-
-    setupOfflineHandlers: () => {
-      console.log(
-        "Setting up offline handlers for environment:",
-        this.getApiConfig()
-      );
-
-      window.addEventListener("online", () => {
-        console.log("App is online - syncing pending changes");
-      });
-
-      window.addEventListener("offline", () => {
-        console.log("App is offline - queuing changes locally");
-      });
-    },
-
-    syncPendingChanges: async () => {
-      try {
-        const pending = JSON.parse(
-          localStorage.getItem("pending_changes") || "[]"
-        );
-        console.log(`Syncing ${pending.length} pending changes`);
-
-        let syncedCount = 0;
-        for (const change of pending) {
-          try {
-            console.log("Syncing change:", change.action);
-            syncedCount++;
-          } catch (syncError) {
-            console.error("Failed to sync change:", change, syncError);
-          }
-        }
-
-        if (syncedCount > 0) {
-          localStorage.removeItem("pending_changes");
-        }
-
-        return Promise.resolve({ synced: syncedCount });
-      } catch (error) {
-        console.error("Error syncing changes:", error);
-        throw error;
-      }
-    },
-
-    storePendingChange: (change) => {
-      try {
-        const pending = JSON.parse(
-          localStorage.getItem("pending_changes") || "[]"
-        );
-        const changeWithId = {
-          id: Date.now() + Math.random(),
-          ...change,
-          timestamp: new Date().toISOString(),
-          status: "pending",
-          apiConfig: this.getApiConfig(),
-        };
-        pending.push(changeWithId);
-        localStorage.setItem("pending_changes", JSON.stringify(pending));
-        console.log("Stored pending change:", changeWithId);
-        return changeWithId;
-      } catch (error) {
-        console.error("Error storing pending change:", error);
-        throw error;
-      }
-    },
-
-    // Additional utility methods
-    getPendingChangesCount: () => {
-      try {
-        const pending = JSON.parse(
-          localStorage.getItem("pending_changes") || "[]"
-        );
-        return pending.length;
-      } catch (error) {
-        console.error("Error getting pending changes count:", error);
-        return 0;
-      }
-    },
-
-    clearCache: () => {
-      try {
-        localStorage.removeItem("cached_job_data");
-        localStorage.removeItem("pending_changes");
-        console.log("Cache cleared successfully");
-      } catch (error) {
-        console.error("Error clearing cache:", error);
-      }
-    },
-
-    getNetworkStatus: () => {
-      return {
-        online: navigator.onLine,
-        effectiveType: navigator.connection?.effectiveType || "unknown",
-        downlink: navigator.connection?.downlink || 0,
-        apiConfig: this.getApiConfig(),
-      };
-    },
-  };
+      
+      // Clean up
+      URL.revokeObjectURL(video.src);
+    };
+    
+    video.onerror = () => {
+      console.warn('Could not detect video orientation, assuming no rotation needed');
+      resolve(0);
+    };
+    
+    video.src = URL.createObjectURL(videoBlob);
+  });
 };
 
-// Create the service instance
-const mobileWorkerService = createMobileWorkerService();
+const rotateVideoBlob = async (videoBlob, rotationDegrees) => {
+  if (rotationDegrees === 0) {
+    return videoBlob; // No rotation needed
+  }
+
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    video.onloadedmetadata = () => {
+      const { videoWidth, videoHeight, duration } = video;
+      
+      // Set canvas dimensions based on rotation
+      if (rotationDegrees === 90 || rotationDegrees === 270) {
+        canvas.width = videoHeight;
+        canvas.height = videoWidth;
+      } else {
+        canvas.width = videoWidth;
+        canvas.height = videoHeight;
+      }
+      
+      // Create MediaRecorder to capture rotated video
+      const canvasStream = canvas.captureStream(30); // 30 FPS
+      const mediaRecorder = new MediaRecorder(canvasStream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 2500000 // 2.5 Mbps
+      });
+      
+      const chunks = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        const rotatedBlob = new Blob(chunks, { type: 'video/webm' });
+        resolve(rotatedBlob);
+      };
+      
+      // Start recording
+      mediaRecorder.start();
+      
+      // Play video and draw rotated frames to canvas
+      const drawFrame = () => {
+        if (video.ended || video.paused) {
+          mediaRecorder.stop();
+          return;
+        }
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Apply rotation transformation
+        ctx.save();
+        
+        if (rotationDegrees === 90) {
+          ctx.translate(canvas.width, 0);
+          ctx.rotate(Math.PI / 2);
+        } else if (rotationDegrees === 180) {
+          ctx.translate(canvas.width, canvas.height);
+          ctx.rotate(Math.PI);
+        } else if (rotationDegrees === 270) {
+          ctx.translate(0, canvas.height);
+          ctx.rotate(-Math.PI / 2);
+        }
+        
+        // Draw video frame
+        ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+        ctx.restore();
+        
+        // Continue to next frame
+        requestAnimationFrame(drawFrame);
+      };
+      
+      // Start playback
+      video.play().then(() => {
+        drawFrame();
+      }).catch(reject);
+    };
+    
+    video.onerror = reject;
+    video.src = URL.createObjectURL(videoBlob);
+  });
+};
 
 /**
  * Enhanced Pause Job Options Modal Component
@@ -1111,6 +453,7 @@ const SignaturePad = ({ onSave, onCancel, title = "Signature", workSummary = nul
 /**
  * Camera Capture Component
  * Handles both photo and video capture using device camera
+ * Now includes video rotation correction before upload
  */
 const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
   const videoRef = useRef(null);
@@ -1118,6 +461,7 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [error, setError] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     startCamera();
@@ -1183,9 +527,35 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
       }
     };
 
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: "video/webm" });
-      onCapture(blob, "video");
+    recorder.onstop = async () => {
+      setIsProcessing(true);
+      try {
+        const rawBlob = new Blob(chunks, { type: "video/webm" });
+        
+        console.log("Processing video for orientation correction...");
+        
+        // Detect if video needs rotation
+        const rotationNeeded = await detectVideoOrientation(rawBlob);
+        console.log(`Video rotation needed: ${rotationNeeded} degrees`);
+        
+        let finalBlob;
+        if (rotationNeeded > 0) {
+          console.log("Rotating video before upload...");
+          finalBlob = await rotateVideoBlob(rawBlob, rotationNeeded);
+          console.log("Video rotation completed");
+        } else {
+          finalBlob = rawBlob;
+        }
+        
+        onCapture(finalBlob, "video");
+      } catch (error) {
+        console.error("Error processing video:", error);
+        // Fallback to original video if rotation fails
+        const fallbackBlob = new Blob(chunks, { type: "video/webm" });
+        onCapture(fallbackBlob, "video");
+      } finally {
+        setIsProcessing(false);
+      }
     };
 
     recorder.start();
@@ -1213,6 +583,24 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
             <button onClick={onCancel} className="mobile-button-gray">
               Close
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isProcessing) {
+    return (
+      <div className="mobile-modal-overlay">
+        <div className="mobile-modal-content">
+          <div className="text-center">
+            <Loader className="icon-xxl mobile-text-blue-500 mx-auto mb-4 animate-spin" />
+            <h3 className="mobile-text-lg mobile-font-semibold mb-2">
+              Processing Video
+            </h3>
+            <p className="mobile-text-gray-600 mb-4">
+              Correcting video orientation, please wait...
+            </p>
           </div>
         </div>
       </div>
@@ -1258,6 +646,7 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
               className={
                 isRecording ? "mobile-button-red" : "mobile-button-blue"
               }
+              disabled={isProcessing}
             >
               <Video className="icon-sm" />
               {isRecording ? "Stop Recording" : "Start Recording"}
@@ -1268,6 +657,7 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
     </div>
   );
 };
+
 
 const MobileJobWorker = ({ jobId }) => {
   const [jobData, setJobData] = useState(null);
@@ -1300,16 +690,16 @@ const MobileJobWorker = ({ jobId }) => {
   const [jobTimingStatus, setJobTimingStatus] = useState('not_started'); // 'not_started', 'active', 'paused', 'completed'
 
 
-  const apiConfig = mobileWorkerService.getApiConfig();
-  const apiServerRoot = apiConfig.baseUrl.startsWith("http")
-    ? apiConfig.baseUrl.replace("/api", "")
-    : "";
+  // Use the API server root from the service instance directly
+  // Ensure getApiConfig is implemented in MobileWorkerService
+  const apiServerRoot = mobileWorkerService.getApiConfig().baseUrl.replace("/api", "");
 
   /**
    * Generate work summary for the current session/day
    * Used for pause operations to show what was accomplished
    */
   const generateWorkSummary = () => {
+    // Add null checks for jobData and timeTrackingData
     if (!jobData || !timeTrackingData) return null;
 
     // Calculate current session time in a readable format
@@ -1317,14 +707,14 @@ const MobileJobWorker = ({ jobId }) => {
     
     // Count doors that have been worked on (have any completed line items or media)
     const doorsWorkedOn = jobData.doors.filter(door => 
-      door.line_items.some(item => item.completed) || 
-      door.has_photo || 
+      (door.line_items && door.line_items.some(item => item.completed)) || // Check if line_items exists
+      (door.photos && door.photos.length > 0) || 
       door.has_video
     ).length;
 
     // Count total line items completed across all doors
     const lineItemsCompleted = jobData.doors.reduce((total, door) => 
-      total + door.line_items.filter(item => item.completed).length, 0
+      total + (door.line_items ? door.line_items.filter(item => item.completed).length : 0), 0 // Check if line_items exists
     );
 
     // Count doors completed (have signatures)
@@ -1333,8 +723,9 @@ const MobileJobWorker = ({ jobId }) => {
     // Generate media captured list
     const mediaUploaded = [];
     jobData.doors.forEach(door => {
-      if (door.has_photo) {
-        mediaUploaded.push(`Door #${door.door_number} - Photo`);
+      const photoCount = door.photos?.length || 0;
+      if (photoCount > 0) {
+        mediaUploaded.push(`Door #${door.door_number} - ${photoCount} Photo(s)`);
       }
       if (door.has_video) {
         mediaUploaded.push(`Door #${door.door_number} - Video`);
@@ -1350,37 +741,36 @@ const MobileJobWorker = ({ jobId }) => {
     };
   };
 
-  const loadJobData = async (useCache = true) => {
+  // Memoize `loadJobData` to prevent unnecessary re-renders in effects that depend on it
+  const loadJobData = React.useCallback(async (useCache = true) => {
     setLoading(true);
     setError(null);
     const currentJobId = parseInt(jobId); // Ensure jobId is consistently a number
 
     try {
+      // Fetch from cache if offline
       if (useCache && !isOnline) {
-        const cachedData = mobileWorkerService.getCachedJob();
-        if (cachedData && cachedData.id === currentJobId) {
-          console.log("Loading job data from cache (offline mode)");
+        const cachedData = mobileWorkerService.getCachedJobFromLocalStorage(currentJobId);
+        if (cachedData) {
+          console.log("[MobileJobWorker] Loading job data from cache (offline mode).");
           setJobData(cachedData);
           setJobStatus(cachedData.mobile_status || "not_started");
           
-          // Load cached time tracking data
           if (cachedData.time_tracking) {
             setTimeTrackingData(cachedData.time_tracking);
             setJobTimingStatus(cachedData.time_tracking.job_timing_status || 'not_started');
-            setTotalJobTime(cachedData.time_tracking.total_minutes * 60000); // Convert to milliseconds
-            
+            setTotalJobTime(cachedData.time_tracking.total_minutes * 60000);
             if (cachedData.time_tracking.current_session_start) {
               const startTimestamp = new Date(cachedData.time_tracking.current_session_start).getTime();
               if (!isNaN(startTimestamp)) setStartTime(startTimestamp);
             }
           }
-          
           setLoading(false);
           return;
         }
       }
 
-      console.log(`Loading job data for job ID: ${currentJobId}`);
+      console.log(`[MobileJobWorker] Loading job data for job ID: ${currentJobId} from API.`);
       const data = await mobileWorkerService.getJob(currentJobId);
 
       if (!data || typeof data !== "object")
@@ -1393,9 +783,30 @@ const MobileJobWorker = ({ jobId }) => {
       if (!Array.isArray(data.doors))
         throw new Error("Invalid doors data: expected array");
 
+      // This patch makes the frontend resilient to backend data inconsistencies,
+      // particularly after a state change (like starting a job).
+      let timeTrackingInfo = data.time_tracking || {
+        total_minutes: 0, total_hours: 0, current_session_start: null, has_active_session: false,
+        job_timing_status: 'not_started', session_count: 0, sessions: []
+      };
+
+      // PATCH 1: If the overall job is 'started' but the timing status isn't set correctly, force it.
+      if (data.mobile_status === 'started' && !['active', 'paused'].includes(timeTrackingInfo.job_timing_status)) {
+        console.warn("[MobileJobWorker] Backend data inconsistency detected: Job is 'started' but timing status is not. Patching to 'active'.");
+        timeTrackingInfo.job_timing_status = 'active';
+        // If there's no active session start time, use the job's overall start_time as a fallback.
+        if (!timeTrackingInfo.current_session_start && data.start_time) {
+            timeTrackingInfo.current_session_start = data.start_time;
+        }
+      }
+
+      // PATCH 2: If the job is 'completed', ensure timing status reflects this.
+      if (data.mobile_status === 'completed' && timeTrackingInfo.job_timing_status !== 'completed') {
+          console.warn("[MobileJobWorker] Backend data inconsistency detected: Job is 'completed' but timing status is not. Patching to 'completed'.");
+          timeTrackingInfo.job_timing_status = 'completed';
+      }
+
       const processedDoors = data.doors.map((door, index) => {
-        const doorRequiredFields = ["id", "door_number", "line_items"];
-        // ... (validations for door fields and line_items as before)
         const processedLineItems = (door.line_items || []).map(
           (item, itemIndex) => ({
             id: item.id || `temp_li_${itemIndex}_${Date.now()}`,
@@ -1406,6 +817,25 @@ const MobileJobWorker = ({ jobId }) => {
             completed_at: item.completed_at || null,
           })
         );
+        
+        const doorPhotos = (door.photos || []).map(photo => ({
+            id: photo.id || `temp_photo_${Date.now()}`,
+            url: photo.url,
+            thumbnail_url: photo.thumbnail_url,
+            uploaded_at: photo.uploaded_at,
+        }));
+
+        // Backward compatibility: If old fields exist and new one doesn't, migrate it.
+        if (door.has_photo && (!door.photos || door.photos.length === 0) && door.photo_info) {
+            console.log(`[MobileJobWorker] Migrating legacy photo data for door ${door.id}.`);
+            doorPhotos.push({
+                id: door.photo_info.id,
+                url: door.photo_info.url,
+                thumbnail_url: door.photo_info.thumbnail_url,
+                uploaded_at: door.photo_info.uploaded_at
+            });
+        }
+
 
         return {
           id: door.id || `temp_door_${index}_${Date.now()}`,
@@ -1417,12 +847,11 @@ const MobileJobWorker = ({ jobId }) => {
           dimension_unit: door.dimension_unit || "ft",
           labor_description: door.labor_description || "Standard door work",
           notes: door.notes || "",
-          completed: Boolean(door.completed), // Door-level completion (by signature)
-          has_photo: Boolean(door.has_photo),
+          completed: Boolean(door.completed),
+          photos: doorPhotos,
           has_video: Boolean(door.has_video),
           has_signature: Boolean(door.has_signature),
-          photo_info: door.photo_info || null, // Expecting { id, url, thumbnail_url, uploaded_at }
-          video_info: door.video_info || null, // Expecting { id, url, thumbnail_url, uploaded_at }
+          video_info: door.video_info || null,
           line_items: processedLineItems,
           completion_percentage: door.completion_percentage || 0,
           ready_for_completion: door.ready_for_completion || false,
@@ -1439,83 +868,38 @@ const MobileJobWorker = ({ jobId }) => {
         email: data.email || null,
         job_scope: data.job_scope || "Work scope not specified",
         mobile_status: data.mobile_status || "not_started",
-        start_time: data.start_time || null, // ISO string or null
+        start_time: data.start_time || null,
         doors: processedDoors,
         total_doors: data.total_doors || processedDoors.length,
-        completed_doors:
-          data.completed_doors ||
-          processedDoors.filter((d) => d.completed).length,
+        completed_doors: data.completed_doors || processedDoors.filter((d) => d.completed).length,
         completion_percentage: data.completion_percentage || 0,
         job_readiness: data.job_readiness || {
-          can_start: true,
-          can_complete: false,
-          all_doors_ready: false,
-          missing_requirements: [],
+          can_start: true, can_complete: false, all_doors_ready: false, missing_requirements: [],
         },
-        media_summary: data.media_summary || {
-          total_photos: 0,
-          total_videos: 0,
-        },
-        // Include other relevant fields from backend like job_status, scheduled_date etc.
+        media_summary: data.media_summary || { total_photos: 0, total_videos: 0 },
         job_status: data.job_status,
         scheduled_date: data.scheduled_date,
         region: data.region,
-        
-        // Enhanced time tracking data
-        time_tracking: data.time_tracking || {
-          total_minutes: 0,
-          total_hours: 0,
-          current_session_start: null,
-          has_active_session: false,
-          job_timing_status: 'not_started',
-          session_count: 0,
-          sessions: []
-        }
+        time_tracking: timeTrackingInfo, // Use the patched time tracking info
       };
 
-      console.log("Processed job data for UI:", processedJobData);
+      console.log("[MobileJobWorker] Processed job data for UI:", processedJobData);
       setJobData(processedJobData);
       setJobStatus(processedJobData.mobile_status);
       
-      // Enhanced time tracking state management with detailed logging
       if (processedJobData.time_tracking) {
-        console.log("📊 Setting time tracking data:", processedJobData.time_tracking);
         setTimeTrackingData(processedJobData.time_tracking);
-        
-        console.log("📊 Setting job timing status:", processedJobData.time_tracking.job_timing_status);
         setJobTimingStatus(processedJobData.time_tracking.job_timing_status);
-        
         const totalTimeMs = processedJobData.time_tracking.total_minutes * 60000;
-        console.log("📊 Setting total job time:", totalTimeMs, "ms (", processedJobData.time_tracking.total_minutes, "minutes)");
         setTotalJobTime(totalTimeMs);
         
         if (processedJobData.time_tracking.current_session_start) {
           try {
             const startTimestamp = new Date(processedJobData.time_tracking.current_session_start).getTime();
-            if (!isNaN(startTimestamp)) {
-              console.log("📊 Setting start time from current_session_start:", new Date(startTimestamp).toISOString());
-              setStartTime(startTimestamp);
-            } else {
-              console.warn("⚠️ Invalid current_session_start format from API:", processedJobData.time_tracking.current_session_start);
-            }
+            if (!isNaN(startTimestamp)) setStartTime(startTimestamp);
           } catch (timeError) {
-            console.error("❌ Error parsing current_session_start from API:", timeError);
+            console.warn("⚠️ [MobileJobWorker] Error parsing current_session_start:", timeError);
           }
-        }
-      }
-      
-      // Legacy fallback for start_time (for backward compatibility)
-      if (processedJobData.start_time && processedJobData.mobile_status === "started" && !processedJobData.time_tracking.current_session_start) {
-        try {
-          const startTimestamp = new Date(processedJobData.start_time).getTime();
-          if (!isNaN(startTimestamp)) {
-            console.log("📊 Setting start time from legacy start_time:", new Date(startTimestamp).toISOString());
-            setStartTime(startTimestamp);
-          } else {
-            console.warn("⚠️ Invalid start_time format from API:", processedJobData.start_time);
-          }
-        } catch (timeError) {
-          console.error("❌ Error parsing start_time from API:", timeError);
         }
       }
 
@@ -1523,428 +907,157 @@ const MobileJobWorker = ({ jobId }) => {
         try {
           await mobileWorkerService.cacheJobForOffline(processedJobData);
         } catch (cacheError) {
-          console.warn("Failed to cache job data:", cacheError);
+          console.warn("[MobileJobWorker] Failed to cache job data:", cacheError);
         }
       }
       
-      console.log(`Job data loaded successfully: ${processedJobData.job_number} - ${processedJobData.mobile_status} - Timing: ${processedJobData.time_tracking.job_timing_status} - Total: ${processedJobData.time_tracking.total_minutes}min`);
+      console.log(`[MobileJobWorker] Job data loaded successfully: ${processedJobData.job_number} - ${processedJobData.mobile_status} - Timing: ${processedJobData.time_tracking.job_timing_status} - Total: ${processedJobData.time_tracking.total_minutes}min`);
       
     } catch (err) {
-      console.error("Error in loadJobData:", err);
+      console.error("[MobileJobWorker] Error in loadJobData:", err);
       let errorMessage = err.message || "Failed to load job data";
-      if (err.message && err.message.includes("404"))
-        errorMessage = `Job #${currentJobId} not found.`;
-      else if (err.message && err.message.includes("Network error"))
-        errorMessage = "Network error. Please check connection.";
+      if (err.message && err.message.includes("404")) errorMessage = `Job #${currentJobId} not found.`;
+      else if (err.message && err.message.includes("Network error")) errorMessage = "Network error. Please check connection.";
       setError(errorMessage);
 
       if (useCache && isOnline) {
-        // Attempt cache fallback even on API error if online
         try {
-          const cachedData = mobileWorkerService.getCachedJob();
+          const cachedData = mobileWorkerService.getCachedJobFromLocalStorage(currentJobId);
           if (cachedData && cachedData.id === currentJobId) {
-            console.log("Falling back to cached data after API error");
+            console.log("[MobileJobWorker] Falling back to cached data after API error.");
             setJobData(cachedData);
             setJobStatus(cachedData.mobile_status || "not_started");
-            
-            // Load cached time tracking data in fallback
             if (cachedData.time_tracking) {
               setTimeTrackingData(cachedData.time_tracking);
               setJobTimingStatus(cachedData.time_tracking.job_timing_status || 'not_started');
               setTotalJobTime(cachedData.time_tracking.total_minutes * 60000);
-              
               if (cachedData.time_tracking.current_session_start) {
                 const startTimestamp = new Date(cachedData.time_tracking.current_session_start).getTime();
                 if (!isNaN(startTimestamp)) setStartTime(startTimestamp);
               }
             }
-            
-            setError(null); // Clear API error as we have data
-            setTimeout(
-              () =>
-                alert(
-                  "Using cached data due to connection issues. Some information may be outdated."
-                ),
-              1000
-            );
+            setError(null);
+            setTimeout(() => alert("Using cached data due to connection issues. Some information may be outdated."), 1000);
           }
         } catch (cacheError) {
-          console.error("Cache fallback also failed:", cacheError);
+          console.error("[MobileJobWorker] Cache fallback also failed:", cacheError);
         }
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [jobId, isOnline]);
 
   /**
-   * Enhanced pause job handler - now shows options modal with work summary
+   * Sync pending changes when back online (memoized for stability)
    */
-  const handlePauseJob = () => {
-    // Generate current work summary before showing pause options
-    const workSummary = generateWorkSummary();
-    setCurrentWorkSummary(workSummary);
-    setShowPauseOptions(true);
-  };
+  const syncPendingChanges = React.useCallback(async () => {
+    if (!isOnline) return;
 
-  /**
-   * Handle pause option selection (signature or vacant)
-   */
-  const handlePauseOptionSelect = (option) => {
-    setShowPauseOptions(false);
-
-    if (option === "signature") {
-      // Require signature for pause
-      setIsVacantPause(false);
-      setSignatureType("pause");
-      setShowSignaturePad(true);
-    } else if (option === "vacant") {
-      // Pause without signature (vacant site)
-      setIsVacantPause(true);
-      handleVacantJobPause();
-    }
-  };
-
-  /**
-   * Handle pausing job without signature (vacant site) with comprehensive validation and error handling
-   */
-  const handleVacantJobPause = async () => {
-    // Validate preconditions
-    if (!jobData) {
-      console.error("Cannot pause job: No job data available");
-      alert("Error: Job data not loaded. Please refresh and try again.");
-      return;
-    }
-
-    if (jobStatus !== "started") {
-      console.warn("Cannot pause job that is not started");
-      alert("Job must be started before it can be paused.");
-      return;
-    }
-
-    if (jobStatus === "completed") {
-      console.warn("Cannot pause completed job");
-      alert("This job has already been completed.");
-      return;
-    }
-
-    // Validate job ID
-    const jobIdNum = parseInt(jobData.id);
-    if (isNaN(jobIdNum) || jobIdNum <= 0) {
-      console.error("Invalid job ID for pausing job:", jobData.id);
-      alert("Error: Invalid job ID. Cannot pause job.");
-      return;
-    }
-
+    setPendingSync(true);
     try {
-      setUploading(true);
-
-      console.log(`Pausing vacant job for Job ID: ${jobData.id}`);
-
-      // Pause job with empty signature indicating vacant site
-      await mobileWorkerService.pauseJob(
-        jobData.id,
-        "", // Empty signature for vacant site
-        "VACANT SITE", // Special marker for vacant
-        "No Contact Available"
-      );
-
-      // Update local state immediately for responsive UI
-      setJobTimingStatus('paused');
-      setStartTime(null);
-
-      console.log("Job paused successfully as vacant site");
-
-      // Reload job data from server to ensure consistency
-      setTimeout(async () => {
-        try {
-          await loadJobData(false); // Force fresh data from API
-          console.log("Job data refreshed after vacant pause");
-        } catch (refreshError) {
-          console.warn("Failed to refresh job data after pause:", refreshError);
-        }
-      }, 1000);
-
-      // Show success notification
-      alert("Job paused successfully at vacant site.");
+      const results = await mobileWorkerService.syncPendingChanges();
+      if (results.synced > 0) {
+        await loadJobData(false); // Refresh job data after sync
+      }
+      if (results.errors.length > 0) {
+        // Optionally show a summary of sync errors to the user
+        alert(`Sync completed with ${results.errors.length} errors. Some changes may not have been saved.`);
+      }
     } catch (error) {
-      console.error("Error pausing vacant job:", error);
-
-      let errorMessage = "Failed to pause job";
-
-      if (
-        error.message.includes("401") ||
-        error.message.includes("unauthorized")
-      ) {
-        errorMessage =
-          "You are not authorized to pause this job. Please log in and try again.";
-      } else if (
-        error.message.includes("403") ||
-        error.message.includes("forbidden")
-      ) {
-        errorMessage = "You do not have permission to pause this job.";
-      } else if (
-        error.message.includes("404") ||
-        error.message.includes("not found")
-      ) {
-        errorMessage = "Job not found. It may have been deleted or modified.";
-      } else if (
-        error.message.includes("Network") ||
-        error.message.includes("fetch")
-      ) {
-        errorMessage =
-          "Network error. Please check your connection and try again.";
-      } else {
-        errorMessage = `Failed to pause job: ${error.message}`;
-      }
-
-      alert(errorMessage);
-
-      // Store the failed action for later retry if offline
-      if (!isOnline) {
-        try {
-          mobileWorkerService.storePendingChange({
-            action: "pause_job_vacant",
-            jobId: jobData.id,
-            timestamp: new Date().toISOString(),
-            data: {
-              signature: "",
-              contactName: "VACANT SITE",
-              title: "No Contact Available",
-            },
-          });
-
-          alert(
-            "You are offline. The job pause will be synced when connection is restored."
-          );
-        } catch (storeError) {
-          console.error("Failed to store pending change:", storeError);
-        }
-      }
+      console.error("[MobileJobWorker] Sync failed:", error);
+      alert(`Failed to sync pending changes: ${error.message}`);
     } finally {
-      setUploading(false);
+      setPendingSync(false);
     }
+  }, [isOnline, loadJobData]); // Depend on isOnline and loadJobData
+
+  /**
+   * Format milliseconds to HH:MM:SS format
+   */
+  const formatTime = (milliseconds) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  const handleResumeJob = () => {
-    setShowResumeOptions(true);
-  };
-
-  const handleResumeOptionSelect = (option) => {
-    setShowResumeOptions(false);
-
-    if (option === "signature") {
-      setSignatureType("resume");
-      setShowSignaturePad(true);
-    } else if (option === "vacant") {
-      handleVacantJobResume();
-    }
-  };
-  
-  const handleVacantJobResume = async () => {
-    if (!jobData || jobTimingStatus !== 'paused') {
-      alert("Job must be paused before it can be resumed.");
-      return;
-    }
-
-    try {
-      setUploading(true);
-      await mobileWorkerService.resumeJob(
-        jobData.id,
-        "", 
-        "VACANT SITE", 
-        "No Contact Available"
-      );
-
-      const currentTime = Date.now();
-      setJobTimingStatus('active');
-      setStartTime(currentTime);
-      
-      setTimeTrackingData(prev => ({
-          ...prev,
-          current_session_start: new Date(currentTime).toISOString(),
-          has_active_session: true,
-          job_timing_status: 'active',
-      }));
-      
-      setTimeout(async () => {
-        try {
-          await loadJobData(false);
-          console.log("Job data refreshed after vacant resume");
-        } catch (refreshError) {
-          console.warn("Failed to refresh job data after resume:", refreshError);
-        }
-      }, 1000);
-
-      alert("Job resumed successfully at vacant site.");
-
-    } catch (error) {
-        console.error("Error resuming vacant job:", error);
-        alert(`Failed to resume job: ${error.message}`);
-    } finally {
-        setUploading(false);
-    }
-  };
-
-  // Add this new function to load time tracking data:
-  const loadTimeTrackingData = async () => {
-    try {
-      const response = await mobileWorkerService.getTimeTracking(jobData.id);
-      setTimeTrackingData(response);
-      setJobTimingStatus(response.job_timing_status);
-      
-      if (response.has_active_session) {
-        setStartTime(new Date(response.current_session_start).getTime());
-      }
-    } catch (error) {
-      console.error('Error loading time tracking data:', error);
-    }
-  };
-
-
-  // Enhanced timer useEffect with comprehensive logging for debugging:
+  // Timer useEffect with comprehensive logging for debugging
   useEffect(() => {
-    console.log("🕐 Timer useEffect triggered with:", {
-      jobTimingStatus,
-      hasTimeTrackingData: !!timeTrackingData,
-      sessionStart: timeTrackingData?.current_session_start,
-      jobStatus,
-      hasStartTime: !!startTime,
-      startTimeValue: startTime ? new Date(startTime).toISOString() : null
+    console.log("[MobileJobWorker] 🕐 Timer useEffect triggered with:", {
+      jobTimingStatus, hasTimeTrackingData: !!timeTrackingData, sessionStart: timeTrackingData?.current_session_start,
+      jobStatus, hasStartTime: !!startTime, startTimeValue: startTime ? new Date(startTime).toISOString() : null
     });
 
     let interval = null;
     
-    // Primary timer: Enhanced time tracking (preferred)
     if (jobTimingStatus === 'active' && timeTrackingData?.current_session_start) {
-      // Fix timezone parsing issue - API returns local time but JS parses as UTC
-      let sessionStartTime;
-      const rawSessionStart = timeTrackingData.current_session_start;
-      
+      // Robust date parsing for current_session_start (assumed ISO 8601 or similar)
+      let sessionStartTimeMs;
       try {
-        // If the timestamp doesn't end with 'Z' and doesn't have timezone info, treat as local time
-        if (rawSessionStart && !rawSessionStart.endsWith('Z') && !rawSessionStart.includes('+') && !rawSessionStart.includes('-', 10)) {
-          // Parse as local time by appending timezone or using a different approach
-          const localDate = new Date(rawSessionStart.replace(' ', 'T'));
-          sessionStartTime = localDate.getTime();
-          
-          // If that gives us a future time (indicating UTC parsing), try manual local parsing
-          if (sessionStartTime > Date.now()) {
-            // Manual parsing approach: treat the timestamp as local time
-            const parts = rawSessionStart.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})\.?(\d*)/);
+        sessionStartTimeMs = new Date(timeTrackingData.current_session_start).getTime();
+        if (isNaN(sessionStartTimeMs)) { // Fallback if initial parsing fails
+            console.warn("⚠️ [MobileJobWorker] Invalid session start time format, attempting fallback parsing.");
+            const parts = timeTrackingData.current_session_start.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})\.?(\d*)/);
             if (parts) {
-              const [, year, month, day, hour, minute, second, ms] = parts;
-              const localDate = new Date(
-                parseInt(year), 
-                parseInt(month) - 1, 
-                parseInt(day), 
-                parseInt(hour), 
-                parseInt(minute), 
-                parseInt(second), 
-                parseInt(ms.padEnd(3, '0').substring(0, 3))
-              );
-              sessionStartTime = localDate.getTime();
-            } else {
-              // Fallback: assume UTC offset and adjust
-              const utcTime = new Date(rawSessionStart).getTime();
-              const offsetMinutes = new Date().getTimezoneOffset();
-              sessionStartTime = utcTime - (offsetMinutes * 60000);
+                const [, year, month, day, hour, minute, second, ms] = parts;
+                sessionStartTimeMs = new Date(
+                    parseInt(year), parseInt(month) - 1, parseInt(day),
+                    parseInt(hour), parseInt(minute), parseInt(second),
+                    parseInt(ms.padEnd(3, '0').substring(0, 3))
+                ).getTime();
             }
-          }
-        } else {
-          // Standard parsing for properly formatted timestamps
-          sessionStartTime = new Date(rawSessionStart).getTime();
         }
       } catch (parseError) {
-        console.error("❌ Error parsing session start time:", parseError);
-        sessionStartTime = Date.now(); // Fallback to current time
+        console.error("❌ [MobileJobWorker] Error parsing session start time in timer useEffect:", parseError);
+        sessionStartTimeMs = Date.now(); // Fallback
+      }
+
+      // Adjust for potential future timestamps (small tolerance)
+      if (sessionStartTimeMs > Date.now() + 5000) {
+        console.warn("⚠️ [MobileJobWorker] Session start time is in the future, adjusting to current time for timer calculation.");
+        sessionStartTimeMs = Date.now();
       }
       
-      console.log("🟢 Starting PRIMARY timer with session start:", {
-        rawSessionStart,
-        sessionStartTime: new Date(sessionStartTime).toISOString(),
-        isValidTime: !isNaN(sessionStartTime),
-        timeDiff: Date.now() - sessionStartTime,
-        currentTime: new Date().toISOString()
-      });
-      
-      if (isNaN(sessionStartTime)) {
-        console.error("❌ Invalid session start time, cannot start timer");
+      if (isNaN(sessionStartTimeMs)) {
+        console.error("❌ [MobileJobWorker] Invalid session start time (after all parsing), cannot start timer.");
         return;
-      }
-      
-      // Ensure session start time is not in the future (with 5 second tolerance)
-      if (sessionStartTime > Date.now() + 5000) {
-        console.warn("⚠️ Session start time is in the future, adjusting to current time");
-        sessionStartTime = Date.now();
       }
       
       interval = setInterval(() => {
         const now = Date.now();
-        const sessionElapsed = Math.max(0, now - sessionStartTime);
+        const sessionElapsed = Math.max(0, now - sessionStartTimeMs);
         const sessionMinutes = Math.floor(sessionElapsed / 60000);
-        
-        console.log("⏱️ PRIMARY timer tick:", {
-          elapsed: sessionElapsed,
-          formatted: formatTime(sessionElapsed),
-          sessionMinutes,
-          now: new Date(now).toISOString(),
-          startTime: new Date(sessionStartTime).toISOString()
-        });
         
         setCurrentSessionTime(sessionElapsed);
         setElapsedTime(sessionElapsed); // Also update legacy timer for display consistency
         
-        // Update total time (previous sessions + current session)
         const baseTotalMinutes = timeTrackingData?.total_minutes || 0;
         const totalWithCurrent = baseTotalMinutes + sessionMinutes;
-        setTotalJobTime(totalWithCurrent * 60000); // Convert to milliseconds for consistency
+        setTotalJobTime(totalWithCurrent * 60000); // Convert to milliseconds
       }, 1000);
     } 
-    // Fallback timer: Legacy timing (for backward compatibility)
+    // Fallback timer: Legacy timing (for backward compatibility if new time_tracking not fully adopted)
     else if (jobStatus === "started" && startTime && jobTimingStatus !== 'paused') {
-      console.log("🟡 Starting FALLBACK timer with start time:", {
-        startTime: new Date(startTime).toISOString(),
-        isValidTime: !isNaN(startTime),
-        timeDiff: Date.now() - startTime,
-        jobTimingStatus
-      });
-      
       if (isNaN(startTime)) {
-        console.error("❌ Invalid start time, cannot start fallback timer");
+        console.error("❌ [MobileJobWorker] Invalid start time, cannot start fallback timer.");
         return;
       }
-      
       interval = setInterval(() => {
         const now = Date.now();
         const elapsed = Math.max(0, now - startTime);
-        
-        console.log("⏱️ FALLBACK timer tick:", {
-          elapsed,
-          formatted: formatTime(elapsed)
-        });
-        
         setElapsedTime(elapsed);
         setCurrentSessionTime(elapsed);
-        setTotalJobTime(elapsed);
+        setTotalJobTime(elapsed); // Assuming legacy `elapsedTime` is the total
       }, 1000);
     } 
     // No active timer
     else {
-      console.log("⏸️ No timer conditions met, setting static values:", {
-        reason: jobTimingStatus === 'paused' ? 'paused' : 
-               jobStatus === 'completed' ? 'completed' : 
-               !jobStatus === "started" ? 'not started' :
-               !startTime ? 'no start time' :
-               jobTimingStatus === 'paused' ? 'timing paused' : 'unknown',
-        jobTimingStatus,
-        jobStatus,
-        hasStartTime: !!startTime,
-        hasTimeTrackingData: !!timeTrackingData
-      });
-      
+      // Set static values when no timer is running
       if (jobTimingStatus === 'paused' || jobStatus === 'completed') {
-        // Keep current session time frozen when paused
         if (timeTrackingData?.total_minutes) {
           setTotalJobTime(timeTrackingData.total_minutes * 60000);
         }
@@ -1962,137 +1075,52 @@ const MobileJobWorker = ({ jobId }) => {
 
     return () => {
       if (interval) {
-        console.log("🛑 Clearing timer interval");
+        console.log("[MobileJobWorker] 🛑 Clearing timer interval.");
         clearInterval(interval);
       }
     };
   }, [jobTimingStatus, timeTrackingData, jobStatus, startTime]);
 
 
-
-
-  /**
-   * Initialize component with comprehensive setup and validation
-   */
+  // Main initialization useEffect
   useEffect(() => {
-    // Validate jobId prop
     if (!jobId) {
       setError("No job ID provided. Cannot load job data.");
       setLoading(false);
       return;
     }
-
-    // Validate jobId format (should be a number or valid string)
     const jobIdNum = parseInt(jobId);
     if (isNaN(jobIdNum) || jobIdNum <= 0) {
       setError("Invalid job ID format. Please provide a valid job number.");
       setLoading(false);
       return;
     }
+    console.log(`[MobileJobWorker] Initializing for Job ID: ${jobId}.`);
 
-    console.log(`Initializing Mobile Job Worker for Job ID: ${jobId}`);
-
-    // Set up network status monitoring
+    // Setup network status monitoring
     const handleOnlineStatusChange = () => {
       const currentOnlineStatus = navigator.onLine;
       setIsOnline(currentOnlineStatus);
-
-      console.log(
-        `Network status changed: ${currentOnlineStatus ? "Online" : "Offline"}`
-      );
-
-      // If we just came back online, try to sync pending changes
-      if (currentOnlineStatus && !isOnline) {
-        console.log("Back online - attempting to sync pending changes");
+      console.log(`[MobileJobWorker] Network status changed: ${currentOnlineStatus ? "Online" : "Offline"}.`);
+      if (currentOnlineStatus && !isOnline) { // Only sync if *just* came online
+        console.log("[MobileJobWorker] Back online - attempting to sync pending changes.");
         syncPendingChanges();
       }
     };
-
-    // Add network event listeners
     window.addEventListener("online", handleOnlineStatusChange);
     window.addEventListener("offline", handleOnlineStatusChange);
+    setIsOnline(navigator.onLine); // Set initial status
 
-    // Set initial online status
-    setIsOnline(navigator.onLine);
-
-    // Set up offline service worker handlers
-    try {
-      mobileWorkerService.setupOfflineHandlers();
-    } catch (offlineError) {
-      console.warn("Failed to setup offline handlers:", offlineError);
-      // Don't fail initialization if offline setup fails
-    }
-
-    // Load job data with error handling
-    const initializeJobData = async () => {
-      try {
-        await loadJobData(true); // Use cache initially for faster loading
-
-        // If online, also trigger a background refresh to ensure data is current
-        if (navigator.onLine) {
-          setTimeout(async () => {
-            try {
-              console.log("Background refresh of job data");
-              await loadJobData(false); // Force fresh data from API
-            } catch (backgroundError) {
-              console.warn("Background refresh failed:", backgroundError);
-              // Don't show error to user for background refresh failures
-            }
-          }, 2000); // Wait 2 seconds before background refresh
-        }
-      } catch (initError) {
-        console.error("Failed to initialize job data:", initError);
-        // Error is already handled in loadJobData
-      }
-    };
-
-    // Start the initialization process
-    initializeJobData();
+    // Perform initial data load
+    loadJobData(true); // Attempt to load from cache first
 
     // Cleanup function
     return () => {
-      console.log("Cleaning up Mobile Job Worker");
-
-      // Remove network event listeners
+      console.log("[MobileJobWorker] Cleaning up Mobile Job Worker.");
       window.removeEventListener("online", handleOnlineStatusChange);
       window.removeEventListener("offline", handleOnlineStatusChange);
-
-      // Clear any running timers
-      // (Timer cleanup is handled by the timer useEffect)
     };
-  }, [jobId]); // Re-initialize if jobId changes
-
-  /**
-   * Sync pending changes when back online
-   */
-  const syncPendingChanges = async () => {
-    if (!isOnline) return;
-
-    setPendingSync(true);
-    try {
-      const results = await mobileWorkerService.syncPendingChanges();
-      if (results.synced > 0) {
-        await loadJobData(false); // Refresh job data
-      }
-    } catch (error) {
-      console.error("Sync failed:", error);
-    } finally {
-      setPendingSync(false);
-    }
-  };
-
-  /**
-   * Format milliseconds to HH:MM:SS format
-   */
-  const formatTime = (milliseconds) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return `${hours.toString().padStart(2, "0")}:${minutes
-      .toString()
-      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-  };
+  }, [jobId, isOnline, loadJobData, syncPendingChanges]); // Dependencies for useEffect
 
   /**
    * Handle job start - now shows options modal first
@@ -2102,20 +1130,133 @@ const MobileJobWorker = ({ jobId }) => {
   };
 
   /**
+   * Handle job pause - now shows options modal first, and captures work summary
+   */
+  const handlePauseJob = () => {
+    // Generate and set current work summary before showing pause options
+    const summary = generateWorkSummary();
+    setCurrentWorkSummary(summary);
+    setShowPauseOptions(true);
+  };
+
+  /**
    * Enhanced start option selection handler - now handles both start and pause scenarios
    */
-  const handleStartOptionSelect = (option) => {
+  const handleStartOptionSelect = async (option) => { // Made async as it calls async functions
     setShowStartOptions(false);
-
     if (option === "signature") {
-      // Require signature
       setIsVacantStart(false);
       setSignatureType("start");
       setShowSignaturePad(true);
     } else if (option === "vacant") {
-      // Start without signature (vacant site)
       setIsVacantStart(true);
-      handleVacantJobStart();
+      await handleVacantJobStart(); // Await this call
+    }
+  };
+
+  /**
+   * Handle pause option selection handler
+   */
+  const handlePauseOptionSelect = async (option) => {
+    setShowPauseOptions(false);
+    if (option === "signature") {
+      setIsVacantPause(false);
+      setSignatureType("pause");
+      setShowSignaturePad(true); // Signature pad will now display workSummary
+    } else if (option === "vacant") {
+      setIsVacantPause(true);
+      await handleVacantJobPause(); // Await this call
+    }
+  };
+
+  /**
+   * Handle resume option selection handler
+   */
+  const handleResumeJob = () => {
+    setShowResumeOptions(true);
+  };
+
+  const handleResumeOptionSelect = async (option) => {
+    setShowResumeOptions(false);
+    if (option === "signature") {
+      setSignatureType("resume");
+      setShowSignaturePad(true);
+    } else if (option === "vacant") {
+      await handleVacantJobResume(); // Await this call
+    }
+  };
+
+  /**
+   * Handle pausing job without signature (vacant site)
+   */
+  const handleVacantJobPause = async () => {
+    if (!jobData || jobStatus !== "started" || jobStatus === "completed") {
+      alert(jobStatus === "completed" ? "Cannot pause completed job." : "Job must be started before it can be paused.");
+      return;
+    }
+    setUploading(true);
+    try {
+      console.log(`[MobileJobWorker] Pausing vacant job for Job ID: ${jobData.id}.`);
+      await mobileWorkerService.pauseJob(jobData.id);
+
+      // Perform optimistic UI update
+      const newTimeTrackingData = {
+          ...jobData.time_tracking,
+          job_timing_status: 'paused',
+          has_active_session: false,
+          current_session_start: null,
+      };
+      setJobData(prev => ({ ...prev, time_tracking: newTimeTrackingData }));
+      setJobTimingStatus('paused');
+      setTimeTrackingData(newTimeTrackingData);
+      setStartTime(null);
+
+      setCurrentWorkSummary(null); // Clear summary after action
+      alert("Job paused successfully at vacant site.");
+      setTimeout(() => loadJobData(false), 3000);
+    } catch (error) {
+      console.error("[MobileJobWorker] Error pausing vacant job:", error);
+      alert(`Failed to pause job: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /**
+   * Handle resuming job without signature (vacant site)
+   */
+  const handleVacantJobResume = async () => {
+    if (!jobData || jobTimingStatus !== 'paused') {
+      alert("Job must be paused before it can be resumed as vacant.");
+      return;
+    }
+    setUploading(true);
+    try {
+      console.log(`[MobileJobWorker] Resuming vacant job for Job ID: ${jobData.id}.`);
+      await mobileWorkerService.resumeJob(jobData.id);
+      
+      // Perform optimistic UI update
+      const currentTime = Date.now();
+      const newStartTimeISO = new Date(currentTime).toISOString();
+      const newTimeTrackingData = {
+          ...jobData.time_tracking,
+          job_timing_status: 'active',
+          has_active_session: true,
+          current_session_start: newStartTimeISO,
+      };
+
+      setJobData(prev => ({ ...prev, time_tracking: newTimeTrackingData }));
+      setJobTimingStatus('active');
+      setTimeTrackingData(newTimeTrackingData);
+      setStartTime(currentTime);
+
+      alert("Job resumed successfully at vacant site.");
+      setTimeout(() => loadJobData(false), 3000);
+    } catch (error) {
+      console.error("[MobileJobWorker] Error resuming vacant job:", error);
+      alert(`Failed to resume job: ${error.message}`);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -2123,138 +1264,53 @@ const MobileJobWorker = ({ jobId }) => {
    * Handle starting job without signature (vacant site) with comprehensive validation and error handling
    */
   const handleVacantJobStart = async () => {
-    // Validate preconditions
-    if (!jobData) {
-      console.error("Cannot start job: No job data available");
-      alert("Error: Job data not loaded. Please refresh and try again.");
+    if (!jobData || jobStatus === "started" || jobStatus === "completed") {
+      alert(jobStatus === "started" ? "This job has already been started." : jobStatus === "completed" ? "This job has already been completed." : "Error: Job data not loaded. Please refresh and try again.");
       return;
     }
-
-    if (jobStatus === "started") {
-      console.warn("Job is already started");
-      alert("This job has already been started.");
-      return;
-    }
-
-    if (jobStatus === "completed") {
-      console.warn("Cannot start completed job");
-      alert("This job has already been completed.");
-      return;
-    }
-
-    // Validate job ID
     const jobIdNum = parseInt(jobData.id);
     if (isNaN(jobIdNum) || jobIdNum <= 0) {
-      console.error("Invalid job ID for starting job:", jobData.id);
       alert("Error: Invalid job ID. Cannot start job.");
       return;
     }
 
+    setUploading(true);
     try {
-      setUploading(true);
+      console.log(`[MobileJobWorker] Starting vacant job for Job ID: ${jobData.id}.`);
+      await mobileWorkerService.startJob(jobData.id, "", "VACANT SITE", "No Contact Available");
 
-      console.log(`Starting vacant job for Job ID: ${jobData.id}`);
-
-      // Start job with empty signature indicating vacant site
-      await mobileWorkerService.startJob(
-        jobData.id,
-        "", // Empty signature for vacant site
-        "VACANT SITE", // Special marker for vacant
-        "No Contact Available"
-      );
-
-      // Calculate current timestamp for local state
+      // Perform comprehensive optimistic update
       const currentTime = Date.now();
-
-      // Update local state immediately for responsive UI with enhanced timing
-      setJobStatus("started");
-      setStartTime(currentTime);
-      
-      // Immediately set timing status to active for timer to start
-      setJobTimingStatus('active');
-      
-      // Create immediate time tracking data for timer
-      const immediateTimeTracking = {
-        total_minutes: 0,
-        total_hours: 0,
-        current_session_start: new Date(currentTime).toISOString(),
-        has_active_session: true,
-        job_timing_status: 'active',
-        session_count: 1,
-        sessions: []
+      const newStartTimeISO = new Date(currentTime).toISOString();
+      const newTimeTrackingData = {
+          ...(jobData.time_tracking || {}),
+          current_session_start: newStartTimeISO,
+          has_active_session: true,
+          job_timing_status: 'active',
+          session_count: (jobData.time_tracking?.session_count || 0) + 1,
       };
-      setTimeTrackingData(immediateTimeTracking);
 
-      console.log("Job started successfully as vacant site - timer should start immediately");
+      setJobData(prev => ({
+          ...prev,
+          mobile_status: 'started',
+          time_tracking: newTimeTrackingData,
+      }));
 
-      // Reload job data from server to ensure consistency
-      // Use background refresh to avoid showing loading state
-      setTimeout(async () => {
-        try {
-          await loadJobData(false); // Force fresh data from API
-          console.log("Job data refreshed after vacant start");
-        } catch (refreshError) {
-          console.warn("Failed to refresh job data after start:", refreshError);
-          // Don't show error to user since job was started successfully
-        }
-      }, 1000);
+      // Update individual states for consistency
+      setJobStatus("started");
+      setJobTimingStatus('active');
+      setTimeTrackingData(newTimeTrackingData);
+      setStartTime(currentTime);
 
-      // Show success notification
+      console.log("[MobileJobWorker] Job started successfully as vacant site - state updated optimistically.");
       alert("Job started successfully at vacant site.");
+      // Background refresh after a longer delay to avoid race conditions
+      setTimeout(() => loadJobData(false), 3000); 
     } catch (error) {
-      console.error("Error starting vacant job:", error);
-
-      // Provide specific error messages based on error type
-      let errorMessage = "Failed to start job";
-
-      if (
-        error.message.includes("401") ||
-        error.message.includes("unauthorized")
-      ) {
-        errorMessage =
-          "You are not authorized to start this job. Please log in and try again.";
-      } else if (
-        error.message.includes("403") ||
-        error.message.includes("forbidden")
-      ) {
-        errorMessage = "You do not have permission to start this job.";
-      } else if (
-        error.message.includes("404") ||
-        error.message.includes("not found")
-      ) {
-        errorMessage = "Job not found. It may have been deleted or modified.";
-      } else if (
-        error.message.includes("Network") ||
-        error.message.includes("fetch")
-      ) {
-        errorMessage =
-          "Network error. Please check your connection and try again.";
-      } else {
-        errorMessage = `Failed to start job: ${error.message}`;
-      }
-
-      alert(errorMessage);
-
-      // Store the failed action for later retry if offline
+      console.error("[MobileJobWorker] Error starting vacant job:", error);
+      alert(`Failed to start job: ${error.message}`);
       if (!isOnline) {
-        try {
-          mobileWorkerService.storePendingChange({
-            action: "start_job_vacant",
-            jobId: jobData.id,
-            timestamp: new Date().toISOString(),
-            data: {
-              signature: "",
-              contactName: "VACANT SITE",
-              title: "No Contact Available",
-            },
-          });
-
-          alert(
-            "You are offline. The job start will be synced when connection is restored."
-          );
-        } catch (storeError) {
-          console.error("Failed to store pending change:", storeError);
-        }
+        alert("You are offline. The job start will be synced when connection is restored.");
       }
     } finally {
       setUploading(false);
@@ -2265,357 +1321,123 @@ const MobileJobWorker = ({ jobId }) => {
    * Enhanced signature saving handler - now supports pause signatures with work summary
    */
   const handleSignatureSave = async (signature) => {
-    // Validate signature data
-    if (
-      !signature ||
-      typeof signature !== "string" ||
-      signature.trim().length === 0
-    ) {
-      console.error("Invalid signature data provided");
-      alert("Error: Invalid signature data. Please try signing again.");
-      return;
+    if (!signature || typeof signature !== "string" || !signature.startsWith("data:image/")) {
+      alert("Error: Invalid signature data. Please try signing again."); return;
     }
-
-    // Validate signature is a valid base64 data URL for images
-    if (!signature.startsWith("data:image/")) {
-      console.error("Invalid signature format - not a valid image data URL");
-      alert("Error: Invalid signature format. Please try signing again.");
-      return;
-    }
-
-    // Validate job data exists
     if (!jobData) {
-      console.error("Cannot save signature: No job data available");
-      alert("Error: Job data not loaded. Please refresh and try again.");
-      return;
+      alert("Error: Job data not loaded. Please refresh and try again."); return;
     }
-
-    // Validate job ID
     const jobIdNum = parseInt(jobData.id);
     if (isNaN(jobIdNum) || jobIdNum <= 0) {
-      console.error("Invalid job ID for signature save:", jobData.id);
-      alert("Error: Invalid job ID. Cannot save signature.");
-      return;
+      alert("Error: Invalid job ID. Cannot save signature."); return;
     }
 
-    // Get contact information with fallbacks - defined at function scope
     const contactName = jobData.contact_name || "Site Contact";
     const contactTitle = "Authorized Representative";
 
+    setUploading(true);
     try {
-      setUploading(true);
-
-      console.log(
-        `Saving ${signatureType} signature for Job ID: ${jobData.id}`
-      );
+      console.log(`[MobileJobWorker] Saving ${signatureType} signature for Job ID: ${jobData.id}.`);
 
       if (signatureType === "start") {
-        // Validate job is not already started
-        if (jobStatus === "started") {
-          console.warn("Job is already started");
-          alert("This job has already been started.");
-          setShowSignaturePad(false);
-          return;
+        if (jobStatus === "started" || jobStatus === "completed") {
+          alert(jobStatus === "started" ? "This job has already been started." : "This job has already been completed.");
+          setShowSignaturePad(false); return;
         }
-
-        if (jobStatus === "completed") {
-          console.warn("Cannot start completed job");
-          alert("This job has already been completed.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        console.log("Starting job with signature");
-        await mobileWorkerService.startJob(
-          jobData.id,
-          signature,
-          contactName,
-          contactTitle
-        );
-
-        // Update local state for immediate UI response with enhanced timing
+        await mobileWorkerService.startJob(jobData.id, signature, contactName, contactTitle);
+        
+        // Perform comprehensive optimistic update
         const currentTime = Date.now();
-        setJobStatus("started");
-        setStartTime(currentTime);
-        
-        // Immediately set timing status to active for timer to start
-        setJobTimingStatus('active');
-        
-        // Create immediate time tracking data for timer
-        const immediateTimeTracking = {
-          total_minutes: 0,
-          total_hours: 0,
-          current_session_start: new Date(currentTime).toISOString(),
-          has_active_session: true,
-          job_timing_status: 'active',
-          session_count: 1,
-          sessions: []
-        };
-        setTimeTrackingData(immediateTimeTracking);
-
-        console.log("Job started successfully with signature - timer should start immediately");
-      } else if (signatureType === "pause") {
-        // Validate job can be paused
-        if (jobStatus !== "started") {
-          console.warn("Cannot pause job that is not started");
-          alert("Job must be started before it can be paused.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        if (jobStatus === "completed") {
-          console.warn("Cannot pause completed job");
-          alert("This job has already been completed.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        console.log("Pausing job with signature");
-        await mobileWorkerService.pauseJob(
-          jobData.id,
-          signature,
-          contactName,
-          contactTitle
-        );
-
-        // Update local state for immediate UI response
-        setJobTimingStatus('paused');
-        setStartTime(null);
-
-        console.log("Job paused successfully with signature");
-      } else if (signatureType === "resume") {
-        if (jobTimingStatus !== 'paused') {
-            alert("Job must be paused before it can be resumed.");
-            setShowSignaturePad(false);
-            return;
-        }
-
-        console.log("Resuming job with signature");
-        await mobileWorkerService.resumeJob(
-          jobData.id,
-          signature,
-          contactName,
-          contactTitle
-        );
-        
-        const currentTime = Date.now();
-        setJobTimingStatus('active');
-        setStartTime(currentTime);
-        setTimeTrackingData(prev => ({
-            ...prev,
-            current_session_start: new Date(currentTime).toISOString(),
+        const newStartTimeISO = new Date(currentTime).toISOString();
+        const newTimeTrackingData = {
+            ...(jobData.time_tracking || {}),
+            current_session_start: newStartTimeISO,
             has_active_session: true,
             job_timing_status: 'active',
-        }));
+            session_count: (jobData.time_tracking?.session_count || 0) + 1,
+        };
+
+        setJobData(prev => ({ ...prev, mobile_status: 'started', time_tracking: newTimeTrackingData }));
+        setJobStatus("started");
+        setJobTimingStatus('active');
+        setTimeTrackingData(newTimeTrackingData);
+        setStartTime(currentTime);
+
+      } else if (signatureType === "pause") {
+        if (jobStatus !== "started" || jobStatus === "completed") {
+          alert(jobStatus === "completed" ? "Cannot pause completed job." : "Job must be started before it can be paused.");
+          setShowSignaturePad(false); return;
+        }
+        await mobileWorkerService.pauseJob(jobData.id, signature, contactName, contactTitle);
+        
+        // Perform optimistic UI update
+        const newTimeTrackingData = {
+            ...jobData.time_tracking,
+            job_timing_status: 'paused',
+            has_active_session: false,
+            current_session_start: null,
+        };
+        setJobData(prev => ({ ...prev, time_tracking: newTimeTrackingData }));
+        setJobTimingStatus('paused');
+        setTimeTrackingData(newTimeTrackingData);
+        setStartTime(null);
+
+      } else if (signatureType === "resume") {
+        if (jobTimingStatus !== 'paused') { alert("Job must be paused before it can be resumed."); setShowSignaturePad(false); return; }
+        await mobileWorkerService.resumeJob(jobData.id, signature, contactName, contactTitle);
+        
+        // Perform optimistic UI update
+        const currentTime = Date.now();
+        const newStartTimeISO = new Date(currentTime).toISOString();
+        const newTimeTrackingData = {
+            ...jobData.time_tracking,
+            job_timing_status: 'active',
+            has_active_session: true,
+            current_session_start: newStartTimeISO,
+        };
+        setJobData(prev => ({ ...prev, time_tracking: newTimeTrackingData }));
+        setJobTimingStatus('active');
+        setTimeTrackingData(newTimeTrackingData);
+        setStartTime(currentTime);
+
       } else if (signatureType === "door_complete") {
-        // Validate selectedDoor exists
-        if (!selectedDoor) {
-          console.error("Cannot complete door: No door selected");
-          alert("Error: No door selected for completion.");
-          setShowSignaturePad(false);
-          return;
+        if (!selectedDoor || selectedDoor.completed || !isDoorReadyForCompletion(selectedDoor)) {
+          alert("Door not ready for completion: complete all items, photo, video."); setShowSignaturePad(false); return;
         }
-
-        // Validate door ID
         const doorIdNum = parseInt(selectedDoor.id);
-        if (isNaN(doorIdNum) || doorIdNum <= 0) {
-          console.error("Invalid door ID for completion:", selectedDoor.id);
-          alert("Error: Invalid door ID. Cannot complete door.");
-          setShowSignaturePad(false);
-          return;
-        }
+        if (isNaN(doorIdNum) || doorIdNum <= 0) { alert("Error: Invalid door ID. Cannot complete door."); setShowSignaturePad(false); return; }
 
-        // Check if door is already completed
-        if (selectedDoor.completed) {
-          console.warn("Door is already completed");
-          alert("This door has already been completed.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        // Validate door readiness for completion
-        if (!isDoorReadyForCompletion(selectedDoor)) {
-          console.warn("Door is not ready for completion");
-          alert(
-            "Please complete all line items, capture a photo, and record a video before completing this door."
-          );
-          setShowSignaturePad(false);
-          return;
-        }
-
-        console.log(
-          `Completing door ${selectedDoor.door_number} with signature`
-        );
-        await mobileWorkerService.completeDoor(
-          selectedDoor.id,
-          jobData.id,
-          signature,
-          contactName,
-          contactTitle
-        );
-
-        // Update local state for immediate UI response
+        await mobileWorkerService.completeDoor(selectedDoor.id, jobData.id, signature, contactName, contactTitle);
         setJobData((prev) => ({
-          ...prev,
-          doors: prev.doors.map((door) =>
-            door.id === selectedDoor.id
-              ? { ...door, completed: true, has_signature: true }
-              : door
-          ),
+          ...prev, doors: prev.doors.map((door) => door.id === selectedDoor.id ? { ...door, completed: true, has_signature: true } : door),
           completed_doors: (prev.completed_doors || 0) + 1,
         }));
-
-        console.log(`Door ${selectedDoor.door_number} completed successfully`);
       } else if (signatureType === "final") {
-        // Validate job can be completed
-        if (jobStatus === "completed") {
-          console.warn("Job is already completed");
-          alert("This job has already been completed.");
-          setShowSignaturePad(false);
-          return;
+        if (jobStatus === "completed" || jobStatus !== "started" || !canCompleteJob()) {
+          alert(jobStatus === "completed" ? "Job already completed." : jobStatus !== "started" ? "Job must be started before completion." : "Complete all doors first.");
+          setShowSignaturePad(false); return;
         }
-
-        if (jobStatus !== "started") {
-          console.warn("Cannot complete job that is not started");
-          alert("Job must be started before it can be completed.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        if (!canCompleteJob()) {
-          console.warn("Job is not ready for completion");
-          alert("Please complete all doors before finishing the job.");
-          setShowSignaturePad(false);
-          return;
-        }
-
-        console.log("Completing job with final signature");
-        await mobileWorkerService.completeJob(
-          jobData.id,
-          signature,
-          contactName,
-          contactTitle
-        );
-
-        // Update local state for immediate UI response
+        await mobileWorkerService.completeJob(jobData.id, signature, contactName, contactTitle);
+        setJobData(prev => ({ ...prev, mobile_status: 'completed', time_tracking: {...prev.time_tracking, job_timing_status: 'completed'} }));
         setJobStatus("completed");
+        setJobTimingStatus("completed");
+      } else { throw new Error(`Invalid signature type: ${signatureType}`); }
 
-        console.log("Job completed successfully with final signature");
-      } else {
-        throw new Error(`Invalid signature type: ${signatureType}`);
-      }
-
-      // Close signature pad
       setShowSignaturePad(false);
+      if (signatureType === "pause") { setCurrentWorkSummary(null); }
+      // Background refresh after a longer delay to avoid race conditions
+      setTimeout(() => loadJobData(false), 3000); 
 
-      // Clear work summary after successful save
-      if (signatureType === "pause") {
-        setCurrentWorkSummary(null);
-      }
-
-      // Reload job data from server to ensure consistency
-      // Use background refresh to avoid showing loading state
-      setTimeout(async () => {
-        try {
-          await loadJobData(false); // Force fresh data from API
-          console.log("Job data refreshed after signature save");
-        } catch (refreshError) {
-          console.warn(
-            "Failed to refresh job data after signature save:",
-            refreshError
-          );
-          // Don't show error to user since signature was saved successfully
-        }
-      }, 1000);
-
-      // Show success notification based on signature type
       const successMessages = {
-        start: "Job started successfully!",
-        pause: "Job paused successfully!",
-        resume: "Job resumed successfully!",
-        door_complete: `Door #${
-          selectedDoor?.door_number || ""
-        } completed successfully!`,
-        final: "Job completed successfully!",
+        start: "Job started successfully!", pause: "Job paused successfully!", resume: "Job resumed successfully!",
+        door_complete: `Door #${selectedDoor?.door_number || ""} completed successfully!`, final: "Job completed successfully!",
       };
-
       alert(successMessages[signatureType] || "Signature saved successfully!");
     } catch (error) {
-      console.error("Error saving signature:", error);
-
-      // Provide specific error messages based on error type and signature type
-      let errorMessage = `Failed to save ${signatureType} signature`;
-
-      if (
-        error.message.includes("401") ||
-        error.message.includes("unauthorized")
-      ) {
-        errorMessage =
-          "You are not authorized to perform this action. Please log in and try again.";
-      } else if (
-        error.message.includes("403") ||
-        error.message.includes("forbidden")
-      ) {
-        errorMessage = "You do not have permission to perform this action.";
-      } else if (
-        error.message.includes("404") ||
-        error.message.includes("not found")
-      ) {
-        errorMessage =
-          signatureType === "door_complete"
-            ? "Door not found. It may have been deleted or modified."
-            : "Job not found. It may have been deleted or modified.";
-      } else if (
-        error.message.includes("Network") ||
-        error.message.includes("fetch")
-      ) {
-        errorMessage =
-          "Network error. Please check your connection and try again.";
-      } else if (error.message.includes("Invalid")) {
-        errorMessage = `Invalid data: ${error.message}`;
-      } else {
-        errorMessage = `Failed to save ${signatureType} signature: ${error.message}`;
-      }
-
-      alert(errorMessage);
-
-      // Store the failed action for later retry if offline
+      console.error("[MobileJobWorker] Error saving signature:", error);
+      alert(`Failed to save ${signatureType} signature: ${error.message}`);
       if (!isOnline) {
-        try {
-          const pendingChangeData = {
-            action: `save_signature_${signatureType}`,
-            jobId: jobData.id,
-            timestamp: new Date().toISOString(),
-            data: {
-              signature,
-              contactName,
-              contactTitle,
-              signatureType,
-            },
-          };
-
-          // Add door-specific data for door completion signatures
-          if (signatureType === "door_complete" && selectedDoor) {
-            pendingChangeData.data.doorId = selectedDoor.id;
-            pendingChangeData.data.doorNumber = selectedDoor.door_number;
-          }
-
-          // Add work summary for pause signatures
-          if (signatureType === "pause" && currentWorkSummary) {
-            pendingChangeData.data.workSummary = currentWorkSummary;
-          }
-
-          mobileWorkerService.storePendingChange(pendingChangeData);
-
-          alert(
-            "You are offline. The signature will be synced when connection is restored."
-          );
-        } catch (storeError) {
-          console.error(
-            "Failed to store pending signature change:",
-            storeError
-          );
-        }
+        alert("You are offline. The signature will be synced when connection is restored.");
       }
     } finally {
       setUploading(false);
@@ -2624,1090 +1446,130 @@ const MobileJobWorker = ({ jobId }) => {
 
   /**
    * Handle media capture (photo/video) with comprehensive validation and error handling
-   * Enhanced to store and display captured photos properly without flashing
+   * Now handles videos that have already been rotated by the CameraCapture component
    */
   const handleMediaCapture = async (media, type) => {
-    // Validate media data
-    if (!media) {
-      console.error("No media data provided");
-      alert("Error: No media data captured. Please try again.");
-      return;
+    if (!media || !["photo", "video"].includes(type) || !selectedDoor || !jobData || jobStatus !== "started") {
+      alert("Error: Missing data or invalid state for media upload."); return;
     }
-
-    // Validate media type
-    if (!type || !["photo", "video"].includes(type)) {
-      console.error("Invalid media type:", type);
-      alert("Error: Invalid media type. Please try again.");
-      return;
-    }
-
-    // Validate selected door exists
-    if (!selectedDoor) {
-      console.error("Cannot upload media: No door selected");
-      alert("Error: No door selected for media upload.");
-      return;
-    }
-
-    // Validate job data exists
-    if (!jobData) {
-      console.error("Cannot upload media: No job data available");
-      alert("Error: Job data not loaded. Please refresh and try again.");
-      return;
-    }
-
-    // Validate job is started
-    if (jobStatus !== "started") {
-      console.warn("Cannot upload media for job that is not started");
-      alert("Job must be started before uploading media.");
-      return;
-    }
-
-    // Validate door and job IDs
     const doorIdNum = parseInt(selectedDoor.id);
     const jobIdNum = parseInt(jobData.id);
-
-    if (isNaN(doorIdNum) || doorIdNum <= 0) {
-      console.error("Invalid door ID for media upload:", selectedDoor.id);
-      alert("Error: Invalid door ID. Cannot upload media.");
-      return;
+    if (isNaN(doorIdNum) || doorIdNum <= 0 || isNaN(jobIdNum) || jobIdNum <= 0) {
+      alert("Error: Invalid Door/Job ID for media upload."); return;
     }
 
-    if (isNaN(jobIdNum) || jobIdNum <= 0) {
-      console.error("Invalid job ID for media upload:", jobData.id);
-      alert("Error: Invalid job ID. Cannot upload media.");
-      return;
-    }
-
-    // Validate media data format
     let mediaSize = 0;
-    let isValidFormat = false;
+    let uploadFunction;
+    let mediaDataForService;
 
     try {
       if (type === "photo") {
-        // Photo should be a base64 data URL string
-        if (typeof media === "string" && media.startsWith("data:image/")) {
-          isValidFormat = true;
-          // Estimate size from base64 string (rough calculation)
-          const base64Length = media.split(",")[1]?.length || 0;
-          mediaSize = (base64Length * 3) / 4; // Base64 to bytes conversion
-        } else {
-          console.error("Invalid photo format - expected base64 data URL");
-        }
+        if (typeof media !== "string" || !media.startsWith("data:image/")) throw new Error("Invalid photo format.");
+        mediaSize = (media.split(",")[1]?.length || 0) * 3 / 4;
+        uploadFunction = mobileWorkerService.uploadDoorPhoto;
+        mediaDataForService = media; // Pass Data URL
       } else if (type === "video") {
-        // Video should be a Blob object
-        if (media instanceof Blob) {
-          isValidFormat = true;
-          mediaSize = media.size;
-        } else {
-          console.error("Invalid video format - expected Blob object");
-        }
-      }
+        if (!(media instanceof Blob)) throw new Error("Invalid video format - expected Blob.");
+        mediaSize = media.size;
+        uploadFunction = mobileWorkerService.uploadDoorVideo;
+        mediaDataForService = media; // Pass the already-rotated Blob
+        console.log("Video blob received for upload (already rotated if needed):", mediaSize, "bytes");
+      } else { throw new Error("Unknown media type."); }
 
-      if (!isValidFormat) {
-        alert(`Error: Invalid ${type} format. Please try capturing again.`);
-        return;
+      // Validate file size (add your size constraints if needed, or let backend handle)
+      const maxPhotoSize = 10 * 1024 * 1024; // Example max photo size
+      const maxVideoSize = 100 * 1024 * 1024; // Example max video size
+      if ((type === 'photo' && mediaSize > maxPhotoSize) || (type === 'video' && mediaSize > maxVideoSize)) {
+        alert(`Error: ${type} file is too large.`); return;
       }
+      if (mediaSize === 0) { alert(`Error: ${type} file is empty.`); return; }
 
-      // Validate file size constraints
-      const maxSizes = {
-        photo: 10 * 1024 * 1024, // 10MB for photos
-        video: 100 * 1024 * 1024, // 100MB for videos
-      };
-
-      if (mediaSize > maxSizes[type]) {
-        const maxSizeMB = maxSizes[type] / (1024 * 1024);
-        alert(
-          `Error: ${type} is too large. Maximum size allowed: ${maxSizeMB}MB`
-        );
-        return;
-      }
-
-      if (mediaSize === 0) {
-        alert(`Error: ${type} file is empty. Please try capturing again.`);
-        return;
-      }
     } catch (validationError) {
-      console.error("Media validation error:", validationError);
-      alert(`Error: Failed to validate ${type}. Please try again.`);
-      return;
+      console.error("[MobileJobWorker] Media validation error:", validationError);
+      alert(`Error validating ${type}: ${validationError.message}.`); return;
     }
 
+    setUploading(true);
     try {
-      setUploading(true);
+      console.log(`[MobileJobWorker] Uploading ${type} for Door ${selectedDoor.door_number} in Job ${jobData.id}.`);
+      console.log(`[MobileJobWorker] Media size: ${(mediaSize / 1024).toFixed(1)} KB.`);
 
-      console.log(
-        `Uploading ${type} for Door ${selectedDoor.door_number} in Job ${jobData.id}`
-      );
-      console.log(`Media size: ${(mediaSize / 1024).toFixed(1)} KB`);
+      const uploadResponse = await uploadFunction(selectedDoor.id, jobData.id, mediaDataForService);
 
-      // Upload media using appropriate service method and capture the response
-      let uploadResponse;
-      if (type === "photo") {
-        uploadResponse = await mobileWorkerService.uploadDoorPhoto(
-          selectedDoor.id,
-          jobData.id,
-          media
-        );
-      } else {
-        uploadResponse = await mobileWorkerService.uploadDoorVideo(
-          selectedDoor.id,
-          jobData.id,
-          media
-        );
-      }
-
-      console.log(
-        `${type} uploaded successfully for Door ${selectedDoor.door_number}`,
-        uploadResponse
-      );
-
-      // Extract media URL from response or use the original data for immediate display
-      const mediaUrl = uploadResponse?.media_url || uploadResponse?.url;
-      const thumbnailUrl =
-        uploadResponse?.thumbnail_url || uploadResponse?.thumb_url || mediaUrl;
-      const mediaId =
-        uploadResponse?.media_id || uploadResponse?.id || Date.now();
-      const uploadedAt =
-        uploadResponse?.uploaded_at || new Date().toISOString();
-
-      // Create proper media info object structure that matches what the component expects
       const mediaInfo = {
-        id: mediaId,
-        url: mediaUrl || (type === "photo" ? media : null), // Use original data as fallback for photos
-        thumbnail_url: thumbnailUrl || (type === "photo" ? media : null),
-        uploaded_at: uploadedAt,
+        id: uploadResponse?.media_id || uploadResponse?.id || Date.now(),
+        url: uploadResponse?.media_url || uploadResponse?.url || (type === "photo" ? media : null),
+        thumbnail_url: uploadResponse?.thumbnail_url || uploadResponse?.thumb_url || (type === "photo" ? media : null),
+        uploaded_at: uploadResponse?.uploaded_at || new Date().toISOString(),
       };
 
-      // Update local state for immediate UI response with proper structure
-      setJobData((prev) => ({
-        ...prev,
-        doors: prev.doors.map((door) =>
-          door.id === selectedDoor.id
-            ? {
-                ...door,
-                [`has_${type}`]: true,
-                [`${type}_info`]: mediaInfo, // Set the proper _info object structure
-              }
-            : door
-        ),
-      }));
-
-      // Update selected door state to match the current door being displayed
-      // Fixed the condition that was always true
-      if (selectedDoor && selectedDoor.id === doorIdNum) {
+      if (type === 'photo') {
+        setJobData((prev) => ({
+          ...prev,
+          doors: prev.doors.map((door) =>
+            door.id === selectedDoor.id
+              ? { ...door, photos: [...(door.photos || []), mediaInfo] }
+              : door
+          ),
+        }));
         setSelectedDoor((prev) => ({
           ...prev,
-          [`has_${type}`]: true,
-          [`${type}_info`]: mediaInfo, // Set the proper _info object structure
+          photos: [...(prev.photos || []), mediaInfo],
+        }));
+      } else if (type === 'video') {
+        // Video logic remains the same (1 per door)
+        setJobData((prev) => ({
+          ...prev,
+          doors: prev.doors.map((door) =>
+            door.id === selectedDoor.id ? { ...door, has_video: true, video_info: mediaInfo } : door
+          ),
+        }));
+        setSelectedDoor((prev) => ({
+          ...prev, has_video: true, video_info: mediaInfo
         }));
       }
-
-      // Close camera interface
+      
       setShowCamera(false);
-
-      // Show success notification
-      const successMessage =
-        type === "photo"
-          ? `Photo captured successfully for Door #${selectedDoor.door_number}!`
-          : `Video recorded successfully for Door #${selectedDoor.door_number}!`;
-
-      alert(successMessage);
-
-      // Background refresh of job data to ensure consistency
-      // Increased delay to prevent flashing and ensure upload is fully processed
-      setTimeout(async () => {
-        try {
-          await loadJobData(false); // Force fresh data from API
-          console.log(`Job data refreshed after ${type} upload`);
-        } catch (refreshError) {
-          console.warn(
-            `Failed to refresh job data after ${type} upload:`,
-            refreshError
-          );
-          // Don't show error to user since upload was successful
-        }
-      }, 3000); // Increased delay from 1500ms to 3000ms to prevent flashing
+      alert(`${type.charAt(0).toUpperCase() + type.slice(1)} captured and uploaded successfully for Door #${selectedDoor.door_number}!`);
+      // Background refresh after a short delay
+      setTimeout(() => loadJobData(false), 3000);
     } catch (error) {
-      console.error(`Error uploading ${type}:`, error);
-
-      // Provide specific error messages based on error type
-      let errorMessage = `Failed to upload ${type}`;
-
-      if (
-        error.message.includes("401") ||
-        error.message.includes("unauthorized")
-      ) {
-        errorMessage =
-          "You are not authorized to upload media. Please log in and try again.";
-      } else if (
-        error.message.includes("403") ||
-        error.message.includes("forbidden")
-      ) {
-        errorMessage =
-          "You do not have permission to upload media for this job.";
-      } else if (
-        error.message.includes("404") ||
-        error.message.includes("not found")
-      ) {
-        errorMessage =
-          "Door or job not found. It may have been deleted or modified.";
-      } else if (
-        error.message.includes("413") ||
-        error.message.includes("too large")
-      ) {
-        errorMessage = `${type} file is too large. Please try capturing a smaller file.`;
-      } else if (
-        error.message.includes("415") ||
-        error.message.includes("unsupported")
-      ) {
-        errorMessage = `${type} format is not supported. Please try again.`;
-      } else if (
-        error.message.includes("Network") ||
-        error.message.includes("fetch")
-      ) {
-        errorMessage =
-          "Network error. Please check your connection and try again.";
-      } else if (
-        error.message.includes("storage") ||
-        error.message.includes("space")
-      ) {
-        errorMessage = "Storage space exceeded. Please contact support.";
-      } else {
-        errorMessage = `Failed to upload ${type}: ${error.message}`;
-      }
-
-      alert(errorMessage);
-
-      // Store the failed upload for later retry if offline
-      if (!isOnline) {
-        try {
-          // Note: For offline storage, we'd need to implement proper media caching
-          // This is a simplified approach - in production, you'd want to store media locally
-          const pendingChangeData = {
-            action: `upload_${type}`,
-            jobId: jobData.id,
-            doorId: selectedDoor.id,
-            doorNumber: selectedDoor.door_number,
-            timestamp: new Date().toISOString(),
-            data: {
-              type,
-              size: mediaSize,
-              // Note: We can't store large media in localStorage easily
-              // In a real implementation, you'd use IndexedDB or similar
-              hasMedia: true,
-            },
-          };
-
-          mobileWorkerService.storePendingChange(pendingChangeData);
-
-          alert(
-            `You are offline. The ${type} will be uploaded when connection is restored.`
-          );
-        } catch (storeError) {
-          console.error("Failed to store pending media upload:", storeError);
-          alert(`Failed to upload ${type} and unable to store for later sync.`);
-        }
+      console.error(`[MobileJobWorker] Error uploading ${type}:`, error);
+      alert(`Failed to upload ${type}: ${error.message}.`);
+      if (!isOnline) { // Service method already queues if network error
+        alert(`You are offline. The ${type} will be uploaded when connection is restored.`);
       }
     } finally {
       setUploading(false);
     }
   };
 
-  /**
-   * Photo Viewer Modal Component
-   * Displays full-size photo with zoom and pan capabilities
-   */
-  const PhotoViewer = ({ photoUrl, onClose, doorNumber }) => {
-    const [imageLoaded, setImageLoaded] = useState(false);
-    const [imageError, setImageError] = useState(false);
-
-    return (
-      <div
-        className="mobile-modal-overlay"
-        style={{ backgroundColor: "rgba(0, 0, 0, 0.9)" }}
-      >
-        <div className="photo-viewer-container">
-          <div className="photo-viewer-header">
-            <h3 className="photo-viewer-title">Door #{doorNumber} Photo</h3>
-            <button onClick={onClose} className="photo-viewer-close-button">
-              <X className="icon-md" />
-            </button>
-          </div>
-
-          <div className="photo-viewer-content">
-            {!imageLoaded && !imageError && (
-              <div className="photo-viewer-loading">
-                <Loader className="icon-lg animate-spin mobile-text-white" />
-                <p className="mobile-text-white">Loading photo...</p>
-              </div>
-            )}
-
-            {imageError && (
-              <div className="photo-viewer-error">
-                <AlertTriangle className="icon-lg mobile-text-red-400" />
-                <p className="mobile-text-white">Failed to load photo</p>
-              </div>
-            )}
-
-            <img
-              src={photoUrl}
-              alt={`Door ${doorNumber} completion photo`}
-              className="photo-viewer-image"
-              onLoad={() => setImageLoaded(true)}
-              onError={() => setImageError(true)}
-              style={{
-                display: imageLoaded && !imageError ? "block" : "none",
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-              }}
-            />
-          </div>
-
-          <div className="photo-viewer-footer">
-            <button
-              onClick={onClose}
-              className="mobile-button mobile-button-gray"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const DoorDetail = () => {
-    const [showPhotoViewer, setShowPhotoViewer] = useState(false);
-    const [photoViewerUrl, setPhotoViewerUrl] = useState('');
-
-    // Get the most up-to-date door data from jobData, fallback to selectedDoor (initial state)
-    const currentDoorInJobData = jobData?.doors.find(d => d.id === selectedDoor?.id);
-    const doorToDisplay = currentDoorInJobData || selectedDoor;
-
-    // Stabilize the door reference using useMemo to prevent unnecessary recalculations
-    const stableDoor = useMemo(() => {
-      if (!doorToDisplay) return null;
-      
-      // Create a stable reference for the door object by extracting only the values we need
-      return {
-        id: doorToDisplay.id,
-        door_number: doorToDisplay.door_number,
-        location: doorToDisplay.location,
-        door_type: doorToDisplay.door_type,
-        width: doorToDisplay.width,
-        height: doorToDisplay.height,
-        dimension_unit: doorToDisplay.dimension_unit,
-        labor_description: doorToDisplay.labor_description,
-        notes: doorToDisplay.notes,
-        completed: Boolean(doorToDisplay.completed),
-        line_items: doorToDisplay.line_items || [],
-        // Extract primitive values for media info to ensure stability
-        photo_info_id: doorToDisplay.photo_info?.id,
-        photo_info_url: doorToDisplay.photo_info?.url,
-        photo_info_thumbnail_url: doorToDisplay.photo_info?.thumbnail_url,
-        photo_info_uploaded_at: doorToDisplay.photo_info?.uploaded_at,
-        video_info_id: doorToDisplay.video_info?.id,
-        video_info_url: doorToDisplay.video_info?.url,
-        video_info_thumbnail_url: doorToDisplay.video_info?.thumbnail_url,
-        video_info_uploaded_at: doorToDisplay.video_info?.uploaded_at,
-        has_photo: Boolean(doorToDisplay.photo_info && doorToDisplay.photo_info.url),
-        has_video: Boolean(doorToDisplay.video_info && doorToDisplay.video_info.url)
-      };
-    }, [
-      doorToDisplay?.id,
-      doorToDisplay?.door_number,
-      doorToDisplay?.location,
-      doorToDisplay?.door_type,
-      doorToDisplay?.width,
-      doorToDisplay?.height,
-      doorToDisplay?.dimension_unit,
-      doorToDisplay?.labor_description,
-      doorToDisplay?.notes,
-      doorToDisplay?.completed,
-      doorToDisplay?.line_items?.length,
-      // Use primitive values instead of object references for media info
-      doorToDisplay?.photo_info?.id,
-      doorToDisplay?.photo_info?.url,
-      doorToDisplay?.photo_info?.thumbnail_url,
-      doorToDisplay?.photo_info?.uploaded_at,
-      doorToDisplay?.video_info?.id,
-      doorToDisplay?.video_info?.url,
-      doorToDisplay?.video_info?.thumbnail_url,
-      doorToDisplay?.video_info?.uploaded_at,
-      // Ensure line items completion state is tracked without deep object references
-      JSON.stringify(doorToDisplay?.line_items?.map(item => ({ id: item.id, completed: item.completed })))
-    ]);
-
-    // Memoize media URLs with stable dependencies to prevent video reloading
-    const mediaUrls = useMemo(() => {
-      if (!stableDoor) {
-        return {
-          hasPhoto: false,
-          hasVideo: false,
-          absolutePhotoThumbnailUrl: null,
-          absolutePhotoUrl: null,
-          absoluteVideoUrl: null,
-          photoInfo: null,
-          videoInfo: null
-        };
-      }
-
-      const hasPhoto = stableDoor.has_photo;
-      const hasVideo = stableDoor.has_video;
-
-      // Construct absolute URLs for img/video src attributes
-      const absolutePhotoThumbnailUrl = hasPhoto && stableDoor.photo_info_thumbnail_url ? 
-        (apiServerRoot + stableDoor.photo_info_thumbnail_url) : null;
-      const absolutePhotoUrl = hasPhoto && stableDoor.photo_info_url ? 
-        (apiServerRoot + stableDoor.photo_info_url) : null;
-      const absoluteVideoUrl = hasVideo && stableDoor.video_info_url ? 
-        (apiServerRoot + stableDoor.video_info_url) : null;
-
-      // Reconstruct info objects from primitive values
-      const photoInfo = hasPhoto ? {
-        id: stableDoor.photo_info_id,
-        url: stableDoor.photo_info_url,
-        thumbnail_url: stableDoor.photo_info_thumbnail_url,
-        uploaded_at: stableDoor.photo_info_uploaded_at
-      } : null;
-
-      const videoInfo = hasVideo ? {
-        id: stableDoor.video_info_id,
-        url: stableDoor.video_info_url,
-        thumbnail_url: stableDoor.video_info_thumbnail_url,
-        uploaded_at: stableDoor.video_info_uploaded_at
-      } : null;
-
-      return {
-        hasPhoto,
-        hasVideo,
-        absolutePhotoThumbnailUrl,
-        absolutePhotoUrl,
-        absoluteVideoUrl,
-        photoInfo,
-        videoInfo
-      };
-    }, [
-      // Use primitive values only to ensure stable dependencies
-      stableDoor?.has_photo,
-      stableDoor?.has_video,
-      stableDoor?.photo_info_id,
-      stableDoor?.photo_info_url,
-      stableDoor?.photo_info_thumbnail_url,
-      stableDoor?.photo_info_uploaded_at,
-      stableDoor?.video_info_id,
-      stableDoor?.video_info_url,
-      stableDoor?.video_info_thumbnail_url,
-      stableDoor?.video_info_uploaded_at,
-      apiServerRoot
-    ]);
-
-    // Create stable keys for media elements to prevent unnecessary reloading
-    const mediaKeys = useMemo(() => {
-      return {
-        photoKey: mediaUrls.hasPhoto ? `photo-${mediaUrls.photoInfo?.id}-${stableDoor?.id}` : null,
-        videoKey: mediaUrls.hasVideo ? `video-${mediaUrls.videoInfo?.id}-${stableDoor?.id}` : null
-      };
-    }, [
-      mediaUrls.hasPhoto,
-      mediaUrls.hasVideo,
-      mediaUrls.photoInfo?.id,
-      mediaUrls.videoInfo?.id,
-      stableDoor?.id
-    ]);
-
-    if (!stableDoor) {
-      // This case should ideally not be reached if navigation is managed well
-      console.warn("DoorDetail rendered without a valid door. Returning to overview.");
-      setCurrentView('overview');
-      return null; 
-    }
-    
-    // Door-level completion based on signature
-    const isDoorSignedOff = stableDoor.completed; 
-    
-    // Destructure memoized values
-    const { 
-      hasPhoto, 
-      hasVideo, 
-      absolutePhotoThumbnailUrl, 
-      absolutePhotoUrl, 
-      absoluteVideoUrl,
-      photoInfo,
-      videoInfo
-    } = mediaUrls;
-    
-    const handleViewPhoto = () => {
-      if (absolutePhotoUrl) {
-        setPhotoViewerUrl(absolutePhotoUrl);
-        setShowPhotoViewer(true);
-      } else {
-        console.warn("Attempted to view photo, but no URL available.");
-      }
-    };
-
-    // Check if all line items for *this specific door* are completed
-    const allLineItemsCompleted = stableDoor.line_items.every(item => item.completed);
-    
-    return (
-      <div className="mobile-section-spacing">
-        <div className="door-detail-header">
-          <button
-            onClick={() => { setSelectedDoor(null); setCurrentView('overview'); }} // Clear selectedDoor on back
-            className="door-detail-back-button"
-          >
-            <ArrowLeft className="icon-md" />
-          </button>
-          <div>
-            <h1 className="mobile-text-xl mobile-font-bold">Door #{stableDoor.door_number}</h1>
-            <p className="mobile-text-gray-600">{stableDoor.location}</p>
-          </div>
-        </div>
-
-        <div className="mobile-card">
-          <h3 className="mobile-font-semibold mb-2">Door Information</h3>
-          <div className="mobile-section-spacing mobile-text-sm">
-            <p><span className="mobile-font-medium">Type:</span> {stableDoor.door_type}</p>
-            <p>
-              <span className="mobile-font-medium">Dimensions:</span> 
-              {stableDoor.width && stableDoor.height ? 
-                `${stableDoor.width} × ${stableDoor.height} ${stableDoor.dimension_unit || ''}` : 
-                'N/A'}
-            </p>
-            <p><span className="mobile-font-medium">Work:</span> {stableDoor.labor_description}</p>
-            {stableDoor.notes && <p><span className="mobile-font-medium">Notes:</span> {stableDoor.notes}</p>}
-          </div>
-        </div>
-
-        <div className="mobile-card">
-          <h3 className="mobile-font-semibold mb-3">Work Items ({stableDoor.line_items.filter(i => i.completed).length} / {stableDoor.line_items.length})</h3>
-          <div className="mobile-item-spacing">
-            {stableDoor.line_items.map(item => (
-              <div
-                key={item.id}
-                className={`line-item-checklist-item ${item.completed ? 'completed' : 'pending'} ${isDoorSignedOff ? 'disabled' : ''}`}
-                onClick={() => !isDoorSignedOff && toggleLineItem(stableDoor.id, item.id)} // Prevent changes if door signed off
-              >
-                {item.completed ? (
-                  <CheckSquare className="icon-md mobile-text-green-600 icon-flex-shrink-0" />
-                ) : (
-                  <Square className="icon-md mobile-text-gray-400 icon-flex-shrink-0" />
-                )}
-                <div style={{ flex: 1 }}>
-                  <p className={`mobile-font-medium ${item.completed ? 'mobile-text-green-800 line-through' : 'mobile-text-gray-800'}`}>
-                    {item.description}
-                  </p>
-                  <p className="mobile-text-sm mobile-text-gray-600">
-                    Part: {item.part_number || 'N/A'} • Qty: {item.quantity}
-                    {item.completed_at && <span className="mobile-text-xs block">Completed: {new Date(item.completed_at).toLocaleTimeString()}</span>}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {stableDoor.line_items.length === 0 && <p className="mobile-text-sm mobile-text-gray-500">No work items specified for this door.</p>}
-          </div>
-        </div>
-
-        <div className="mobile-card">
-          <h3 className="mobile-font-semibold mb-3">Documentation</h3>
-          
-          <div className="media-section">
-            <div className="media-section-header">
-              <h4 className="mobile-font-medium">Completion Photo</h4>
-              <div className="media-status-indicator">
-                {hasPhoto ? (
-                  <span className="media-status-badge captured"><CheckCircle className="icon-sm" />Captured</span>
-                ) : (
-                  <span className="media-status-badge not-captured"><Camera className="icon-sm" />Required</span>
-                )}
-              </div>
-            </div>
-            
-            {hasPhoto && absolutePhotoThumbnailUrl ? (
-              <div className="media-preview-container">
-                <div className="media-preview-thumbnail" onClick={handleViewPhoto} style={{cursor: 'pointer'}}>
-                  <img
-                    key={mediaKeys.photoKey} // Use stable key to prevent unnecessary reloads
-                    src={absolutePhotoThumbnailUrl}
-                    alt={`Door ${stableDoor.door_number} thumbnail`}
-                    className="media-preview-image"
-                    onError={(e) => { 
-                      console.error('Failed to load photo thumbnail:', absolutePhotoThumbnailUrl); 
-                      e.target.style.display = 'none'; 
-                    }}
-                  />
-                  <div className="media-preview-overlay">
-                    <span className="mobile-text-white mobile-text-sm">Tap to view</span>
-                  </div>
-                </div>
-                <div className="media-preview-info">
-                  <p className="mobile-text-xs mobile-text-gray-500">
-                    ID: {photoInfo.id} <br/>
-                    Uploaded: {photoInfo.uploaded_at ? new Date(photoInfo.uploaded_at).toLocaleString() : 'N/A'}
-                  </p>
-                  {!isDoorSignedOff && ( // Can only retake if door is not signed off
-                    <button
-                      onClick={() => { setCameraType('photo'); setShowCamera(true); }}
-                      className="media-retake-button" disabled={uploading}
-                    >
-                      <Camera className="icon-sm" /> Retake
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              !isDoorSignedOff && ( // Can only capture if door is not signed off
-                <button
-                  onClick={() => { setCameraType('photo'); setShowCamera(true); }}
-                  disabled={uploading} className="media-capture-button-large not-captured"
-                >
-                  <Camera className="icon-lg mobile-text-gray-400" />
-                  <span className="mobile-font-medium">Capture Photo</span>
-                  <span className="mobile-text-sm mobile-text-gray-500">Required for completion</span>
-                </button>
-              )
-            )}
-            {isDoorSignedOff && !hasPhoto && (
-                <p className="mobile-text-sm mobile-text-gray-500">No photo captured for this completed door.</p>
-            )}
-          </div>
-
-          <div className="media-section">
-            <div className="media-section-header">
-              <h4 className="mobile-font-medium">Operation Video</h4>
-              <div className="media-status-indicator">
-                {hasVideo ? (
-                  <span className="media-status-badge captured"><CheckCircle className="icon-sm" />Recorded</span>
-                ) : (
-                  <span className="media-status-badge not-captured"><Video className="icon-sm" />Required</span>
-                )}
-              </div>
-            </div>
-            
-            {hasVideo && absoluteVideoUrl ? (
-              <div className="media-preview-container">
-                <div className="media-preview-thumbnail video-thumbnail">
-                  <video
-                    key={mediaKeys.videoKey} // Use stable key to prevent unnecessary reloads
-                    src={absoluteVideoUrl} 
-                    controls 
-                    playsInline 
-                    muted 
-                    width="100%"
-                    className="media-preview-video"
-                    preload="metadata" // Only load metadata initially to reduce server requests
-                    onError={(e) => { 
-                      console.error('Failed to load video preview:', absoluteVideoUrl); 
-                      e.target.style.display = 'none'; 
-                    }}
-                    onLoadStart={() => {
-                      // Log when video starts loading to help debug
-                      console.log('Video loading started for:', absoluteVideoUrl);
-                    }}
-                    onCanPlay={() => {
-                      // Log when video is ready to play
-                      console.log('Video ready to play:', absoluteVideoUrl);
-                    }}
-                  />
-                </div>
-                <div className="media-preview-info">
-                  <p className="mobile-text-xs mobile-text-gray-500">
-                    ID: {videoInfo.id} <br/>
-                    Uploaded: {videoInfo.uploaded_at ? new Date(videoInfo.uploaded_at).toLocaleString() : 'N/A'}
-                  </p>
-                  {!isDoorSignedOff && ( // Can only re-record if door is not signed off
-                    <button
-                      onClick={() => { setCameraType('video'); setShowCamera(true); }}
-                      className="media-retake-button" disabled={uploading}
-                    >
-                      <Video className="icon-sm" /> Re-record
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              !isDoorSignedOff && ( // Can only record if door is not signed off
-                <button
-                  onClick={() => { setCameraType('video'); setShowCamera(true); }}
-                  disabled={uploading} className="media-capture-button-large not-captured"
-                >
-                  <Video className="icon-lg mobile-text-gray-400" />
-                  <span className="mobile-font-medium">Record Video</span>
-                  <span className="mobile-text-sm mobile-text-gray-500">Required for completion</span>
-                </button>
-              )
-            )}
-            {isDoorSignedOff && !hasVideo && (
-                <p className="mobile-text-sm mobile-text-gray-500">No video recorded for this completed door.</p>
-            )}
-          </div>
-        </div>
-
-        {!isDoorSignedOff && (
-          <div className="mobile-card">
-            <h3 className="mobile-font-semibold mb-3">Complete Door</h3>
-            {isDoorReadyForCompletion(stableDoor) ? ( // Pass the stable door state
-              <button onClick={handleCompleteDoor} disabled={uploading} className="mobile-button mobile-button-green">
-                {uploading ? <Loader className="icon-md animate-spin" /> : <PenTool className="icon-md" />}
-                {uploading ? 'Processing...' : 'Complete Door (Signature Required)'}
-              </button>
-            ) : (
-              <div className="alert-warning-inline">
-                <AlertTriangle className="icon-lg mobile-text-yellow-500 mx-auto mb-2" />
-                <p className="mobile-text-sm mobile-text-gray-600 mb-2">Complete the following to finish this door:</p>
-                <ul className="list-disc list-inside mobile-text-sm">
-                  {!allLineItemsCompleted && <li>Complete all work items</li>}
-                  {!hasPhoto && <li>Capture completion photo</li>}
-                  {!hasVideo && <li>Record operation video</li>}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isDoorSignedOff && (
-          <div className="mobile-card mobile-bg-green-50 mobile-border-green-200">
-            <div className="flex-align-center flex-gap-2 mobile-text-green-800 mb-2">
-              <CheckCircle className="icon-md" />
-              <span className="mobile-font-semibold">Door Completed & Signed Off</span>
-            </div>
-            <p className="mobile-text-green-700 mobile-text-sm">
-              This door's completion was recorded on {stableDoor.completed && photoInfo?.uploaded_at ? new Date(photoInfo.uploaded_at).toLocaleDateString() : 'N/A'}.
-            </p>
-          </div>
-        )}
-
-        {showPhotoViewer && photoViewerUrl && (
-          <PhotoViewer photoUrl={photoViewerUrl} onClose={() => setShowPhotoViewer(false)} doorNumber={stableDoor.door_number} />
-        )}
-      </div>
-    );
-  };
-
-
-  /**
-   * Toggle line item completion status with comprehensive validation and error handling
-   */
-  const toggleLineItem = async (doorId, lineItemId) => {
-    // Validate parameters
-    if (!doorId || !lineItemId) {
-      console.error("Missing required parameters for line item toggle:", {
-        doorId,
-        lineItemId,
-      });
-      alert("Error: Missing required information. Please try again.");
-      return;
-    }
-
-    // Validate parameter types and values
-    const doorIdNum = parseInt(doorId);
-    const lineItemIdNum = parseInt(lineItemId);
-
-    if (isNaN(doorIdNum) || doorIdNum <= 0) {
-      console.error("Invalid door ID for line item toggle:", doorId);
-      alert("Error: Invalid door ID. Please refresh and try again.");
-      return;
-    }
-
-    if (isNaN(lineItemIdNum) || lineItemIdNum <= 0) {
-      console.error("Invalid line item ID for toggle:", lineItemId);
-      alert("Error: Invalid line item ID. Please refresh and try again.");
-      return;
-    }
-
-    // Validate job data exists and job is started
-    if (!jobData) {
-      console.error("Cannot toggle line item: No job data available");
-      alert("Error: Job data not loaded. Please refresh and try again.");
-      return;
-    }
-
-    if (jobStatus !== "started") {
-      console.warn("Cannot toggle line item for job that is not started");
-      alert("Job must be started before modifying line items.");
-      return;
-    }
-
-    if (jobStatus === "completed") {
-      console.warn("Cannot modify line items for completed job");
-      alert("Cannot modify line items for a completed job.");
-      return;
-    }
-
-    // Find the specific door and line item
-    const targetDoor = jobData.doors.find((door) => door.id === doorIdNum);
-    if (!targetDoor) {
-      console.error("Door not found in job data:", doorIdNum);
-      alert("Error: Door not found. Please refresh and try again.");
-      return;
-    }
-
-    // Check if door is already completed
-    if (targetDoor.completed) {
-      console.warn("Cannot modify line items for completed door");
-      alert(
-        `Door #${targetDoor.door_number} is already completed. Line items cannot be modified.`
-      );
-      return;
-    }
-
-    const targetLineItem = targetDoor.line_items.find(
-      (item) => item.id === lineItemIdNum
-    );
-    if (!targetLineItem) {
-      console.error("Line item not found in door data:", lineItemIdNum);
-      alert("Error: Work item not found. Please refresh and try again.");
-      return;
-    }
-
-    // Store current state for rollback if needed
-    const originalCompletionState = targetLineItem.completed;
-    const newCompletionState = !originalCompletionState;
-
-    try {
-      console.log(
-        `Toggling line item ${lineItemIdNum} in door ${doorIdNum} from ${originalCompletionState} to ${newCompletionState}`
-      );
-
-      // Optimistically update local state for immediate UI response
-      setJobData((prev) => ({
-        ...prev,
-        doors: prev.doors.map((door) =>
-          door.id === doorIdNum
-            ? {
-                ...door,
-                line_items: door.line_items.map((item) =>
-                  item.id === lineItemIdNum
-                    ? {
-                        ...item,
-                        completed: newCompletionState,
-                        completed_at: newCompletionState
-                          ? new Date().toISOString()
-                          : null,
-                      }
-                    : item
-                ),
-              }
-            : door
-        ),
-      }));
-
-      // Also update selectedDoor if it matches the current door
-      if (selectedDoor && selectedDoor.id === doorIdNum) {
-        setSelectedDoor((prev) => ({
-          ...prev,
-          line_items: prev.line_items.map((item) =>
-            item.id === lineItemIdNum
-              ? {
-                  ...item,
-                  completed: newCompletionState,
-                  completed_at: newCompletionState
-                    ? new Date().toISOString()
-                    : null,
-                }
-              : item
-          ),
-        }));
-      }
-
-      // Make API call to persist the change
-      await mobileWorkerService.toggleLineItem(jobData.id, lineItemIdNum);
-
-      console.log(
-        `Line item ${lineItemIdNum} toggled successfully to ${newCompletionState}`
-      );
-
-      // Background refresh to ensure data consistency (optional, for critical accuracy)
-      setTimeout(async () => {
-        try {
-          await loadJobData(false); // Force fresh data from API
-          console.log("Job data refreshed after line item toggle");
-        } catch (refreshError) {
-          console.warn(
-            "Failed to refresh job data after line item toggle:",
-            refreshError
-          );
-          // Don't show error to user since toggle was successful
-        }
-      }, 2000);
-
-      // Show subtle success feedback (optional - you might prefer no notification for quick actions)
-      const action = newCompletionState ? "completed" : "uncompleted";
-      console.log(`Work item "${targetLineItem.description}" ${action}`);
-    } catch (error) {
-      console.error("Error toggling line item:", error);
-
-      // Rollback optimistic update on error
-      setJobData((prev) => ({
-        ...prev,
-        doors: prev.doors.map((door) =>
-          door.id === doorIdNum
-            ? {
-                ...door,
-                line_items: door.line_items.map((item) =>
-                  item.id === lineItemIdNum
-                    ? {
-                        ...item,
-                        completed: originalCompletionState,
-                        completed_at: originalCompletionState
-                          ? targetLineItem.completed_at
-                          : null,
-                      }
-                    : item
-                ),
-              }
-            : door
-        ),
-      }));
-
-      // Also rollback selectedDoor if it matches
-      if (selectedDoor && selectedDoor.id === doorIdNum) {
-        setSelectedDoor((prev) => ({
-          ...prev,
-          line_items: prev.line_items.map((item) =>
-            item.id === lineItemIdNum
-              ? {
-                  ...item,
-                  completed: originalCompletionState,
-                  completed_at: originalCompletionState
-                    ? targetLineItem.completed_at
-                    : null,
-                }
-              : item
-          ),
-        }));
-      }
-
-      // Provide specific error messages based on error type
-      let errorMessage = "Failed to update work item status";
-
-      if (
-        error.message.includes("401") ||
-        error.message.includes("unauthorized")
-      ) {
-        errorMessage =
-          "You are not authorized to modify work items. Please log in and try again.";
-      } else if (
-        error.message.includes("403") ||
-        error.message.includes("forbidden")
-      ) {
-        errorMessage =
-          "You do not have permission to modify work items for this job.";
-      } else if (
-        error.message.includes("404") ||
-        error.message.includes("not found")
-      ) {
-        errorMessage =
-          "Work item not found. It may have been deleted or the job may have been modified.";
-      } else if (
-        error.message.includes("409") ||
-        error.message.includes("conflict")
-      ) {
-        errorMessage =
-          "Work item was modified by another user. Please refresh and try again.";
-      } else if (
-        error.message.includes("Network") ||
-        error.message.includes("fetch")
-      ) {
-        errorMessage =
-          "Network error. Please check your connection and try again.";
-      } else {
-        errorMessage = `Failed to update work item: ${error.message}`;
-      }
-
-      alert(errorMessage);
-
-      // Store the failed action for later retry if offline
-      if (!isOnline) {
-        try {
-          const pendingChangeData = {
-            action: "toggle_line_item",
-            jobId: jobData.id,
-            doorId: doorIdNum,
-            lineItemId: lineItemIdNum,
-            doorNumber: targetDoor.door_number,
-            lineItemDescription: targetLineItem.description,
-            newCompletionState: newCompletionState,
-            timestamp: new Date().toISOString(),
-          };
-
-          mobileWorkerService.storePendingChange(pendingChangeData);
-
-          // Update UI to show the intended state even though it failed to sync
-          setJobData((prev) => ({
-            ...prev,
-            doors: prev.doors.map((door) =>
-              door.id === doorIdNum
-                ? {
-                    ...door,
-                    line_items: door.line_items.map((item) =>
-                      item.id === lineItemIdNum
-                        ? {
-                            ...item,
-                            completed: newCompletionState,
-                            completed_at: newCompletionState
-                              ? new Date().toISOString()
-                              : null,
-                            pending_sync: true, // Add flag to indicate pending sync
-                          }
-                        : item
-                    ),
-                  }
-                : door
-            ),
-          }));
-
-          alert(
-            "You are offline. Work item changes will be synced when connection is restored."
-          );
-        } catch (storeError) {
-          console.error(
-            "Failed to store pending line item change:",
-            storeError
-          );
-          alert(
-            "Failed to update work item and unable to store change for later sync."
-          );
-        }
-      }
-    }
-  };
-
-  /**
-   * Calculate door completion progress
-   */
+  // Memoized for stability: `getDoorProgress` no longer needs to be `useCallback`
+  // since it's a simple calculation and does not depend on component state directly.
   const getDoorProgress = (door) => {
-    const completedItems = door.line_items.filter(
-      (item) => item.completed
-    ).length;
-    return (completedItems / door.line_items.length) * 100;
+    const completedItems = (door.line_items || []).filter(item => item.completed).length;
+    return (door.line_items && door.line_items.length > 0) ? (completedItems / door.line_items.length) * 100 : 0;
   };
 
-  const isDoorReadyForCompletion = (door) => {
+  // Memoized for stability: `isDoorReadyForCompletion`
+  const isDoorReadyForCompletion = React.useCallback((door) => {
     if (!door) return false;
-    const allItemsCompleted = (door.line_items || []).every(
-      (item) => item.completed
-    );
-    // Check against door.has_photo and door.has_video which are derived from photo_info/video_info
-    return allItemsCompleted && door.has_photo && door.has_video;
-  };
+    const allItemsCompleted = (door.line_items || []).every((item) => item.completed);
+    const hasAtLeastOnePhoto = door.photos && door.photos.length > 0;
+    return allItemsCompleted && hasAtLeastOnePhoto && door.has_video;
+  }, []); // No dependencies, it's a pure function of `door` prop
 
-  /**
-   * Check if job can be completed
-   */
-  const canCompleteJob = () => {
-    return jobData && jobData.doors.every((door) => door.completed);
-  };
+  // Memoized for stability: `canCompleteJob`
+  const canCompleteJob = React.useCallback(() => {
+    return jobData && jobData.doors && jobData.doors.every((door) => door.completed);
+  }, [jobData]); // Depends only on jobData
 
   /**
    * Handle door completion
    */
   const handleCompleteDoor = () => {
     if (!isDoorReadyForCompletion(selectedDoor)) {
-      alert(
-        "Please complete all line items, capture a photo, and record a video before completing this door."
-      );
+      alert("Please complete all line items, capture at least one photo, and record a video before completing this door.");
       return;
     }
     setSignatureType("door_complete");
@@ -3729,97 +1591,284 @@ const MobileJobWorker = ({ jobId }) => {
   /**
    * Refresh job data
    */
-  const handleRefresh = () => {
-    loadJobData(false);
+  const handleRefresh = React.useCallback(() => {
+    loadJobData(false); // Force refresh
+  }, [loadJobData]);
+
+  // Handle line item toggle
+  const handleToggleLineItem = async (lineItem) => {
+    if (!jobData || !selectedDoor) return;
+
+    // Store the state before the optimistic update for potential rollback on API failure.
+    const previousJobData = jobData;
+    const previousSelectedDoor = selectedDoor;
+
+    // --- Start of Robust Optimistic Update ---
+    // This logic prevents race conditions where a background data refresh might
+    // overwrite recent optimistic updates (like added media) from the UI.
+
+    const newCompletedStatus = !lineItem.completed;
+
+    // 1. Create the updated door object based on the current `selectedDoor` state.
+    // This preserves any previous optimistic updates (like added photos) that might not yet be in the main `jobData`.
+    const updatedSelectedDoor = {
+      ...selectedDoor,
+      line_items: selectedDoor.line_items.map(item =>
+        item.id === lineItem.id
+          ? { ...item, completed: newCompletedStatus, completed_at: newCompletedStatus ? new Date().toISOString() : null }
+          : item
+      ),
+    };
+
+    // 2. Create the new `jobData` state by replacing the relevant door with our updated version.
+    const optimisticJobData = {
+      ...jobData,
+      doors: jobData.doors.map(door =>
+        door.id === selectedDoor.id ? updatedSelectedDoor : door
+      ),
+    };
+
+    // 3. Update the UI instantly with the new, consistent state.
+    setJobData(optimisticJobData);
+    setSelectedDoor(updatedSelectedDoor);
+    
+    // --- End of Optimistic Update ---
+
+
+    // 4. Make the API call in the background.
+    try {
+      await mobileWorkerService.toggleLineItem(
+        jobData.id,
+        lineItem.id
+      );
+      
+      console.log(`Successfully toggled line item ${lineItem.id} to ${newCompletedStatus}`);
+      // If the API call is successful, the optimistic state is now confirmed as correct.
+
+    } catch (err) {
+      // 5. If the API fails, alert the user and revert the UI to its original state.
+      console.error("Error toggling line item:", err);
+      alert("Failed to update work item on the server. Reverting the change.");
+      
+      setJobData(previousJobData); // Revert to the state before the optimistic update
+      setSelectedDoor(previousSelectedDoor); // Revert to the state before the optimistic update
+    }
   };
 
-  // CONDITIONAL RENDERING LOGIC - AFTER ALL HOOKS ARE DEFINED
-
-  // Validate required jobId prop
-  if (!jobId) {
-    return (
-      <div
-        className="mobile-job-worker-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          padding: "1rem",
-        }}
-      >
-        <div
-          className="mobile-card"
-          style={{ width: "100%", maxWidth: "28rem" }}
-        >
-          <AlertTriangle className="icon-xxl mobile-text-red-500 mx-auto mb-4" />
-          <h2 className="mobile-text-lg mobile-font-semibold text-center mb-2">
-            No Job Selected
-          </h2>
-          <p className="mobile-text-gray-600 text-center mb-4">
-            Please select a job to work on from the job list.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   /**
-   * Loading state component
+   * Door Detail Component - Displays details and work items for a selected door
    */
-  if (loading) {
-    return (
-      <div
-        className="mobile-job-worker-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-        }}
-      >
-        <div className="text-center">
-          <Loader className="icon-lg mobile-loader animate-spin mobile-text-blue-600" />
-          <p className="mobile-text-gray-600">Loading job details...</p>
+  const DoorDetail = () => {
+    if (!selectedDoor) {
+      return (
+        <div className="mobile-section-spacing mobile-error-card">
+          <h2 className="mobile-text-lg mobile-font-semibold mb-4">No Door Selected</h2>
+          <p className="mobile-text-gray-600">Please select a door from the overview.</p>
+          <button onClick={() => setCurrentView("overview")} className="mobile-button mobile-button-gray mt-4">
+            <ArrowLeft className="icon-md" /> Back to Job Overview
+          </button>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  /**
-   * Error state component
-   */
-  if (error) {
+    const progress = getDoorProgress(selectedDoor);
+    const readyForCompletion = isDoorReadyForCompletion(selectedDoor);
+
     return (
-      <div
-        className="mobile-job-worker-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: "100vh",
-          padding: "1rem",
-        }}
-      >
-        <div
-          className="mobile-card"
-          style={{ width: "100%", maxWidth: "28rem" }}
-        >
-          <AlertTriangle className="icon-xxl mobile-text-red-500 mx-auto mb-4" />
-          <h2 className="mobile-text-lg mobile-font-semibold text-center mb-2">
-            Error Loading Job
-          </h2>
-          <p className="mobile-text-gray-600 text-center mb-4">{error}</p>
+      <div className="mobile-section-spacing">
+        {/* Header */}
+        <div className="door-detail-header">
           <button
-            onClick={handleRefresh}
-            className="mobile-button mobile-button-blue"
+            onClick={() => setCurrentView("overview")}
+            className="door-detail-back-button"
           >
-            Try Again
+            <ArrowLeft className="icon-md" />
+          </button>
+          <h1 className="mobile-text-xl mobile-font-bold">
+            Door #{selectedDoor.door_number}
+          </h1>
+          {selectedDoor.completed && (
+            <CheckCircle className="icon-xl mobile-text-green-600 ml-auto" />
+          )}
+        </div>
+
+        {/* Door Info Card */}
+        <div className="mobile-card">
+          <h3 className="mobile-font-semibold mb-3">Door Information</h3>
+          <div className="mobile-section-spacing mobile-text-sm">
+            <div className="flex-align-center flex-gap-2">
+              <MapPin className="icon-sm mobile-text-gray-500" />
+              <span>Location: {selectedDoor.location}</span>
+            </div>
+            <div className="flex-align-center flex-gap-2">
+              <FileText className="icon-sm mobile-text-gray-500" />
+              <span>Description: {selectedDoor.labor_description}</span>
+            </div>
+            {selectedDoor.notes && (
+              <div className="flex-align-center flex-gap-2">
+                <FileText className="icon-sm mobile-text-gray-500" />
+                <span>Notes: {selectedDoor.notes}</span>
+              </div>
+            )}
+            {selectedDoor.door_type && (
+              <div className="flex-align-center flex-gap-2">
+                <span>Type: {selectedDoor.door_type}</span>
+              </div>
+            )}
+            {selectedDoor.width && selectedDoor.height && (
+              <div className="flex-align-center flex-gap-2">
+                <span>Dimensions: {selectedDoor.width} x {selectedDoor.height} {selectedDoor.dimension_unit}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Media Section */}
+        <div className="mobile-card">
+          <h3 className="mobile-font-semibold mb-3">Media</h3>
+          <div className="media-section-buttons">
+            <button
+              onClick={() => {
+                setCameraType("photo");
+                setShowCamera(true);
+              }}
+              disabled={
+                (selectedDoor.photos && selectedDoor.photos.length >= 5) ||
+                uploading ||
+                jobStatus !== "started"
+              }
+              className="mobile-button mobile-button-gray"
+            >
+              <Camera className="icon-md" />
+              {selectedDoor.photos && selectedDoor.photos.length >= 5
+                ? "Max Photos"
+                : `Add Photo (${(selectedDoor.photos || []).length}/5)`}
+            </button>
+            <button
+              onClick={() => {
+                setCameraType("video");
+                setShowCamera(true);
+              }}
+              disabled={selectedDoor.has_video || uploading || jobStatus !== "started"}
+              className="mobile-button mobile-button-gray"
+            >
+              {selectedDoor.has_video ? (
+                <CheckCircle className="icon-md mobile-text-green-600" />
+              ) : (
+                <Video className="icon-md" />
+              )}
+              Video
+            </button>
+          </div>
+          
+          {/* Photo Gallery */}
+          <div className="mt-4">
+            <h4 className="mobile-text-sm mobile-font-medium mb-2">Captured Photos:</h4>
+            {(selectedDoor.photos && selectedDoor.photos.length > 0) ? (
+                <div className="photo-thumbnail-gallery">
+                    {selectedDoor.photos.map(photo => (
+                        <div key={photo.id} className="photo-thumbnail-item">
+                            <img src={apiServerRoot + photo.thumbnail_url} alt={`Photo thumbnail for door #${selectedDoor.door_number}`} />
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="mobile-text-sm mobile-text-gray-600">No photos captured for this door yet.</p>
+            )}
+          </div>
+          
+          {/* Video Status */}
+          <div className="mobile-text-sm mobile-text-gray-600 mt-3">
+            {selectedDoor.has_video && (
+              <p className="flex-align-center flex-gap-1">
+                <CheckCircle className="icon-sm mobile-text-green-600" /> Video Captured
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Line Items */}
+        <div className="mobile-card">
+          <h3 className="mobile-font-semibold mb-3">Work Items</h3>
+          {selectedDoor.line_items && selectedDoor.line_items.length > 0 ? (
+            <div className="mobile-item-spacing">
+              {selectedDoor.line_items.map((item) => (
+                <div
+                  key={item.id}
+                  className={`line-item-card ${
+                    item.completed ? "completed" : ""
+                  }`}
+                  onClick={() => jobStatus === "started" && handleToggleLineItem(item)}
+                >
+                  <div className="flex-align-center flex-gap-2">
+                    {item.completed ? (
+                      <CheckSquare className="icon-md mobile-text-green-600" />
+                    ) : (
+                      <Square className="icon-md mobile-text-gray-500" />
+                    )}
+                    <span className="mobile-font-medium">
+                      {item.description}
+                    </span>
+                  </div>
+                  <span className="mobile-text-sm mobile-text-gray-600">
+                    Part: {item.part_number} • Qty: {item.quantity}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mobile-text-gray-600">No work items for this door.</p>
+          )}
+        </div>
+
+        {/* Door Completion Status */}
+        <div className="mobile-card">
+          <h3 className="mobile-font-semibold mb-3">Door Completion</h3>
+          <div className="mobile-section-spacing">
+            <div className="flex-align-center flex-gap-2 mobile-text-sm mb-2">
+              <span>Progress:</span>
+              <div className="door-list-progress-bar-bg flex-grow">
+                <div
+                  className={`door-list-progress-bar-fg ${
+                    selectedDoor.completed ? "completed" : "in-progress"
+                  }`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <span>{Math.round(progress)}%</span>
+            </div>
+            {selectedDoor.completed ? (
+              <div className="flex-align-center flex-gap-2 mobile-text-green-700">
+                <CheckCircle className="icon-md" />
+                <span>Door Marked as Complete!</span>
+              </div>
+            ) : (
+              <div className="flex-align-center flex-gap-2 mobile-text-red-700">
+                <AlertTriangle className="icon-md" />
+                <span>
+                  {readyForCompletion
+                    ? "Ready to Complete"
+                    : "Complete all items, photo, and video."}
+                </span>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleCompleteDoor}
+            disabled={!readyForCompletion || selectedDoor.completed || uploading || jobStatus !== "started"}
+            className="mobile-button mobile-button-green mt-4"
+          >
+            {uploading ? (
+              <Loader className="icon-md animate-spin" />
+            ) : (
+              <CheckCircle className="icon-md" />
+            )}
+            {uploading ? "Completing..." : "Complete Door"}
           </button>
         </div>
       </div>
     );
-  }
+  };
 
   /**
    * Job Overview Component - Main dashboard view
@@ -3833,7 +1882,7 @@ const MobileJobWorker = ({ jobId }) => {
             Job #{jobData.job_number}
           </h1>
           <span
-            className={`job-overview-status-badge ${jobStatus.replace(
+            className={`job-overview-status-badge ${(jobStatus || '').replace( // Force to empty string if null/undefined
               "_",
               "-"
             )}`}
@@ -3858,9 +1907,7 @@ const MobileJobWorker = ({ jobId }) => {
                   jobTimingStatus === 'paused' ? 'mobile-bg-yellow-200 mobile-text-yellow-800' :
                   'mobile-bg-gray-200 mobile-text-gray-800'
                 }`}>
-                  {jobTimingStatus === 'active' ? 'ACTIVE' : 
-                  jobTimingStatus === 'paused' ? 'PAUSED' : 
-                  jobTimingStatus.toUpperCase()}
+                  {(jobTimingStatus || '').toUpperCase()}
                 </span>
               </div>
               
@@ -4163,7 +2210,8 @@ const MobileJobWorker = ({ jobId }) => {
    * Job Summary Component - Final summary and documentation
    */
   const JobSummary = () => {
-    const totalTime = formatTime(elapsedTime);
+    // jobData is guaranteed to be not null here due to early returns
+    const totalTime = formatTime(totalJobTime); // Use totalJobTime state
 
     return (
       <div className="mobile-section-spacing">
@@ -4264,120 +2312,162 @@ const MobileJobWorker = ({ jobId }) => {
   // Main render
   return (
     <div className="mobile-job-worker-container">
-      {/* Status Bar */}
-      <div className="mobile-job-worker-status-bar">
-        <div className="status-bar-left">
-          <div
-            className={`status-indicator-dot ${jobStatus.replace("_", "-")}`}
-          />
-          <span className="status-bar-brand">Scott Overhead Doors</span>
-          <div className="status-bar-network">
-            {isOnline ? (
-              <Wifi className="icon-sm network-icon-online" />
-            ) : (
-              <WifiOff className="icon-sm network-icon-offline" />
-            )}
-            {pendingSync && (
-              <RefreshCw className="icon-sm sync-icon animate-spin" />
-            )}
+      {/* Conditional Rendering for top-level states */}
+      {/* This ensures jobData is populated before rendering components that depend on it */}
+      {(() => {
+        if (!jobId) {
+          return (
+            <div className="mobile-job-worker-container mobile-error-card">
+              <h2 className="mobile-text-lg mobile-font-semibold mb-4">No Job Selected</h2>
+              <p className="mobile-text-gray-600">Please select a job from the list to view its details.</p>
+              {/* Add a button to navigate back to the job list if this component is used on a standalone page */}
+              {/* <button onClick={() => window.history.back()} className="mobile-button mobile-button-gray mt-4">Back to Jobs</button> */}
+            </div>
+          );
+        }
+        if (loading) {
+          return (
+            <div className="mobile-job-worker-container mobile-loading-card">
+              <Loader className="icon-lg animate-spin mobile-text-blue-600" />
+              <p className="mobile-text-lg mobile-font-semibold mt-4">Loading Job Data...</p>
+              <p className="mobile-text-gray-600">Please wait while we fetch the job details.</p>
+            </div>
+          );
+        }
+        if (error) {
+          return (
+            <div className="mobile-job-worker-container mobile-error-card">
+              <AlertTriangle className="icon-xxl mobile-text-red-500 mx-auto mb-4" />
+              <h2 className="mobile-text-lg mobile-font-semibold mb-2">Error Loading Job</h2>
+              <p className="mobile-text-gray-600 mb-4">{error}</p>
+              <button onClick={handleRefresh} className="mobile-button mobile-button-blue">
+                <RefreshCw className="icon-md" /> Try Again
+              </button>
+            </div>
+          );
+        }
+        return null; // Return null if no early exit
+      })()}
+
+      {/* Only render the main content if jobData is available (not null, not loading, no error) */}
+      {jobData && !loading && !error && (
+        <>
+          {/* Status Bar */}
+          <div className="mobile-job-worker-status-bar">
+            <div className="status-bar-left">
+              <div
+                className={`status-indicator-dot ${(jobStatus || '').replace("_", "-")}`}
+              />
+              <span className="status-bar-brand">Scott Overhead Doors</span>
+              <div className="status-bar-network">
+                {isOnline ? (
+                  <Wifi className="icon-sm network-icon-online" />
+                ) : (
+                  <WifiOff className="icon-sm network-icon-offline" />
+                )}
+                {pendingSync && (
+                  <RefreshCw className="icon-sm sync-icon animate-spin" />
+                )}
+              </div>
+            </div>
+            <div className="status-bar-right">
+              {jobStatus === "started" && (
+                <div className="status-bar-timer">
+                  <Clock className="icon-sm" />
+                  <span>{formatTime(elapsedTime)}</span>
+                </div>
+              )}
+              <button
+                onClick={handleRefresh}
+                disabled={!isOnline || loading}
+                className="status-bar-refresh-btn"
+              >
+                <RefreshCw className={`icon-sm ${loading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="status-bar-right">
-          {jobStatus === "started" && (
-            <div className="status-bar-timer">
-              <Clock className="icon-sm" />
-              <span>{formatTime(elapsedTime)}</span>
+
+          {/* Offline Indicator */}
+          {!isOnline && (
+            <div className="mobile-job-worker-offline-indicator">
+              <p>Working offline. Changes will sync when connection is restored.</p>
             </div>
           )}
-          <button
-            onClick={handleRefresh}
-            disabled={!isOnline || loading}
-            className="status-bar-refresh-btn"
-          >
-            <RefreshCw className={`icon-sm ${loading ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
 
-      {/* Offline Indicator */}
-      {!isOnline && (
-        <div className="mobile-job-worker-offline-indicator">
-          <p>Working offline. Changes will sync when connection is restored.</p>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="mobile-job-worker-main-content">
-        {currentView === "overview" && <JobOverview />}
-        {currentView === "door_detail" && <DoorDetail />}
-        {currentView === "summary" && <JobSummary />}
-      </div>
-
-      {/* Modals */}
-      {showStartOptions && (
-        <StartJobOptionsModal
-          onSelect={handleStartOptionSelect}
-          onCancel={() => setShowStartOptions(false)}
-        />
-      )}
-
-      {showResumeOptions && (
-        <StartJobOptionsModal
-          title="Resume Job"
-          onSelect={handleResumeOptionSelect}
-          onCancel={() => setShowResumeOptions(false)}
-        />
-      )}
-
-      {showPauseOptions && (
-        <PauseJobOptionsModal
-          onSelect={handlePauseOptionSelect}
-          onCancel={() => setShowPauseOptions(false)}
-          workSummary={currentWorkSummary}
-        />
-      )}
-
-      {showSignaturePad && (
-        <SignaturePad
-          onSave={handleSignatureSave}
-          onCancel={() => {
-            setShowSignaturePad(false);
-            // Clear work summary when canceling pause signature
-            if (signatureType === "pause") {
-              setCurrentWorkSummary(null);
-            }
-          }}
-          title={
-            signatureType === "start"
-              ? "Start Job Signature"
-              : signatureType === "pause"
-              ? "Pause Job Signature"
-              : signatureType === "resume"
-              ? "Resume Job Signature"
-              : signatureType === "door_complete"
-              ? "Door Completion Signature"
-              : "Final Job Completion Signature"
-          }
-          workSummary={signatureType === "pause" ? currentWorkSummary : null}
-        />
-      )}
-
-      {showCamera && (
-        <CameraCapture
-          onCapture={handleMediaCapture}
-          onCancel={() => setShowCamera(false)}
-          type={cameraType}
-        />
-      )}
-
-      {/* Upload Progress Overlay */}
-      {uploading && (
-        <div className="mobile-modal-overlay">
-          <div className="uploading-overlay-content">
-            <Loader className="icon-lg animate-spin mobile-text-blue-600" />
-            <span className="mobile-font-medium">Processing...</span>
+          {/* Main Content */}
+          <div className="mobile-job-worker-main-content">
+            {currentView === "overview" && <JobOverview />}
+            {currentView === "door_detail" && <DoorDetail />}
+            {currentView === "summary" && <JobSummary />}
           </div>
-        </div>
+
+          {/* Modals */}
+          {showStartOptions && (
+            <StartJobOptionsModal
+              onSelect={handleStartOptionSelect}
+              onCancel={() => setShowStartOptions(false)}
+            />
+          )}
+
+          {showResumeOptions && (
+            <StartJobOptionsModal
+              title="Resume Job"
+              onSelect={handleResumeOptionSelect}
+              onCancel={() => setShowResumeOptions(false)}
+            />
+          )}
+
+          {showPauseOptions && (
+            <PauseJobOptionsModal
+              onSelect={handlePauseOptionSelect}
+              onCancel={() => setShowPauseOptions(false)}
+              workSummary={currentWorkSummary}
+            />
+          )}
+
+          {showSignaturePad && (
+            <SignaturePad
+              onSave={handleSignatureSave}
+              onCancel={() => {
+                setShowSignaturePad(false);
+                // Clear work summary when canceling pause signature
+                if (signatureType === "pause") {
+                  setCurrentWorkSummary(null);
+                }
+              }}
+              title={
+                signatureType === "start"
+                  ? "Start Job Signature"
+                  : signatureType === "pause"
+                  ? "Pause Job Signature"
+                  : signatureType === "resume"
+                  ? "Resume Job Signature"
+                  : signatureType === "door_complete"
+                  ? "Door Completion Signature"
+                  : "Final Job Completion Signature"
+              }
+              workSummary={signatureType === "pause" ? currentWorkSummary : null}
+            />
+          )}
+
+          {showCamera && (
+            <CameraCapture
+              onCapture={handleMediaCapture}
+              onCancel={() => setShowCamera(false)}
+              type={cameraType}
+            />
+          )}
+
+          {/* Upload Progress Overlay */}
+          {uploading && (
+            <div className="mobile-modal-overlay">
+              <div className="uploading-overlay-content">
+                <Loader className="icon-lg animate-spin mobile-text-blue-600" />
+                <span className="mobile-font-medium">Processing...</span>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

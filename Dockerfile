@@ -8,7 +8,8 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Install system dependencies needed for psycopg2, Pillow, and FFmpeg (for pydub)
+# Install system dependencies that might be needed by some Python packages
+# (e.g., for Pillow or other libraries)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
@@ -18,16 +19,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install Python packages
+# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your application code into the container
+# Copy the rest of the application code into the container
 COPY . .
 
-# Expose the port that Gunicorn will run on
+# Expose the port the app runs on
 EXPOSE 8000
 
-# The command to run the application will be set in the Azure App Service startup command.
-# This allows us to run database migrations before starting the server.
-# Example: flask db upgrade && gunicorn --bind 0.0.0.0:8000 app:app
+# Define the command to run the application using Gunicorn
+# This is a production-ready WSGI server.
+# The startup command in Azure App Service will override this to run migrations first.
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "app:app"]

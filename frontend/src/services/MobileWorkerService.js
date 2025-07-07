@@ -1,3 +1,5 @@
+// frontend/src/services/MobileWorkerService.js
+
 import api from './api'; // Adjust path if your api.js is elsewhere
 
 class MobileWorkerService {
@@ -7,7 +9,8 @@ class MobileWorkerService {
     console.log(`MobileWorkerService initialized, will use shared axios instance.`);
   }
 
-  setupOfflineDetection() {
+  // Use arrow function to preserve 'this' context
+  setupOfflineDetection = () => {
     const handleOnline = () => {
       if (!this.isOnline) {
         this.isOnline = true;
@@ -30,39 +33,31 @@ class MobileWorkerService {
     this.isOnline = navigator.onLine;
   }
 
-  async apiRequest(method, endpoint, data = null, params = null, extraAxiosConfig = {}) {
+  // Use arrow function
+  getApiConfig = () => {
+    if (api && api.defaults && api.defaults.baseURL) {
+      return { baseUrl: api.defaults.baseURL };
+    }
+    console.warn("MobileWorkerService: api.defaults.baseURL not found. Returning an empty base URL.");
+    return { baseUrl: '' };
+  }
+
+  // Use arrow function
+  apiRequest = async (method, endpoint, data = null, params = null, extraAxiosConfig = {}) => {
     console.log(`MobileWorkerService (axios): Making API request: ${method.toUpperCase()} ${endpoint}`);
 
     if (!this.isOnline && method.toUpperCase() !== 'GET') {
-      // For non-GET requests when offline, the specific methods (startJob, etc.)
-      // already handle storing pending changes.
-      // This check here is more of a safeguard.
-      console.warn(`MobileWorkerService: Attempting non-GET request (${method} ${endpoint}) while offline. Queuing should handle this.`);
-      // The actual queuing is handled by individual methods like startJob, completeJob etc.
-      // This generic apiRequest will primarily be used when online for those methods.
-      // If a method doesn't explicitly handle offline, it will throw here.
        throw new Error('No internet connection available for this operation (non-GET offline).');
     }
 
     try {
-      const config = {
-        method: method.toLowerCase(),
-        url: endpoint,
-        ...extraAxiosConfig
-      };
-
-      if (data) {
-        config.data = data;
-      }
-      if (params) {
-        config.params = params;
-      }
-
-      const response = await api(config); // Use the shared axios instance
+      const config = { method: method.toLowerCase(), url: endpoint, ...extraAxiosConfig };
+      if (data) config.data = data;
+      if (params) config.params = params;
+      const response = await api(config);
       return response.data;
     } catch (error) {
       console.error(`MobileWorkerService (axios): API request for ${method.toUpperCase()} ${endpoint} failed:`, error.message);
-      
       if (error.response) {
         const { status, data: errorData } = error.response;
         let errorMessage = `Server error ${status}`;
@@ -80,6 +75,7 @@ class MobileWorkerService {
     }
   }
 
+  // This one does not use 'this', so it can stay as is.
   dataURLToBlob(dataURL) {
     try {
       const arr = dataURL.split(',');
@@ -100,24 +96,30 @@ class MobileWorkerService {
     }
   }
 
-  async getJob(jobId) {
-    const endpoint = `/mobile/jobs/${jobId}`;
+  // Use arrow function
+  getJob = async (jobId) => {
+    // --- FIX: Use the correct endpoint that matches the backend route ---
+    const endpoint = `/mobile/field-jobs/${jobId}`; 
     try {
-      // When online, always fetch. Axios interceptors in api.js might handle caching if configured.
-      // If offline, try localStorage.
       if (!this.isOnline) {
           const offlineData = this.getCachedJobFromLocalStorage(jobId);
           if (offlineData) {
             console.log('MobileWorkerService: Using offline localStorage cached job data for getJob.');
             return offlineData;
           }
-          // If offline and no cache, let it try to fetch and fail (which apiRequest will handle)
       }
+      
+      // The rest of the logic remains the same, it will now call the correct URL
       const data = await this.apiRequest('GET', endpoint);
+      
+      // Assuming 'data' from apiRequest is already the JSON object
+      // If apiRequest returns the full response, you might need 'response.data'
       return data;
+
     } catch (error) {
       console.error(`MobileWorkerService: Error fetching job ${jobId}:`, error.message);
-      // If it's a network error and we're offline, re-check cache as a last resort.
+      
+      // Preserve offline fallback logic
       if (!this.isOnline && (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection'))) {
         const offlineData = this.getCachedJobFromLocalStorage(jobId);
         if (offlineData) {
@@ -125,16 +127,14 @@ class MobileWorkerService {
           return offlineData;
         }
       }
+      
+      // Re-throw the error to be handled by the calling component
       throw error;
     }
   }
-
-  async startJob(jobId, signatureData, signerName = '', signerTitle = 'Site Contact') {
-    const requestPayload = {
-      signature: signatureData,
-      signer_name: signerName,
-      signer_title: signerTitle
-    };
+  // Use arrow function
+  startJob = async (jobId, signatureData, signerName = '', signerTitle = 'Site Contact') => {
+    const requestPayload = { signature: signatureData, signer_name: signerName, signer_title: signerTitle };
     const endpoint = `/mobile/jobs/${jobId}/start`;
 
     if (!this.isOnline) {
@@ -143,13 +143,8 @@ class MobileWorkerService {
     }
 
     try {
-      const data = await this.apiRequest('POST', endpoint, requestPayload);
-      return data;
+      return await this.apiRequest('POST', endpoint, requestPayload);
     } catch (error) {
-      console.error(`MobileWorkerService: Error starting job ${jobId}:`, error.message);
-      // If error during online attempt, do not automatically queue for offline
-      // unless it's explicitly a network-type error.
-      // The component should handle other types of server errors.
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
          this.storePendingChange('job_start', { jobId, ...requestPayload });
          return { success: true, offline: true, message: 'Job start queued due to network error.', job_id: jobId };
@@ -158,85 +153,64 @@ class MobileWorkerService {
     }
   }
 
-  // NEW METHOD: Pause Job
-  async pauseJob(jobId) {
+  // Use arrow function
+  pauseJob = async (jobId, signatureData = null, signerName = '', signerTitle = 'Site Contact') => {
     const endpoint = `/mobile/jobs/${jobId}/pause`;
-
+    const requestPayload = signatureData ? { signature: signatureData, signer_name: signerName, signer_title: signerTitle } : {};
     if (!this.isOnline) {
-      this.storePendingChange('job_pause', { jobId });
+      this.storePendingChange('job_pause', { jobId, ...requestPayload });
       return { success: true, offline: true, message: 'Job pause queued for offline sync.', job_id: jobId };
     }
-
     try {
-      const data = await this.apiRequest('POST', endpoint);
-      return data;
+      return await this.apiRequest('POST', endpoint, requestPayload);
     } catch (error) {
-      console.error(`MobileWorkerService: Error pausing job ${jobId}:`, error.message);
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
-        this.storePendingChange('job_pause', { jobId });
+        this.storePendingChange('job_pause', { jobId, ...requestPayload });
         return { success: true, offline: true, message: 'Job pause queued due to network error.', job_id: jobId };
       }
       throw error;
     }
   }
 
-  // NEW METHOD: Resume Job
-  async resumeJob(jobId) {
+  // Use arrow function
+  resumeJob = async (jobId, signatureData = null, signerName = '', signerTitle = 'Site Contact') => {
     const endpoint = `/mobile/jobs/${jobId}/resume`;
-
+    const requestPayload = signatureData ? { signature: signatureData, signer_name: signerName, signer_title: signerTitle } : {};
     if (!this.isOnline) {
-      this.storePendingChange('job_resume', { jobId });
+      this.storePendingChange('job_resume', { jobId, ...requestPayload });
       return { success: true, offline: true, message: 'Job resume queued for offline sync.', job_id: jobId };
     }
-
     try {
-      const data = await this.apiRequest('POST', endpoint);
-      return data;
+      return await this.apiRequest('POST', endpoint, requestPayload);
     } catch (error) {
-      console.error(`MobileWorkerService: Error resuming job ${jobId}:`, error.message);
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
-        this.storePendingChange('job_resume', { jobId });
+        this.storePendingChange('job_resume', { jobId, ...requestPayload });
         return { success: true, offline: true, message: 'Job resume queued due to network error.', job_id: jobId };
       }
       throw error;
     }
   }
 
-  // NEW METHOD: Get Time Tracking Data
-  async getTimeTracking(jobId) {
+  // Use arrow function
+  getTimeTracking = async (jobId) => {
     const endpoint = `/mobile/jobs/${jobId}/time-tracking`;
-    
-    try {
-      // Time tracking data should always be fresh, so try to fetch even if offline
-      if (!this.isOnline) {
-        throw new Error('Time tracking data requires an active internet connection.');
-      }
-      
-      const data = await this.apiRequest('GET', endpoint);
-      return data;
-    } catch (error) {
-      console.error(`MobileWorkerService: Error fetching time tracking for job ${jobId}:`, error.message);
-      throw error;
+    if (!this.isOnline) {
+      throw new Error('Time tracking data requires an active internet connection.');
     }
+    return await this.apiRequest('GET', endpoint);
   }
 
-  async completeJob(jobId, signatureData, signerName = '', signerTitle = 'Site Contact') {
-    const requestPayload = {
-      signature: signatureData,
-      signer_name: signerName,
-      signer_title: signerTitle
-    };
+  // Use arrow function
+  completeJob = async (jobId, signatureData, signerName = '', signerTitle = 'Site Contact') => {
+    const requestPayload = { signature: signatureData, signer_name: signerName, signer_title: signerTitle };
     const endpoint = `/mobile/jobs/${jobId}/complete`;
-
     if (!this.isOnline) {
       this.storePendingChange('job_complete', { jobId, ...requestPayload });
       return { success: true, offline: true, message: 'Job completion queued for offline sync.', job_id: jobId };
     }
     try {
-      const data = await this.apiRequest('POST', endpoint, requestPayload);
-      return data;
+      return await this.apiRequest('POST', endpoint, requestPayload);
     } catch (error) {
-      console.error(`MobileWorkerService: Error completing job ${jobId}:`, error.message);
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
         this.storePendingChange('job_complete', { jobId, ...requestPayload });
         return { success: true, offline: true, message: 'Job completion queued due to network error.', job_id: jobId };
@@ -245,17 +219,16 @@ class MobileWorkerService {
     }
   }
 
-  async toggleLineItem(jobId, lineItemId) {
+  // Use arrow function
+  toggleLineItem = async (jobId, lineItemId) => {
     const endpoint = `/mobile/jobs/${jobId}/line-items/${lineItemId}/toggle`;
     if (!this.isOnline) {
       this.storePendingChange('line_item_toggle', { jobId, lineItemId });
       return { success: true, offline: true, message: 'Line item toggle queued for offline sync.', line_item_id: lineItemId };
     }
     try {
-      const data = await this.apiRequest('PUT', endpoint);
-      return data;
+      return await this.apiRequest('PUT', endpoint);
     } catch (error) {
-      console.error(`MobileWorkerService: Error toggling line item ${lineItemId} for job ${jobId}:`, error.message);
        if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
         this.storePendingChange('line_item_toggle', { jobId, lineItemId });
         return { success: true, offline: true, message: 'Line item toggle queued due to network error.', line_item_id: lineItemId };
@@ -264,21 +237,15 @@ class MobileWorkerService {
     }
   }
 
-  async uploadDoorPhoto(doorId, jobId, photoData) {
+  // Use arrow function
+  uploadDoorPhoto = async (doorId, jobId, photoData) => {
     const endpoint = `/mobile/doors/${doorId}/media/upload`;
     const formData = new FormData();
     formData.append('job_id', jobId.toString());
     formData.append('door_id', doorId.toString());
     formData.append('media_type', 'photo');
 
-    let blobToUpload;
-    if (typeof photoData === 'string' && photoData.startsWith('data:')) {
-      blobToUpload = this.dataURLToBlob(photoData);
-    } else if (photoData instanceof Blob) {
-      blobToUpload = photoData;
-    } else {
-      throw new Error('Invalid photo data format provided for upload.');
-    }
+    let blobToUpload = (typeof photoData === 'string' && photoData.startsWith('data:')) ? this.dataURLToBlob(photoData) : photoData;
     formData.append('file', blobToUpload, `door_${doorId}_photo.jpg`);
 
     if (!this.isOnline) {
@@ -290,16 +257,12 @@ class MobileWorkerService {
     }
 
     try {
-      const data = await this.apiRequest('POST', endpoint, formData, null, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return data;
+      return await this.apiRequest('POST', endpoint, formData, null, { headers: { 'Content-Type': 'multipart/form-data' } });
     } catch (error) {
-      console.error(`MobileWorkerService: Error uploading photo for door ${doorId}:`, error.message);
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
-        const dataURLForStorage = (blobToUpload === photoData) ? await this.blobToDataURL(blobToUpload) : photoData;
+        const dataURLForStorage = await this.blobToDataURL(blobToUpload);
         const storageKey = `offline_media_photo_${doorId}_${jobId}_${Date.now()}`;
-        localStorage.setItem(storageKey, dataURLForStorage); // Store it if network error during online attempt
+        localStorage.setItem(storageKey, dataURLForStorage);
         this.storePendingChange('door_photo', { doorId, jobId, storageKey, fileName: `door_${doorId}_photo.jpg` });
         return { success: true, offline: true, message: 'Photo upload queued due to network error.', door_id: doorId };
       }
@@ -307,37 +270,23 @@ class MobileWorkerService {
     }
   }
 
-  async uploadDoorVideo(doorId, jobId, videoBlob) {
-    const endpoint = `/mobile/doors/${doorId}/media/upload`;
+  // Use arrow function
+  uploadDoorVideo = async (doorId, jobId, videoBlob) => {
     if (!this.isOnline) {
-      // As per original logic, video uploads are not queued offline.
       throw new Error('Video upload requires an active internet connection.');
     }
-
+    const endpoint = `/mobile/doors/${doorId}/media/upload`;
     const formData = new FormData();
     formData.append('job_id', jobId.toString());
     formData.append('door_id', doorId.toString());
     formData.append('media_type', 'video');
     formData.append('file', videoBlob, `door_${doorId}_video.webm`);
-
-    try {
-      const data = await this.apiRequest('POST', endpoint, formData, null, {
-         headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      return data;
-    } catch (error) {
-      console.error(`MobileWorkerService: Error uploading video for door ${doorId}:`, error.message);
-      throw error;
-    }
+    return await this.apiRequest('POST', endpoint, formData, null, { headers: { 'Content-Type': 'multipart/form-data' } });
   }
 
-  async completeDoor(doorId, jobId, signatureData, signerName = '', signerTitle = 'Site Contact') {
-    const requestPayload = {
-      job_id: jobId,
-      signature: signatureData,
-      signer_name: signerName,
-      signer_title: signerTitle
-    };
+  // Use arrow function
+  completeDoor = async (doorId, jobId, signatureData, signerName = '', signerTitle = 'Site Contact') => {
+    const requestPayload = { job_id: jobId, signature: signatureData, signer_name: signerName, signer_title: signerTitle };
     const endpoint = `/mobile/doors/${doorId}/complete`;
 
     if (!this.isOnline) {
@@ -345,10 +294,8 @@ class MobileWorkerService {
       return { success: true, offline: true, message: 'Door completion queued for offline sync.', door_id: doorId };
     }
     try {
-      const data = await this.apiRequest('POST', endpoint, requestPayload);
-      return data;
+      return await this.apiRequest('POST', endpoint, requestPayload);
     } catch (error) {
-      console.error(`MobileWorkerService: Error completing door ${doorId}:`, error.message);
       if (error.message.toLowerCase().includes('network') || error.message.toLowerCase().includes('no internet connection')) {
         this.storePendingChange('door_complete', { doorId, jobId, ...requestPayload });
         return { success: true, offline: true, message: 'Door completion queued due to network error.', door_id: doorId };
@@ -357,7 +304,8 @@ class MobileWorkerService {
     }
   }
 
-  async cacheFetchedJobDataForOffline(jobDataToCache) {
+  // Use arrow function
+  cacheJobForOffline = async (jobDataToCache) => {
     if (!jobDataToCache || !jobDataToCache.id) {
       console.error('MobileWorkerService: Error caching job to localStorage: Invalid jobData provided.');
       return;
@@ -367,7 +315,7 @@ class MobileWorkerService {
       localStorage.setItem(offlineKey, JSON.stringify({
         data: jobDataToCache,
         timestamp: Date.now(),
-        version: '1.2' // Increment version if structure changes
+        version: '1.2'
       }));
       console.log(`MobileWorkerService: Job ${jobDataToCache.id} cached to localStorage.`);
     } catch (error) {
@@ -375,20 +323,20 @@ class MobileWorkerService {
     }
   }
   
-  getCachedJobFromLocalStorage(jobId) {
+  // Use arrow function
+  getCachedJobFromLocalStorage = (jobId) => {
     try {
       const offlineKey = `offline_job_${jobId}`;
       const cached = localStorage.getItem(offlineKey);
       if (!cached) return null;
       
       const { data, timestamp, version } = JSON.parse(cached);
-      // Simple version check, could be more complex
       if (version !== '1.2') {
           console.warn(`MobileWorkerService: localStorage cache for job ${jobId} has outdated version. Discarding.`);
           localStorage.removeItem(offlineKey);
           return null;
       }
-      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days for offline data
+      const maxAge = 7 * 24 * 60 * 60 * 1000;
       if (Date.now() - timestamp > maxAge) {
         localStorage.removeItem(offlineKey);
         console.log(`MobileWorkerService: localStorage cache for job ${jobId} expired.`);
@@ -403,7 +351,8 @@ class MobileWorkerService {
     }
   }
 
-  storePendingChange(type, data) {
+  // Use arrow function
+  storePendingChange = (type, data) => {
     try {
       const pendingKey = 'pending_changes';
       let pendingChanges = JSON.parse(localStorage.getItem(pendingKey) || '[]');
@@ -422,7 +371,8 @@ class MobileWorkerService {
     }
   }
 
-  async syncPendingChanges() {
+  // Use arrow function
+  syncPendingChanges = async () => {
     if (!this.isOnline) {
       console.log("MobileWorkerService: Sync skipped, offline.");
       return { success: true, synced: 0, errors: [], message: "Offline, sync skipped." };
@@ -439,7 +389,7 @@ class MobileWorkerService {
     }
     
     if (pendingChanges.length === 0) {
-      window.dispatchEvent(new CustomEvent('pendingChangesUpdated')); // Ensure UI updates if queue becomes empty
+      window.dispatchEvent(new CustomEvent('pendingChangesUpdated'));
       return { success: true, synced: 0, errors: [], message: "No pending changes to sync." };
     }
 
@@ -449,21 +399,19 @@ class MobileWorkerService {
 
     for (const change of pendingChanges) {
       try {
-        console.log(`MobileWorkerService: Syncing ${change.type}:`, change.payload);
         change.attemptCount = (change.attemptCount || 0) + 1;
         let syncSuccessful = false;
-
         switch (change.type) {
           case 'job_start':
             await this.startJob(change.payload.jobId, change.payload.signature, change.payload.signer_name, change.payload.signer_title);
             syncSuccessful = true;
             break;
           case 'job_pause':
-            await this.pauseJob(change.payload.jobId);
+            await this.pauseJob(change.payload.jobId, change.payload.signature, change.payload.signer_name, change.payload.signer_title);
             syncSuccessful = true;
             break;
           case 'job_resume':
-            await this.resumeJob(change.payload.jobId);
+            await this.resumeJob(change.payload.jobId, change.payload.signature, change.payload.signer_name, change.payload.signer_title);
             syncSuccessful = true;
             break;
           case 'line_item_toggle':
@@ -500,7 +448,7 @@ class MobileWorkerService {
       } catch (error) {
         console.error(`MobileWorkerService: Error syncing change ${change.id} (type ${change.type}):`, error.message);
         results.errors.push({ changeId: change.id, type: change.type, attempt: change.attemptCount, error: error.message });
-        if (change.attemptCount < 5 && !(error.message.includes('400') || error.message.includes('403') || error.message.includes('404'))) { // Don't retry client/auth errors
+        if (change.attemptCount < 5 && !(error.message.includes('400') || error.message.includes('403') || error.message.includes('404'))) {
             remainingChanges.push(change);
         } else {
             console.error(`MobileWorkerService: Change ${change.id} (type ${change.type}) failed after ${change.attemptCount} attempts or due to unrecoverable error. Discarding. Error: ${error.message}`);
@@ -515,7 +463,8 @@ class MobileWorkerService {
     return results;
   }
 
-  blobToDataURL(blob) {
+  // Use arrow function
+  blobToDataURL = (blob) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -524,11 +473,13 @@ class MobileWorkerService {
     });
   }
   
-  getConnectionStatus() {
+  // Use arrow function
+  getConnectionStatus = () => {
     return this.isOnline;
   }
 
-  getPendingChangesCount() {
+  // Use arrow function
+  getPendingChangesCount = () => {
     try {
       const pendingChanges = JSON.parse(localStorage.getItem('pending_changes') || '[]');
       return pendingChanges.length;
@@ -537,32 +488,6 @@ class MobileWorkerService {
       return 0;
     }
   }
-
-  // NEW METHOD: Cache job for offline (public interface)
-  async cacheJobForOffline(jobData) {
-    await this.cacheFetchedJobDataForOffline(jobData);
-  }
-
-  // NEW METHOD: Get cached job (public interface) 
-  getCachedJob() {
-    // For backwards compatibility, we need to determine the job ID
-    // This method is used in the component but we don't know the job ID
-    // We'll return null and let the component handle it
-    console.warn('getCachedJob called without job ID - use getCachedJobFromLocalStorage with specific job ID instead');
-    return null;
-  }
-
-  // NEW METHOD: Setup offline handlers (public interface)
-  setupOfflineHandlers() {
-    // This is already done in constructor via setupOfflineDetection
-    console.log('Offline handlers already set up during initialization');
-  }
-
-  // NEW METHOD: Sync pending changes (public interface)
-  // Already exists, but making sure it's properly exposed
-
-  // NEW METHOD: Store pending change (public interface) 
-  // Already exists, but making sure it's properly exposed
 }
 
 const mobileWorkerServiceInstance = new MobileWorkerService();

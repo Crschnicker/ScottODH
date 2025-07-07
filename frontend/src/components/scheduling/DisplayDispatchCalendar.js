@@ -1,4 +1,3 @@
-// src/components/scheduling/DailyDispatchCalendar.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { Container, Row, Col, Card, Spinner, Alert, Button } from 'react-bootstrap';
@@ -8,25 +7,45 @@ import "react-datepicker/dist/react-datepicker.css";
 import moment from 'moment';
 import './DailyDispatchCalendar.css';
 
-// Mock API functions for now - replace with actual service calls
+// Import the global API (Axios) instance
+import api from '../../services/api'; // Adjust path if needed
+
+// --- API Functions (Using the global 'api' Axios instance) ---
+
 const getDispatchForDate = async (date) => {
-    const response = await fetch(`/api/dispatch/${moment(date).format('YYYY-MM-DD')}`);
-    if (!response.ok) {
-        throw new Error('Failed to fetch dispatch data');
+    try {
+        const response = await api.get(`/dispatch/${moment(date).format('YYYY-MM-DD')}`);
+        return response.data; // Axios returns data in .data
+    } catch (error) {
+        console.error("Error fetching dispatch data:", error.response?.data || error.message);
+        throw new Error(error.response?.data?.error || 'Failed to fetch dispatch data');
     }
-    return response.json();
 };
 
 const saveDispatchForDate = async (date, assignments) => {
-    const response = await fetch('/api/dispatch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: moment(date).format('YYYY-MM-DD'), assignments }),
-    });
-    if (!response.ok) {
-        throw new Error('Failed to save dispatch data');
+    try {
+        // The /api/dispatch endpoint expects the assignments array and the date
+        const response = await api.post('/dispatch', {
+            date: moment(date).format('YYYY-MM-DD'),
+            assignments: assignments // Send the correctly formed assignments array
+        });
+        return response.data; // Axios returns data in .data
+    } catch (error) {
+        console.error("Error saving dispatch data:", error.response?.data || error.message);
+        throw new Error(error.response?.data?.error || 'Failed to save dispatch data');
     }
-    return response.json();
+};
+
+// --- New function to fetch field users ---
+const getFieldUsers = async () => {
+    try {
+        const response = await api.get('/auth/users'); // Assuming this endpoint gives all users
+        // Filter for users with 'field' role
+        return response.data.filter(user => user.role === 'field');
+    } catch (error) {
+        console.error("Error fetching field users:", error.response?.data || error.message);
+        throw new Error(error.response?.data?.error || 'Failed to fetch field users');
+    }
 };
 
 const DailyDispatchCalendar = () => {
@@ -35,16 +54,23 @@ const DailyDispatchCalendar = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [fieldUsers, setFieldUsers] = useState([]); // State to store field users
 
-    const initializeColumns = (data) => {
+    // Initialize columns dynamically based on fetched field users
+    const initializeColumns = useCallback((data, users) => {
         const truckColumns = {};
-        for (let i = 1; i <= 6; i++) {
-            truckColumns[`truck-${i}`] = {
-                id: `truck-${i}`,
-                title: `Truck ${i}`,
-                items: data.trucks && data.trucks[i] ? data.trucks[i] : [],
+        // Use the actual field users to create columns
+        users.forEach(user => {
+            // Find jobs assigned to this user's username
+            // The `data.trucks` should ideally contain keys that are usernames (e.g., {'truck1': [...], 'truck2': [...]})
+            const assignedJobs = (data.trucks && data.trucks[user.username]) ? data.trucks[user.username] : [];
+            truckColumns[user.username] = { // Use username as column ID for droppableId
+                id: user.username,
+                title: user.full_name || user.username, // Display full name or username in the header
+                items: assignedJobs,
             };
-        }
+        });
+
         return {
             unassigned: {
                 id: 'unassigned',
@@ -53,37 +79,49 @@ const DailyDispatchCalendar = () => {
             },
             ...truckColumns,
         };
-    };
+    }, []);
 
-    const fetchDispatchData = useCallback(async () => {
+    const fetchAllInitialData = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await getDispatchForDate(selectedDate);
-            setColumns(initializeColumns(data));
+            // 1. Fetch field users first
+            const users = await getFieldUsers();
+            setFieldUsers(users);
+
+            // 2. Fetch dispatch data using the selected date
+            const dispatchData = await getDispatchForDate(selectedDate);
+            // Initialize columns using both dispatch data and fetched users
+            setColumns(initializeColumns(dispatchData, users));
+
         } catch (err) {
             setError(err.message);
             // Initialize with empty data if fetch fails
-            setColumns(initializeColumns({ unassigned: [], trucks: {} }));
+            setColumns(initializeColumns({ unassigned: [], trucks: {} }, [])); // Pass empty users for fallback
         } finally {
             setLoading(false);
         }
-    }, [selectedDate]);
+    }, [selectedDate, initializeColumns]);
 
     useEffect(() => {
-        fetchDispatchData();
-    }, [fetchDispatchData]);
+        fetchAllInitialData();
+    }, [fetchAllInitialData]);
 
     const handleSave = async (newColumns) => {
         setSaving(true);
         const assignments = [];
         Object.entries(newColumns).forEach(([columnId, column]) => {
-            if (columnId.startsWith('truck-')) {
-                const truckId = parseInt(columnId.split('-')[1], 10);
+            // Check if it's a truck column (not 'unassigned')
+            if (columnId !== 'unassigned') {
+                // `columnId` is already the `username` (e.g., 'truck1', 'truck2')
+                // We will send this username directly as `truck_assignment` to the backend.
+                // Or, if your backend expects `user_id`, you'd map columnId (username) to user.id using `fieldUsers`
+                // For now, assuming backend expects username in `Job.truck_assignment`
+                
                 column.items.forEach((item, index) => {
                     assignments.push({
                         job_id: item.id,
-                        truck_id: truckId,
+                        truck_assignment: columnId, // <--- SEND THE ACTUAL USERNAME HERE!
                         job_order: index,
                         is_visible: item.is_visible,
                     });
@@ -93,6 +131,8 @@ const DailyDispatchCalendar = () => {
 
         try {
             await saveDispatchForDate(selectedDate, assignments);
+            // Re-fetch data to ensure UI reflects saved state, especially if backend has validation
+            // fetchAllInitialData(); // Could cause a flicker; comment out if using optimistic updates
         } catch (err) {
             setError(err.message);
         } finally {
@@ -123,7 +163,7 @@ const DailyDispatchCalendar = () => {
             
             // Add visibility property if moving from unassigned
             if (source.droppableId === 'unassigned') {
-                removed.is_visible = false; 
+                removed.is_visible = false; // Default to false when moving from unassigned pool
             }
 
             destItems.splice(destination.index, 0, removed);
@@ -187,7 +227,7 @@ const DailyDispatchCalendar = () => {
                                 Error Loading Data
                             </Alert.Heading>
                             <p className="mb-3">{error}</p>
-                            <Button onClick={fetchDispatchData} variant="outline-danger" size="sm">
+                            <Button onClick={fetchAllInitialData} variant="outline-danger" size="sm">
                                 <i className="fas fa-redo me-2"></i>
                                 Try Again
                             </Button>
@@ -239,31 +279,31 @@ const DailyDispatchCalendar = () => {
                                                                                     }}
                                                                                     title={item.is_visible ? 'Hide from driver' : 'Show to driver'}
                                                                                 >
-                                                                                    {item.is_visible ? 
-                                                                                        <FaEye color="#28a745" size={14} /> : 
+                                                                                    {item.is_visible ?
+                                                                                        <FaEye color="#28a745" size={14} /> :
                                                                                         <FaEyeSlash color="#dc3545" size={14} />
                                                                                     }
                                                                                 </button>
                                                                             )}
                                                                         </div>
-                                                                        
+
                                                                         <div className="customer-name">{item.customer_name}</div>
                                                                         <div className="job-address">{item.address}</div>
-                                                                        
+
                                                                         {/* Job Duration */}
                                                                         {item.estimated_hours && (
                                                                             <div className="job-duration">
                                                                                 {item.estimated_hours} hours estimated
                                                                             </div>
                                                                         )}
-                                                                        
+
                                                                         {/* Job Scope */}
                                                                         {item.job_scope && (
                                                                             <div className="job-scope">
                                                                                 {item.job_scope}
                                                                             </div>
                                                                         )}
-                                                                        
+
                                                                         {/* Contact Information */}
                                                                         {item.contact_name && (
                                                                             <div className="job-metadata">
@@ -271,13 +311,13 @@ const DailyDispatchCalendar = () => {
                                                                                 {item.phone && <span>{item.phone}</span>}
                                                                             </div>
                                                                         )}
-                                                                        
+
                                                                         {/* Material Status */}
                                                                         <div className={`material-status ${!item.material_ready ? 'not-ready' : ''}`}>
                                                                             {item.material_ready ? 'Materials Ready' : 'Materials Pending'}
                                                                             {item.material_location && ` (${item.material_location === 'S' ? 'Shop' : 'Client'})`}
                                                                         </div>
-                                                                        
+
                                                                         <div className="job-region-status">
                                                                             <span className="badge bg-secondary">{item.region}</span>
                                                                             <span className={`badge ${

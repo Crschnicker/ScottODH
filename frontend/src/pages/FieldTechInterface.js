@@ -21,16 +21,15 @@ import {
   WifiOff,
 } from "lucide-react";
 import "./FieldTechInterface.css"; // CSS file for field tech specific styles
+import api from '../services/api'; // <--- IMPORT THE GLOBAL AXIOS INSTANCE HERE!
 
 // Import MobileJobWorker with proper error handling
 let MobileJobWorker;
 try {
-  // Try to import the MobileJobWorker component
   const MobileWorkerModule = require("../components/jobs/MobileJobWorker");
   MobileJobWorker = MobileWorkerModule.default || MobileWorkerModule.MobileJobWorker || MobileWorkerModule;
 } catch (error) {
   console.warn("MobileJobWorker component not found, using placeholder:", error);
-  // Fallback placeholder component if import fails
   MobileJobWorker = ({ jobId }) => (
     <div className="mobile-worker-placeholder">
       <AlertTriangle className="icon-lg text-yellow-500" />
@@ -41,134 +40,96 @@ try {
   );
 }
 
-// Enhanced API service for field tech operations with better error handling
-const createFieldTechService = () => {
-  // Dynamic API base URL detection (same as mobile worker service)
-  const getApiBaseUrl = () => {
-    const currentUrl = window.location.href;
-    const currentHost = window.location.host;
-    const currentProtocol = window.location.protocol;
+// REMOVE the entire `createFieldTechService` function and its instance.
+// We will directly define `fieldTechService` using the imported `api` (axios).
+// This ensures all requests benefit from global configuration (baseURL, interceptors, etc.)
 
-    if (currentHost.includes("ngrok.io") || currentHost.includes("ngrok.app")) {
-      return `${currentProtocol}//${currentHost}/api`;
-    }
-
-    if (currentHost.includes("localhost") || currentHost.includes("127.0.0.1")) {
-      return "http://localhost:5000/api";
-    }
-
-    return "/api";
-  };
-
-  const API_BASE_URL = getApiBaseUrl();
-
-  // Enhanced API request function with comprehensive error handling
-  const apiRequest = async (url, options = {}) => {
-    const fullUrl = `${API_BASE_URL}${url}`;
-
-    const defaultOptions = {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...options.headers,
-      },
-    };
-
-    const requestOptions = { ...defaultOptions, ...options };
-
-    console.log("Field Tech API request:", {
-      url: fullUrl,
-      method: requestOptions.method || "GET",
-    });
-
+const fieldTechService = {
+  // Get field worker jobs for today or specified date
+  getFieldJobs: async (date = null) => {
     try {
-      const response = await fetch(fullUrl, requestOptions);
+      const url = date ? `/mobile/field-jobs?date=${date}` : '/mobile/field-jobs';
+      // Use api.get(). Axios handles credentials, headers, and automatically parses JSON.
+      const response = await api.get(url);
 
-      if (!response.ok) {
-        let errorData;
-        try {
-          errorData = await response.json();
-        } catch {
-          errorData = {
-            error: `HTTP ${response.status}: ${response.statusText}`,
-            details: "Unable to parse error response",
-          };
-        }
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      // Axios puts the response data in `response.data`
+      if (!response.data || !Array.isArray(response.data.jobs)) {
+        throw new Error("Invalid job data received from server");
       }
 
-      const data = await response.json();
-      console.log("Field Tech API request successful:", { url: fullUrl });
-      return data;
-    } catch (fetchError) {
-      console.error("Field Tech API request failed:", fetchError);
-      throw fetchError;
-    }
-  };
-
-  return {
-    // Get field worker jobs for today or specified date
-    getFieldJobs: async (date = null) => {
-      try {
-        const url = date ? `/mobile/field-jobs?date=${date}` : '/mobile/field-jobs';
-        const response = await apiRequest(url);
-        
-        if (!response || !Array.isArray(response.jobs)) {
-          throw new Error("Invalid job data received from server");
-        }
-        
-        return response;
-      } catch (error) {
-        console.error("Error loading field jobs:", error);
+      return response.data; // Return response.data directly
+    } catch (error) {
+      console.error("Error loading field jobs:", error);
+      // Adjust error message based on Axios error structure
+      if (error.response) {
+        throw new Error(`Failed to load job assignments: ${error.response.data.error || error.response.statusText}`);
+      } else if (error.request) {
+        throw new Error(`Failed to load job assignments: Network error, server unreachable.`);
+      } else {
         throw new Error(`Failed to load job assignments: ${error.message}`);
       }
-    },
+    }
+  },
 
-    // Get detailed information for a specific job
-    getFieldJobDetail: async (jobId) => {
-      try {
-        if (!jobId || isNaN(jobId) || jobId <= 0) {
-          throw new Error("Invalid job ID provided");
-        }
+  // Get detailed information for a specific job
+  getFieldJobDetail: async (jobId) => {
+    try {
+      if (!jobId || isNaN(jobId) || jobId <= 0) {
+        throw new Error("Invalid job ID provided");
+      }
 
-        const jobDetail = await apiRequest(`/mobile/field-jobs/${jobId}`);
-        
-        if (!jobDetail || typeof jobDetail !== "object") {
-          throw new Error("Invalid job detail data received from server");
-        }
+      // Use api.get()
+      const response = await api.get(`/mobile/field-jobs/${jobId}`);
+      const jobDetail = response.data; // Axios puts data in `response.data`
 
-        return jobDetail;
-      } catch (error) {
-        console.error("Error loading job detail:", error);
+      if (!jobDetail || typeof jobDetail !== "object") {
+        throw new Error("Invalid job detail data received from server");
+      }
+
+      return jobDetail;
+    } catch (error) {
+      console.error("Error loading job detail:", error);
+      if (error.response) {
+        throw new Error(`Failed to load job details: ${error.response.data.error || error.response.statusText}`);
+      } else if (error.request) {
+        throw new Error(`Failed to load job details: Network error, server unreachable.`);
+      } else {
         throw new Error(`Failed to load job details: ${error.message}`);
       }
-    },
+    }
+  },
 
-    // Get field worker summary dashboard data
-    getFieldSummary: async () => {
-      try {
-        const summary = await apiRequest('/mobile/field-summary');
-        return summary;
-      } catch (error) {
-        console.error("Error loading field summary:", error);
+  // Get field worker summary dashboard data
+  getFieldSummary: async () => {
+    try {
+      // Use api.get()
+      const response = await api.get('/mobile/field-summary');
+      return response.data; // Axios puts data in `response.data`
+    } catch (error) {
+      console.error("Error loading field summary:", error);
+      if (error.response) {
+        throw new Error(`Failed to load summary: ${error.response.data.error || error.response.statusText}`);
+      } else if (error.request) {
+        throw new Error(`Failed to load summary: Network error, server unreachable.`);
+      } else {
         throw new Error(`Failed to load summary: ${error.message}`);
       }
-    },
+    }
+  },
 
-    // Test connectivity
-    testConnection: async () => {
-      try {
-        const response = await apiRequest("/mobile/test");
-        return { success: true, data: response };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    },
-  };
+  // Test connectivity
+  testConnection: async () => {
+    try {
+      // Use api.get()
+      const response = await api.get("/mobile/test");
+      return { success: true, data: response.data }; // Axios puts data in `response.data`
+    } catch (error) {
+      // Simplified error handling for a test connection
+      return { success: false, error: error.message };
+    }
+  },
 };
 
-const fieldTechService = createFieldTechService();
 
 /**
  * Main Field Tech Interface Component
@@ -211,8 +172,8 @@ const FieldTechInterface = ({ user }) => {
   };
 
   // Ensure MobileJobWorker is a valid React component
-  const ValidMobileJobWorker = React.isValidElement(MobileJobWorker) ? MobileJobWorker : 
-    (typeof MobileJobWorker === 'function' ? MobileJobWorker : 
+  const ValidMobileJobWorker = React.isValidElement(MobileJobWorker) ? MobileJobWorker :
+    (typeof MobileJobWorker === 'function' ? MobileJobWorker :
     ({ jobId }) => (
       <div className="mobile-worker-placeholder">
         <AlertTriangle className="icon-lg text-yellow-500" />
@@ -299,17 +260,17 @@ const FieldJobList = ({ onJobSelect }) => {
     try {
       if (showRefreshing) setRefreshing(true);
       else setLoading(true);
-      
+
       setError(null);
 
       const response = await fieldTechService.getFieldJobs();
       setJobs(response.jobs || []);
       setSummary(response.summary || {});
-      
+
       console.log(`Loaded ${response.jobs?.length || 0} field jobs for truck ${response.summary?.truck_assignment || 'unknown'}`);
     } catch (err) {
       console.error("Error loading field jobs:", err);
-      setError(err.message);
+      setError(err.message); // The error message is now more descriptive from fieldTechService
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -330,7 +291,7 @@ const FieldJobList = ({ onJobSelect }) => {
   const getStatusDisplay = (status) => {
     const statusMap = {
       scheduled: "Scheduled",
-      in_progress: "In Progress", 
+      in_progress: "In Progress",
       waiting_for_parts: "Waiting for Parts",
       completed: "Completed"
     };
@@ -398,7 +359,7 @@ const FieldJobList = ({ onJobSelect }) => {
           <Calendar className="icon-lg text-gray-400" />
           <h4>No Jobs Assigned</h4>
           <p>
-            {summary?.truck_assignment 
+            {summary?.truck_assignment
               ? `No jobs are assigned to Truck ${summary.truck_assignment} for today.`
               : "No visible jobs are assigned for today."
             }
@@ -434,7 +395,7 @@ const FieldJobList = ({ onJobSelect }) => {
                   <User className="icon-sm text-gray-500" />
                   <span className="field-job-customer">{job.customer_name}</span>
                 </div>
-                
+
                 <div className="field-job-info-item">
                   <MapPin className="icon-sm text-gray-500" />
                   <span className="field-job-address">{job.address}</span>
@@ -453,7 +414,7 @@ const FieldJobList = ({ onJobSelect }) => {
                       Progress: {job.completed_doors}/{job.total_doors} doors ({job.completion_percentage}%)
                     </span>
                     <div className="field-job-progress-bar">
-                      <div 
+                      <div
                         className="field-job-progress-fill"
                         style={{ width: `${job.completion_percentage}%` }}
                       />
@@ -487,7 +448,7 @@ const FieldJobDetail = ({ jobId, onBack, onStartMobileWorker }) => {
 
         const detail = await fieldTechService.getFieldJobDetail(jobId);
         setJobDetail(detail);
-        
+
         console.log(`Loaded job detail for job ${jobId}`);
       } catch (err) {
         console.error("Error loading job detail:", err);
@@ -508,7 +469,7 @@ const FieldJobDetail = ({ jobId, onBack, onStartMobileWorker }) => {
     try {
       return new Date(dateString).toLocaleDateString("en-US", {
         weekday: "short",
-        month: "short", 
+        month: "short",
         day: "numeric",
         year: "numeric",
       });
@@ -720,7 +681,7 @@ const FieldJobDetail = ({ jobId, onBack, onStartMobileWorker }) => {
                 <span className="field-job-detail-progress-label">Complete</span>
               </div>
             </div>
-            
+
             {jobDetail.time_tracking?.total_hours > 0 && (
               <div className="field-job-detail-time-info">
                 <Clock className="icon-sm" />
@@ -738,7 +699,7 @@ const FieldJobDetail = ({ jobId, onBack, onStartMobileWorker }) => {
           className="field-tech-button field-tech-button-primary field-tech-button-large"
         >
           <Play className="icon-md" />
-          {jobDetail.mobile_status === "not_started" 
+          {jobDetail.mobile_status === "not_started"
             ? "Start Mobile Job Worker"
             : jobDetail.mobile_status === "started"
             ? "Continue Working on Job"

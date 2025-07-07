@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  Key, 
-  Eye, 
-  EyeOff, 
-  Save, 
-  X, 
-  AlertCircle, 
+import {
+  Users,
+  Plus,
+  Edit2,
+  Trash2,
+  Key,
+  Eye,
+  EyeOff,
+  Save,
+  X,
+  AlertCircle,
   CheckCircle,
   UserCheck,
   UserX,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 // Import the updated CSS file
 import './UserManagementPage.css';
+import api from '../services/api'; // <--- IMPORT YOUR AXIOS INSTANCE HERE!
 
 /**
  * UserManagementPage Component
@@ -28,19 +29,19 @@ import './UserManagementPage.css';
  */
 const UserManagementPage = ({ currentUser }) => {
   /* ==================== STATE MANAGEMENT ==================== */
-  
+
   // Core data state
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  
+
   // Filter and search states
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -107,22 +108,25 @@ const UserManagementPage = ({ currentUser }) => {
     try {
       setLoading(true);
       setError('');
-      
-      const response = await fetch('/api/users', {
-        credentials: 'include'
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data);
-      } else {
-        const errData = await response.json().catch(() => ({ 
-          error: 'Failed to fetch users. Server error.' 
-        }));
-        setError(errData.error || 'Failed to fetch users');
-      }
+      // *** MODIFICATION: Use api.get for consistency ***
+      const response = await api.get('/auth/users'); // Correct path relative to API_BASE_URL (/api)
+
+      setUsers(response.data);
+
     } catch (err) {
-      setError('Network error fetching users. Please check your connection.');
+      // Axios errors are handled differently than native fetch
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        setError(err.response.data.error || `Failed to fetch users: ${err.response.status}`);
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError('Network error fetching users. Please check your connection or API server.');
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError(`Error fetching users: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -146,27 +150,21 @@ const UserManagementPage = ({ currentUser }) => {
     }
 
     try {
-      const response = await fetch('/api/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(newUserData)
-      });
+      // *** MODIFICATION: Use api.post for consistency ***
+      // Data is passed directly as the second argument for POST/PUT
+      const response = await api.post('/auth/users', newUserData);
 
-      const data = await response.json();
+      setSuccess('User created successfully!');
+      setShowCreateModal(false);
+      resetNewUserForm();
+      fetchUsers();
 
-      if (response.ok) {
-        setSuccess('User created successfully!');
-        setShowCreateModal(false);
-        resetNewUserForm();
-        fetchUsers();
-      } else {
-        setError(data.error || 'Failed to create user.');
-      }
     } catch (err) {
-      setError('Network error creating user.');
+      if (err.response) {
+        setError(err.response.data.error || `Failed to create user: ${err.response.status}`);
+      } else {
+        setError('Network error creating user.');
+      }
     }
   };
 
@@ -190,27 +188,20 @@ const UserManagementPage = ({ currentUser }) => {
         is_active: editUserData.is_active,
       };
 
-      const response = await fetch(`/api/users/${selectedUser.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
+      // *** MODIFICATION: Use api.put for consistency ***
+      const response = await api.put(`/auth/users/${selectedUser.id}`, payload);
 
-      const data = await response.json();
+      setSuccess('User updated successfully!');
+      setShowEditModal(false);
+      setSelectedUser(null);
+      fetchUsers();
 
-      if (response.ok) {
-        setSuccess('User updated successfully!');
-        setShowEditModal(false);
-        setSelectedUser(null);
-        fetchUsers();
-      } else {
-        setError(data.error || 'Failed to update user.');
-      }
     } catch (err) {
-      setError('Network error updating user.');
+      if (err.response) {
+        setError(err.response.data.error || `Failed to update user: ${err.response.status}`);
+      } else {
+        setError('Network error updating user.');
+      }
     }
   };
 
@@ -224,29 +215,25 @@ const UserManagementPage = ({ currentUser }) => {
       setError("You cannot delete your own account.");
       return;
     }
-    
+
     // Confirmation dialog
     if (!window.confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+      // *** MODIFICATION: Use api.delete for consistency ***
+      const response = await api.delete(`/auth/users/${userId}`);
 
-      if (response.ok) {
-        setSuccess('User deleted successfully.');
-        fetchUsers();
-      } else {
-        const data = await response.json().catch(() => ({
-          error: 'Failed to delete user.'
-        }));
-        setError(data.error || 'Failed to delete user.');
-      }
+      setSuccess('User deleted successfully.');
+      fetchUsers();
+
     } catch (err) {
-      setError('Network error deleting user.');
+      if (err.response) {
+        setError(err.response.data.error || `Failed to delete user: ${err.response.status}`);
+      } else {
+        setError('Network error deleting user.');
+      }
     }
   };
 
@@ -272,28 +259,22 @@ const UserManagementPage = ({ currentUser }) => {
     }
 
     try {
-      const response = await fetch(`/api/users/${selectedUser.id}/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ new_password: passwordData.new_password })
+      // *** MODIFICATION: Use api.post for consistency (URL already correct) ***
+      const response = await api.post(`/auth/users/${selectedUser.id}/reset-password`, {
+        new_password: passwordData.new_password
       });
 
-      if (response.ok) {
-        setSuccess(`Password reset successfully for ${selectedUser.username}.`);
-        setShowPasswordModal(false);
-        setSelectedUser(null);
-        setPasswordData({ new_password: '', confirm_password: '' });
-      } else {
-        const data = await response.json().catch(() => ({
-          error: 'Failed to reset password.'
-        }));
-        setError(data.error || 'Failed to reset password.');
-      }
+      setSuccess(`Password reset successfully for ${selectedUser.username}.`);
+      setShowPasswordModal(false);
+      setSelectedUser(null);
+      setPasswordData({ new_password: '', confirm_password: '' });
+
     } catch (err) {
-      setError('Network error resetting password.');
+      if (err.response) {
+        setError(err.response.data.error || `Failed to reset password: ${err.response.status}`);
+      } else {
+        setError('Network error resetting password.');
+      }
     }
   };
 
@@ -933,8 +914,8 @@ const UserManagementPage = ({ currentUser }) => {
               <Users className="mx-auto h-20 w-20 mb-4" />
               <h3 className="text-xl font-semibold mb-2">No Users Found</h3>
               <p className="text-lg mb-6">
-                {searchTerm || roleFilter !== 'all' 
-                  ? 'Try adjusting your search or filter criteria.' 
+                {searchTerm || roleFilter !== 'all'
+                  ? 'Try adjusting your search or filter criteria.'
                   : 'Get started by creating your first user.'}
               </p>
               {!(searchTerm || roleFilter !== 'all') && (

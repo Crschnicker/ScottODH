@@ -1,64 +1,51 @@
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Create .gitignore in the root directory
+echo "# Dependencies
+node_modules/
+frontend/node_modules/
 
-# testing
-/coverage
+# Build outputs  
+frontend/build/
+frontend/dist/
 
-# production
-/build
-
-# misc
-.DS_Store
+# Environment variables
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env
-
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/__pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# Flask
+# Database files (optional - you might want to keep some)
 instance/
-.webassets-cache
+backend/instance/
 
-# SQLite
-*.db
-*.sqlite3
-
-# Virtual environment
-venv/
-.venv/
-ENV/
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+date_handling.log
 
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads (consider if you want these tracked)
+uploads/
+backend/uploads/
+backend/mobile_uploads/" > .gitignore

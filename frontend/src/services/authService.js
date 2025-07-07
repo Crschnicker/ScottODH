@@ -8,13 +8,13 @@ import { API_BASE_URL } from '../config/apiConfig';
 class AuthService {
   constructor() {
     this.baseURL = API_BASE_URL || 'http://localhost:5000';
-    this.isLoggingOut = false; // Track logout state to prevent re-authentication
-    this.logoutCompletedAt = null; // Track when logout completed
-    this.LOGOUT_PROTECTION_TIME = 15000; // 15 seconds of protection after logout
+    this.isLoggingOut = false;
+    this.logoutCompletedAt = null;
+    this.LOGOUT_PROTECTION_TIME = 15000; // 15 seconds
   }
 
   /**
-   * Make authenticated API request with proper error handling
+   * Make authenticated API request with improved CORS error handling
    */
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
@@ -29,18 +29,23 @@ class AuthService {
     };
 
     try {
+      console.log(`Making request to: ${url}`, { method: defaultOptions.method || 'GET' });
+      
       const response = await fetch(url, defaultOptions);
       
-      // Handle different response types
+      // Enhanced logging for debugging
+      console.log(`Response status: ${response.status} for ${url}`);
+      
       if (response.ok) {
-        // Check if response has content
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
-          return await response.json();
+          const data = await response.json();
+          console.log(`Response data:`, data);
+          return data;
         }
         return { success: true };
       } else {
-        // Try to get error message from response
+        // Enhanced error handling
         let errorData;
         try {
           errorData = await response.json();
@@ -48,22 +53,34 @@ class AuthService {
           errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
         }
         
+        console.error(`Request failed:`, errorData);
         throw new Error(errorData.error || `Request failed with status ${response.status}`);
       }
     } catch (error) {
-      // Network errors or other issues
+      // Better error categorization
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Network error: Unable to connect to server');
+        console.error('Network/CORS error:', error);
+        throw new Error('Network error: Unable to connect to server. Check if backend is running and CORS is configured.');
       }
+      
+      // CORS-specific error detection
+      if (error.message.includes('CORS') || error.message.includes('cross-origin')) {
+        console.error('CORS error detected:', error);
+        throw new Error('CORS error: Cross-origin request blocked. Check backend CORS configuration.');
+      }
+      
+      console.error('Request error:', error);
       throw error;
     }
   }
 
   /**
-   * Login user with username and password
+   * Login user with enhanced error reporting
    */
   async login(username, password) {
     try {
+      console.log(`Attempting login for user: ${username}`);
+      
       // Clear logout state when logging in
       this.isLoggingOut = false;
       this.logoutCompletedAt = null;
@@ -76,7 +93,7 @@ class AuthService {
       });
 
       if (response.user) {
-        // Store user data in localStorage for persistence
+        console.log('Login successful:', response.user);
         localStorage.setItem('currentUser', JSON.stringify(response.user));
         return response;
       }
@@ -84,97 +101,77 @@ class AuthService {
       throw new Error('Login failed: No user data received');
     } catch (error) {
       console.error('Login error:', error);
+      
+      // More specific error messages
+      if (error.message.includes('Network error')) {
+        throw new Error('Cannot connect to server. Please check if the backend is running on http://localhost:5000');
+      }
+      
+      if (error.message.includes('CORS')) {
+        throw new Error('Server configuration error. Please check CORS settings.');
+      }
+      
       throw error;
     }
   }
 
   /**
-   * Logout current user with enhanced error handling and forced cleanup
-   * Prevents automatic re-authentication by thoroughly clearing all data
+   * Simplified logout with better error handling
    */
   async logout() {
     try {
-      // Set logout flags immediately and aggressively to prevent any re-authentication
+      console.log('Starting logout process...');
+      
+      // Set logout flags immediately
       this.isLoggingOut = true;
       localStorage.setItem('authBlocked', 'true');
       localStorage.setItem('lastLogoutTime', Date.now().toString());
       
-      // Always clear local data first to prevent auto-re-login
       const userData = this.getStoredUser();
       const username = userData ? userData.username : 'unknown';
+      console.log(`Logging out user: ${username}`);
       
-      console.log(`Attempting logout for user: ${username}`);
-      
-      // Clear stored data immediately and aggressively
+      // Clear local data first
       this.clearAuthData();
       
-      // Attempt server logout (but don't fail if it doesn't work)
+      // Try server logout
       try {
-        const response = await this.makeRequest('/api/auth/logout', {
-          method: 'POST',
-        });
-        
-        console.log('Server logout successful:', response);
-        
-        // If server indicates force reauth required, ensure complete cleanup
-        if (response.force_reauth_required) {
-          this.clearAuthData();
-          // Clear any browser cached credentials
-          if (typeof document !== 'undefined') {
-            document.cookie.split(";").forEach(function(c) { 
-              document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-            });
-          }
-        }
-        
-        // Set logout completed timestamp for extended protection
-        this.logoutCompletedAt = Date.now();
-        
-        return { success: true, message: 'Logout successful' };
-        
+        await this.makeRequest('/api/auth/logout', { method: 'POST' });
+        console.log('Server logout successful');
       } catch (serverError) {
-        // Server logout failed, but local logout already succeeded
-        console.warn('Server logout failed, but local logout completed:', serverError);
-        
-        // Still set logout completed timestamp
-        this.logoutCompletedAt = Date.now();
-        
-        // Don't throw error - logout should always succeed from user perspective
-        return { 
-          success: true, 
-          message: 'Logged out locally', 
-          serverError: serverError.message 
-        };
+        console.warn('Server logout failed (but local logout succeeded):', serverError);
       }
       
+      this.logoutCompletedAt = Date.now();
+      console.log('Logout completed successfully');
+      
+      return { success: true, message: 'Logout successful' };
+      
     } catch (error) {
-      // Even if everything fails, ensure local data is cleared
       console.error('Logout error, forcing local cleanup:', error);
       this.clearAuthData();
       this.logoutCompletedAt = Date.now();
       
-      // Always return success for logout
       return { 
         success: true, 
         message: 'Logout completed with errors', 
         error: error.message 
       };
     } finally {
-      // Keep logout flag active for extended period to prevent immediate re-auth
+      // Keep logout protection active
       setTimeout(() => {
         this.isLoggingOut = false;
         localStorage.removeItem('authBlocked');
+        console.log('Logout protection period ended');
       }, this.LOGOUT_PROTECTION_TIME);
     }
   }
 
   /**
-   * Enhanced method to clear all authentication data
-   * Ensures complete cleanup to prevent automatic re-login
+   * Clear authentication data
    */
   clearAuthData() {
     try {
-      // Remove all possible stored authentication data
       const keysToRemove = [
         'currentUser',
         'authToken', 
@@ -192,41 +189,35 @@ class AuthService {
         }
       });
       
-      console.log('All authentication data cleared from local storage');
+      console.log('Authentication data cleared');
     } catch (error) {
       console.error('Error clearing auth data:', error);
     }
   }
 
   /**
-   * Check if authentication is currently blocked due to recent logout
-   * @returns {boolean} True if auth should be blocked
+   * Check if authentication is blocked
    */
   isAuthenticationBlocked() {
-    // Check if currently logging out
     if (this.isLoggingOut) {
       console.log('Authentication blocked - logout in progress');
       return true;
     }
 
-    // Check for auth blocked flag
     if (localStorage.getItem('authBlocked') === 'true') {
       console.log('Authentication blocked - authBlocked flag set');
       return true;
     }
 
-    // Check if we recently completed logout
     if (this.logoutCompletedAt) {
       const timeSinceLogout = Date.now() - this.logoutCompletedAt;
       if (timeSinceLogout < this.LOGOUT_PROTECTION_TIME) {
         console.log('Authentication blocked - recent logout completed');
         return true;
       }
-      // Clear old logout timestamp
       this.logoutCompletedAt = null;
     }
 
-    // Check localStorage logout timestamp
     const logoutTimestamp = localStorage.getItem('lastLogoutTime');
     if (logoutTimestamp) {
       const timeSinceLogout = Date.now() - parseInt(logoutTimestamp);
@@ -234,7 +225,6 @@ class AuthService {
         console.log('Authentication blocked - recent logout timestamp');
         return true;
       }
-      // Remove old logout timestamp
       localStorage.removeItem('lastLogoutTime');
     }
 
@@ -242,21 +232,23 @@ class AuthService {
   }
 
   /**
-   * Validate authentication status with server
-   * Enhanced to prevent automatic re-login loops
+   * Validate session with enhanced logging
    */
   async validateSession() {
     try {
-      // First check if authentication is blocked
       if (this.isAuthenticationBlocked()) {
         console.log('Session validation blocked due to recent logout');
         return false;
       }
       
+      console.log('Validating session...');
       const user = await this.getCurrentUser();
-      return user !== null;
+      const isValid = user !== null;
+      console.log('Session validation result:', isValid);
+      
+      return isValid;
     } catch (error) {
-      // Clear invalid data and don't auto-retry
+      console.error('Session validation failed:', error);
       this.clearAuthData();
       return false;
     }
@@ -267,7 +259,6 @@ class AuthService {
    */
   async getCurrentUser() {
     try {
-      // Block if authentication is not allowed
       if (this.isAuthenticationBlocked()) {
         console.log('getCurrentUser blocked due to recent logout');
         return null;
@@ -276,21 +267,20 @@ class AuthService {
       const response = await this.makeRequest('/api/auth/me');
       
       if (response.id) {
-        // Update stored user data
         localStorage.setItem('currentUser', JSON.stringify(response));
         return response;
       }
       
       return null;
     } catch (error) {
-      // Clear invalid stored data
+      console.error('getCurrentUser failed:', error);
       localStorage.removeItem('currentUser');
       return null;
     }
   }
 
   /**
-   * Change current user's password
+   * Change password
    */
   async changePassword(currentPassword, newPassword) {
     try {
@@ -310,25 +300,25 @@ class AuthService {
   }
 
   /**
-   * Check if user is authenticated (client-side check)
+   * Check if user is authenticated
    */
   isAuthenticated() {
-    // Return false if authentication is blocked due to logout
     if (this.isAuthenticationBlocked()) {
       console.log('isAuthenticated returning false - authentication blocked');
       return false;
     }
     
     const userData = localStorage.getItem('currentUser');
-    return userData !== null;
+    const isAuth = userData !== null;
+    console.log('isAuthenticated check:', isAuth);
+    return isAuth;
   }
 
   /**
-   * Get stored user data (for quick access without API call)
+   * Get stored user data
    */
   getStoredUser() {
     try {
-      // Return null if authentication is blocked due to logout
       if (this.isAuthenticationBlocked()) {
         console.log('getStoredUser returning null - authentication blocked');
         return null;
@@ -336,8 +326,8 @@ class AuthService {
       
       const userData = localStorage.getItem('currentUser');
       return userData ? JSON.parse(userData) : null;
-    } catch {
-      // Clear corrupted data
+    } catch (error) {
+      console.error('Error getting stored user:', error);
       localStorage.removeItem('currentUser');
       return null;
     }
@@ -360,10 +350,6 @@ class AuthService {
   }
 
   // User Management Methods (Admin only)
-
-  /**
-   * Get all users (admin only)
-   */
   async getUsers() {
     try {
       const response = await this.makeRequest('/api/users');
@@ -374,16 +360,12 @@ class AuthService {
     }
   }
 
-  /**
-   * Create new user (admin only)
-   */
   async createUser(userData) {
     try {
       const response = await this.makeRequest('/api/users', {
         method: 'POST',
         body: JSON.stringify(userData),
       });
-      
       return response;
     } catch (error) {
       console.error('Create user error:', error);
@@ -391,16 +373,12 @@ class AuthService {
     }
   }
 
-  /**
-   * Update user (admin only)
-   */
   async updateUser(userId, userData) {
     try {
       const response = await this.makeRequest(`/api/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(userData),
       });
-      
       return response;
     } catch (error) {
       console.error('Update user error:', error);
@@ -408,15 +386,11 @@ class AuthService {
     }
   }
 
-  /**
-   * Delete user (admin only)
-   */
   async deleteUser(userId) {
     try {
       const response = await this.makeRequest(`/api/users/${userId}`, {
         method: 'DELETE',
       });
-      
       return response;
     } catch (error) {
       console.error('Delete user error:', error);
@@ -424,16 +398,12 @@ class AuthService {
     }
   }
 
-  /**
-   * Reset user password (admin only)
-   */
   async resetUserPassword(userId, newPassword) {
     try {
       const response = await this.makeRequest(`/api/users/${userId}/reset-password`, {
         method: 'POST',
         body: JSON.stringify({ new_password: newPassword }),
       });
-      
       return response;
     } catch (error) {
       console.error('Reset password error:', error);
