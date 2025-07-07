@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scott_backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/instance:/app/instance
+      - ./backend/uploads:/app/uploads
+      - ./uploads:/app/root_uploads
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=sqlite:///instance/scott_overhead_doors.db
+    networks:
+      - scott_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: scott_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - scott_network
+    restart: unless-stopped
+
+  # Optional: Add a reverse proxy for production
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: scott_proxy
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - scott_network
+    restart: unless-stopped
+
+networks:
+  scott_network:
+    driver: bridge
+
+volumes:
+  scott_db:
+  scott_uploads:

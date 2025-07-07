@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: scott_backend_dev
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - ./backend/instance:/app/instance
+      - ./backend/uploads:/app/uploads
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+    command: ["python", "app.py"]
+    networks:
+      - scott_network
+
+  frontend:
+    image: node:18-alpine
+    container_name: scott_frontend_dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    command: ["sh", "-c", "npm install && npm start"]
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+    networks:
+      - scott_network
+
+networks:
+  scott_network:
+    driver: bridge
