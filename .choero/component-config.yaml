@@ -1,3 +1,4 @@
+
 version: 0.1
 components:
   - name: scott-backend
@@ -19,7 +20,18 @@ components:
           - name: FLASK_ENV
             value: production
           - name: DATABASE_URL
-            value: sqlite:///instance/scott_overhead_doors.db
+            value: postgresql://ScottAdmin:Rollup22@scottohd.postgres.database.azure.com:5432/scottohd?sslmode=require
+          # Alternative individual database configuration variables (optional)
+          - name: DB_HOST
+            value: scottohd.postgres.database.azure.com
+          - name: DB_USER
+            value: ScottAdmin
+          - name: DB_PASSWORD
+            value: "Rollup22"
+          - name: DB_NAME
+            value: scottohd
+          - name: DB_PORT
+            value: "5432"
   - name: scott-frontend
     type: webapp
     source:

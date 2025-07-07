@@ -7,6 +7,8 @@ Flask-CORS==4.0.0
 Werkzeug==3.0.1
 
 # Database drivers
+# PostgreSQL driver for Azure PostgreSQL
+psycopg2-binary==2.9.9
 # SQLite (built-in with Python)
 # For Azure SQL Database
 pyodbc==5.0.1
@@ -36,7 +38,7 @@ pydub==0.25.1
 # Environment and configuration
 python-dotenv==1.0.0
 
-# Production server (for Azure)
+# Production server (for Azure/Choreo)
 gunicorn==21.2.0
 waitress==3.0.1
 
