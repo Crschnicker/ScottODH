@@ -21,7 +21,7 @@ PyJWT==2.8.0
 pytz==2023.3
 
 # File handling and media processing
-Pillow==10.0.1
+Pillow==10.2.0
 reportlab==4.0.4
 
 # HTTP and API utilities
@@ -38,7 +38,7 @@ python-dotenv==1.0.0
 
 # Production server (for Azure)
 gunicorn==21.2.0
-waitress==2.1.2
+waitress==3.0.1
 
 # Development and debugging tools (optional for production)
 python-decouple==3.8
