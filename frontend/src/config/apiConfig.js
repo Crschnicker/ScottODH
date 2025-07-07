@@ -10,19 +10,8 @@ const getApiBaseUrl = () => {
 
   // Check for Choreo deployment (your current deployment)
   if (hostname.includes('choreoapps.dev')) {
-    // Option 1: If you deploy your backend to Choreo too, replace with your backend URL
-    // return 'https://your-backend-choreo-url.choreoapps.dev';
-    
-    // Option 2: If you're using a different backend service (Railway, Heroku, etc.)
-    // return 'https://your-backend-url.com';
-    
-    // Option 3: If backend is on same Choreo domain but different port/path
-    // return `${origin}/api`;
-    
-    // Temporary fallback - you need to update this with your actual backend URL
-    console.warn('⚠️  Choreo deployment detected but backend URL not configured!');
-    console.warn('Please update apiConfig.js with your deployed backend URL');
-    return 'https://your-backend-url-here.com'; // Replace this!
+    // Your deployed backend on Choreo
+    return 'https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev/scottoverhead/backend/v1.0';
   }
 
   // Check for ngrok
