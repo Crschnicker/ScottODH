@@ -28,21 +28,69 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate = Migrate(app, db)
     
-    # Setup CORS - this handles everything properly
+    # Enhanced CORS setup for Choreo deployment
     CORS(app, 
          origins=[
-             "https://your-frontend.azurewebsites.net",  # Your Azure frontend URL
-             "http://localhost:3000",      # Local development
-             "http://127.0.0.1:3000",     
-             "https://*.ngrok.io",         # For testing
-             "https://*.ngrok-free.app",   # New ngrok domain format
-             "https://scottohd.ngrok.io",  # Your specific ngrok URL
+             # Choreo-specific URLs - these match your actual deployment
+             "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
+             "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
+             # Choreo patterns for any environment
+             "https://*.e1-us-east-azure.choreoapps.dev",
+             "https://*.e1-us-east-azure.choreoapis.dev", 
+             "https://*.choreoapis.dev",
+             "https://*.choreoapps.dev",
+             # Development URLs
+             "http://localhost:3000",
+             "http://127.0.0.1:3000",
+             "https://*.ngrok.io",
+             "https://*.ngrok-free.app",
+             "https://scottohd.ngrok.io",
          ],
-         allow_headers=["Content-Type", "Accept", "Authorization", "X-Request-Timestamp", "X-Client-Info", "X-Forwarded-Proto", "X-Forwarded-Host"],
-         supports_credentials=True,
-         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-         max_age=86400
+         allow_headers=[
+             "Content-Type", 
+             "Accept", 
+             "Authorization", 
+             "X-Request-Timestamp", 
+             "X-Client-Info", 
+             "X-Forwarded-Proto", 
+             "X-Forwarded-Host",
+             "Cache-Control",
+             "Pragma",
+             "Origin",
+             "X-Requested-With"
+         ],
+         supports_credentials=True,  # This is crucial for your error
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+         max_age=86400,
+         # Additional parameters for better compatibility
+         expose_headers=["Content-Range", "X-Content-Range"],
+         send_wildcard=False  # Required when supports_credentials=True
     )
+    
+    # Add custom CORS headers for better Choreo compatibility
+    @app.after_request
+    def after_request(response):
+        origin = request.headers.get('Origin')
+        
+        # Handle Choreo-specific origins
+        if origin and any(domain in origin.lower() for domain in [
+            'choreoapis.dev', 'choreoapps.dev', 'ngrok.io', 'ngrok-free.app', 'localhost', '127.0.0.1'
+        ]):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            
+        # Handle preflight requests
+        if request.method == 'OPTIONS':
+            response.headers['Access-Control-Allow-Origin'] = origin or '*'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma'
+            response.status_code = 200
+            
+        return response
     
     # Setup authentication
     login_manager = LoginManager()

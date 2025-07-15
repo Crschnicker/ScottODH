@@ -96,57 +96,15 @@ class Config:
     # Logging configuration for Choreo containers
     LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT', 'true').lower() == 'true'
     
-    # Updated CORS origins for your specific Choreo deployment
+    # CORS origins for Choreo
     CORS_ORIGINS = [
-        # Your specific Choreo deployment URLs from the error logs
-        "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
-        "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
-        # Choreo wildcard patterns for any environment
-        "https://*.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapps.dev",
-        "https://*.choreoapis.dev",
-        "https://*.choreoapps.dev",
-        # Development and testing URLs
-        "http://localhost:3000",
+        "https://*.e1-us-east-azure.choreoapis.dev",  # Choreo frontend URLs
+        "https://*.choreoapis.dev",                   # All Choreo domains
+        "http://localhost:3000",                      # Local development
         "http://127.0.0.1:3000",
-        "https://*.ngrok.io",
+        "https://*.ngrok.io",                         # Testing
         "https://*.ngrok-free.app",
-        "https://scottohd.ngrok.io",
     ]
-    
-    # CORS configuration dictionary for more detailed setup
-    CORS_CONFIG = {
-        'origins': CORS_ORIGINS,
-        'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
-        'allow_headers': [
-            'Accept',
-            'Accept-Language',
-            'Authorization', 
-            'Cache-Control',
-            'Content-Language',
-            'Content-Type',
-            'Origin',
-            'Pragma',
-            'User-Agent',
-            'X-Client-Info',
-            'X-Forwarded-For',
-            'X-Forwarded-Host',
-            'X-Forwarded-Proto', 
-            'X-Request-ID',
-            'X-Request-Timestamp',
-            'X-Requested-With',
-        ],
-        'expose_headers': [
-            'Content-Range',
-            'X-Content-Range',
-            'X-Total-Count',
-            'Location'
-        ],
-        'supports_credentials': True,
-        'max_age': 86400,
-        'send_wildcard': False,
-        'vary_header': True
-    }
     
     # Audio and media processing
     ALLOWED_AUDIO_EXTENSIONS = {'wav', 'm4a', 'mp3', 'webm'}
@@ -163,28 +121,11 @@ class DevelopmentConfig(Config):
     DEBUG = True
     ENV = 'development'
     LOG_TO_STDOUT = False
-    
-    # More permissive CORS for development
-    CORS_ORIGINS = Config.CORS_ORIGINS + [
-        "http://localhost:*",      # Any localhost port
-        "http://127.0.0.1:*",     # Any 127.0.0.1 port
-        "https://*.localhost",     # HTTPS localhost variants
-    ]
 
 class ProductionConfig(Config):
     DEBUG = False
     ENV = 'production'
     LOG_TO_STDOUT = True
-    
-    # Strict CORS for production - only allow specific Choreo URLs
-    CORS_ORIGINS = [
-        "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
-        "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapps.dev",
-        "https://*.choreoapis.dev",
-        "https://*.choreoapps.dev",
-    ]
     
     # In production, ensure these are set via environment variables
     if not os.environ.get('SECRET_KEY'):
@@ -201,9 +142,6 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    
-    # Allow all origins for testing
-    CORS_ORIGINS = ['*']
 
 # Configuration dictionary
 config = {

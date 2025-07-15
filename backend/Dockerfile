@@ -1,48 +1,50 @@
+# Backend Dockerfile for Choreo
 FROM python:3.10-slim
 
-# Create non-root user first (required for security compliance)
-RUN groupadd -r appgroup && useradd -r -g appgroup -u 10014 appuser
-
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies as root
+# Install system dependencies for database drivers and media processing
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    make \
+    libpq-dev \
+    unixodbc-dev \
     ffmpeg \
-    libsqlite3-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies as root
+# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Create necessary directories and set permissions
-RUN mkdir -p uploads instance static logs && \
-    chown -R appuser:appgroup /app && \
-    chmod -R 755 /app
+# Create necessary directories for uploads
+RUN mkdir -p uploads mobile_uploads static/uploads instance logs
+RUN mkdir -p /tmp/uploads /tmp/mobile_uploads
 
-# Set environment variables
+# Set environment variables for Choreo
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+ENV LOG_TO_STDOUT=true
 
-# Switch to non-root user (REQUIRED for security compliance)
-USER 10014
+# Create a non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app && \
+    chown -R appuser:appuser /tmp/uploads /tmp/mobile_uploads
 
-# Expose port
-EXPOSE 5000
+# Switch to non-root user
+USER appuser
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+# Expose port 8080 (Choreo requirement)
+EXPOSE 8080
 
-# Start application
+# Health check for Choreo
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
+
+# Run the application
 CMD ["python", "app.py"]
