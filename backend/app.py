@@ -20,7 +20,7 @@ from config import Config
 from models import db
 
 def create_app(config_class=Config):
-    """Application factory for Choreo deployment with comprehensive CORS handling"""
+    """Application factory for Choreo deployment with FIXED CORS handling"""
     app = Flask(__name__)
     app.config.from_object(config_class)
     
@@ -28,25 +28,21 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate = Migrate(app, db)
     
-    # Enhanced CORS setup specifically for Choreo deployment
-    # This addresses the exact error you're experiencing
+    # FIXED: Choreo-specific CORS setup - NO WILDCARDS with credentials
+    # Define exact origins for your specific Choreo deployment
+    exact_origins = [
+        # Your specific Choreo URLs from the error logs - EXACT MATCH REQUIRED
+        "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
+        "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
+        # Development origins
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://scottohd.ngrok.io",
+    ]
+    
+    # Initialize CORS with exact origins only (no wildcards)
     CORS(app, 
-         origins=[
-             # Your specific Choreo URLs from the error logs - CRITICAL
-             "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
-             "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
-             # Choreo wildcard patterns to handle any environment
-             "https://*.e1-us-east-azure.choreoapps.dev",
-             "https://*.e1-us-east-azure.choreoapis.dev", 
-             "https://*.choreoapis.dev",
-             "https://*.choreoapps.dev",
-             # Development and testing URLs
-             "http://localhost:3000",
-             "http://127.0.0.1:3000",
-             "https://*.ngrok.io",
-             "https://*.ngrok-free.app",
-             "https://scottohd.ngrok.io",
-         ],
+         origins=exact_origins,  # CRITICAL: Only exact origins when using credentials
          allow_headers=[
              "Accept",
              "Accept-Language",
@@ -71,17 +67,17 @@ def create_app(config_class=Config):
              "X-Total-Count", 
              "Location"
          ],
-         supports_credentials=True,  # CRITICAL FIX - this was missing and causing your error
+         supports_credentials=True,  # This requires exact origins, no wildcards
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
          max_age=86400,
          send_wildcard=False,  # Required when supports_credentials=True
          vary_header=True
     )
     
-    # Critical CORS handler for Choreo-specific requirements
+    # FIXED: Simplified and more reliable CORS handler
     @app.before_request
     def handle_preflight():
-        """Handle preflight OPTIONS requests with comprehensive CORS headers"""
+        """Handle preflight OPTIONS requests with proper CORS headers"""
         if request.method == "OPTIONS":
             origin = request.headers.get('Origin')
             
@@ -95,36 +91,26 @@ def create_app(config_class=Config):
             ])
             response.headers['Access-Control-Max-Age'] = '86400'
             
-            # Handle origin-specific CORS for Choreo
-            if origin:
-                # Check if origin contains Choreo domains or development domains
-                if any(domain in origin.lower() for domain in [
-                    'choreoapis.dev', 'choreoapps.dev', 'ngrok.io', 'ngrok-free.app', 
-                    'localhost', '127.0.0.1'
-                ]):
-                    response.headers['Access-Control-Allow-Origin'] = origin
-                    response.headers['Access-Control-Allow-Credentials'] = 'true'
+            # CRITICAL FIX: Only set credentials headers for exact origin matches
+            if origin and origin in exact_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                app.logger.info(f"CORS preflight: Allowed origin {origin}")
+            else:
+                app.logger.warning(f"CORS preflight: Origin {origin} not in allowed list")
             
             response.status_code = 200
             return response
     
-    # Enhanced after_request handler for production CORS compatibility
+    # FIXED: Simplified after_request handler
     @app.after_request
     def after_request(response):
-        """Enhanced after_request handler for comprehensive CORS support"""
+        """Enhanced after_request handler for proper CORS support"""
         origin = request.headers.get('Origin')
         
         if origin:
-            # Specific handling for Choreo domains and development environments
-            origin_lower = origin.lower()
-            
-            # Check if origin is allowed
-            allowed_patterns = [
-                'choreoapis.dev', 'choreoapps.dev', 'ngrok.io', 'ngrok-free.app',
-                'localhost', '127.0.0.1'
-            ]
-            
-            if any(pattern in origin_lower for pattern in allowed_patterns):
+            # CRITICAL FIX: Only allow exact matches from our allowed origins
+            if origin in exact_origins:
                 response.headers['Access-Control-Allow-Origin'] = origin
                 response.headers['Access-Control-Allow-Credentials'] = 'true'
                 response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH'
@@ -134,6 +120,9 @@ def create_app(config_class=Config):
                     "X-Request-Timestamp", "X-Forwarded-Proto", "X-Forwarded-Host"
                 ])
                 response.headers['Access-Control-Expose-Headers'] = 'Content-Range, X-Content-Range, X-Total-Count'
+                app.logger.debug(f"CORS: Allowed origin {origin}")
+            else:
+                app.logger.warning(f"CORS: Rejected origin {origin}")
         
         # Add security headers for production
         response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -179,7 +168,8 @@ def create_app(config_class=Config):
             'timestamp': datetime.utcnow().isoformat(),
             'version': '1.0.0',
             'database': db_status,
-            'environment': app.config.get('ENV', 'unknown')
+            'environment': app.config.get('ENV', 'unknown'),
+            'cors_origins': exact_origins  # Debug info
         }
         
         status_code = 200 if db_status == 'healthy' else 503
@@ -194,6 +184,8 @@ def create_app(config_class=Config):
             'status': 'running',
             'version': '1.0.0',
             'environment': app.config.get('ENV', 'development'),
+            'cors_configured': True,
+            'allowed_origins': len(exact_origins),
             'endpoints': {
                 'health': '/api/health',
                 'auth': '/api/auth',
@@ -317,6 +309,10 @@ def create_app(config_class=Config):
         
         app.logger.setLevel(logging.INFO)
         app.logger.info('Scott Overhead Doors application startup completed')
+    
+    # Log CORS configuration for debugging
+    app.logger.info(f"CORS configured with {len(exact_origins)} exact origins")
+    app.logger.info(f"CORS origins: {exact_origins}")
     
     return app
 

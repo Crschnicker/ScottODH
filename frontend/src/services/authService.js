@@ -1,5 +1,5 @@
 /**
- * Authentication Service
+ * Authentication Service - Fixed for Choreo CORS Issues
  * Handles all authentication-related API calls for Scott Overhead Doors
  */
 
@@ -23,12 +23,12 @@ class AuthService {
   }
 
   /**
-   * Make authenticated API request with improved production CORS handling
+   * Make authenticated API request with Choreo-optimized CORS handling
    */
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
-    // Production-optimized request configuration
+    // Choreo-optimized request configuration
     const defaultOptions = {
       method: options.method || 'GET',
       mode: 'cors', // Explicitly set CORS mode for production
@@ -40,9 +40,9 @@ class AuthService {
         'Origin': window.location.origin,
         ...options.headers,
       },
-      // Only include credentials if we're making requests to the same domain
-      // or if the backend explicitly supports credentials with CORS
-      credentials: this.shouldIncludeCredentials() ? 'include' : 'omit',
+      // FIXED: For Choreo, we need to be more careful about credentials
+      // Only include credentials for same-origin or when explicitly needed
+      credentials: this.shouldIncludeCredentials(endpoint) ? 'include' : 'omit',
       ...options,
     };
 
@@ -110,6 +110,8 @@ class AuthService {
       // CORS-specific error detection and handling
       if (error.message.includes('CORS') || 
           error.message.includes('cross-origin') ||
+          error.message.includes('credentials') ||
+          error.message.includes('Access-Control-Allow-Credentials') ||
           (error.name === 'TypeError' && !navigator.onLine)) {
         console.error('CORS or connectivity error:', error);
         throw new Error('Connection error: Unable to reach the server. This may be due to network issues or server configuration.');
@@ -125,27 +127,62 @@ class AuthService {
     }
   }
 
-  shouldIncludeCredentials() {
+  /**
+   * FIXED: More conservative credentials policy for Choreo
+   */
+  shouldIncludeCredentials(endpoint = '') {
     try {
       const apiUrl = new URL(this.baseURL);
       const currentUrl = new URL(window.location.href);
       
-      // Include credentials for Choreo domains and same origin
+      // Check if it's same origin first
       const isSameOrigin = apiUrl.origin === currentUrl.origin;
+      if (isSameOrigin) {
+        console.log('Using credentials: same origin detected');
+        return true;
+      }
+      
+      // For Choreo, be more conservative about credentials
+      // Only include credentials for specific endpoints that definitely need them
+      const isAuthEndpoint = endpoint.includes('/auth/') || 
+                           endpoint.includes('/login') || 
+                           endpoint.includes('/logout') ||
+                           endpoint.includes('/me');
+      
       const isChoreoRelated = apiUrl.hostname.includes('choreoapis.dev') || 
                             apiUrl.hostname.includes('choreoapps.dev') ||
                             currentUrl.hostname.includes('choreoapis.dev') ||
                             currentUrl.hostname.includes('choreoapps.dev');
+      
       const isLocalDev = apiUrl.hostname.includes('localhost') || 
                         apiUrl.hostname.includes('127.0.0.1') ||
                         apiUrl.hostname.includes('ngrok');
       
-      // Include credentials for Choreo, same origin, or local development
-      return isSameOrigin || isChoreoRelated || isLocalDev;
+      // For Choreo: Only include credentials for auth endpoints
+      // For local dev: Always include credentials
+      if (isLocalDev) {
+        console.log('Using credentials: local development');
+        return true;
+      }
+      
+      if (isChoreoRelated && isAuthEndpoint) {
+        console.log('Using credentials: Choreo auth endpoint');
+        return true;
+      }
+      
+      if (isChoreoRelated && !isAuthEndpoint) {
+        console.log('Omitting credentials: Choreo non-auth endpoint');
+        return false;
+      }
+      
+      // Default to false for cross-origin requests to avoid CORS issues
+      console.log('Omitting credentials: cross-origin request');
+      return false;
+      
     } catch (error) {
-      console.warn('Could not determine credential policy, defaulting to include for Choreo:', error);
-      // For Choreo deployment, default to including credentials
-      return true;
+      console.warn('Could not determine credential policy, defaulting to omit for safety:', error);
+      // For safety, default to omitting credentials to avoid CORS errors
+      return false;
     }
   }
 
