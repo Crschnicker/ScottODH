@@ -48,16 +48,15 @@ const getApiBaseUrl = () => {
 // Export the dynamically determined URL
 export const API_BASE_URL = getApiBaseUrl();
 
-// Enhanced API configuration with debugging
+// FIXED: Simplified API configuration for better CORS compatibility
 export const API_CONFIG = {
   baseURL: API_BASE_URL,
   timeout: 30000, // 30 seconds
   withCredentials: true, // Enable credentials for authentication
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Cache-Control': 'no-cache',
-    'Pragma': 'no-cache'
+    'Accept': 'application/json'
+    // REMOVED: Cache-Control and Pragma headers to avoid preflight issues
   }
 };
 
@@ -67,7 +66,7 @@ console.log(`🌐 Current hostname: ${window.location.hostname}`);
 console.log(`🛠 API Config:`, API_CONFIG);
 
 /**
- * Enhanced API health check with comprehensive error reporting
+ * FIXED: Simplified API health check with better CORS handling
  */
 export const checkApiHealth = async () => {
   const healthUrl = `${API_BASE_URL}/api/health`;
@@ -77,10 +76,11 @@ export const checkApiHealth = async () => {
   try {
     const response = await fetch(healthUrl, {
       method: 'GET',
-      credentials: 'omit', // Don't send credentials for health check
+      mode: 'cors',
+      credentials: 'include', // FIXED: Include credentials for consistency
       headers: {
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
+        'Accept': 'application/json'
+        // REMOVED: Cache-Control header to avoid preflight issues
       }
     });
     
@@ -135,7 +135,7 @@ export const checkApiHealth = async () => {
 };
 
 /**
- * Test CORS configuration specifically
+ * FIXED: Simplified CORS test for better compatibility
  */
 export const testCorsConfiguration = async () => {
   const corsTestUrl = `${API_BASE_URL}/api/health`;
@@ -144,12 +144,13 @@ export const testCorsConfiguration = async () => {
   console.log(`🌐 Origin: ${window.location.origin}`);
   
   try {
+    // FIXED: Use simple GET request instead of OPTIONS for CORS test
     const response = await fetch(corsTestUrl, {
-      method: 'OPTIONS', // Preflight request
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'include',
       headers: {
-        'Origin': window.location.origin,
-        'Access-Control-Request-Method': 'GET',
-        'Access-Control-Request-Headers': 'Content-Type'
+        'Accept': 'application/json'
       }
     });
     
@@ -224,7 +225,7 @@ export const isNgrok = () => window.location.hostname.includes('ngrok.io') || wi
 export const isChoreo = () => window.location.hostname.includes('choreoapps.dev') || window.location.hostname.includes('choreoapis.dev');
 
 /**
- * Debug function to test complete API connectivity
+ * FIXED: Debug function with simplified API connectivity test
  */
 export const debugApiConnectivity = async () => {
   console.log('🔍 Starting comprehensive API connectivity test...');
@@ -276,14 +277,18 @@ export const debugApiConnectivity = async () => {
   return results;
 };
 
-// Run initial API connectivity test when module loads
-debugApiConnectivity().then(results => {
-  if (results.healthCheck.healthy && results.corsTest.success) {
-    console.log('✅ API connectivity test passed');
-  } else {
-    console.warn('⚠️ API connectivity issues detected - check logs above');
-  }
-});
+// FIXED: Only run connectivity test in development to avoid production noise
+if (isDevelopment()) {
+  debugApiConnectivity().then(results => {
+    if (results.healthCheck.healthy && results.corsTest.success) {
+      console.log('✅ API connectivity test passed');
+    } else {
+      console.warn('⚠️ API connectivity issues detected - check logs above');
+    }
+  });
+} else {
+  console.log('🚀 Production environment detected - skipping connectivity test');
+}
 
 export default {
   API_BASE_URL,

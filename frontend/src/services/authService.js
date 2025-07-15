@@ -28,37 +28,35 @@ class AuthService {
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
-    // Choreo-optimized request configuration
+    // FIXED: Simplified CORS configuration for Choreo
     const defaultOptions = {
       method: options.method || 'GET',
-      mode: 'cors', // Explicitly set CORS mode for production
-      cache: 'no-cache', // Prevent caching issues in production
+      mode: 'cors',
+      cache: 'no-cache',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        // Add origin header for better CORS handling
-        'Origin': window.location.origin,
+        // REMOVED: Origin header as it can cause CORS issues in some browsers
         ...options.headers,
       },
-      // FIXED: For Choreo, we need to be more careful about credentials
-      // Only include credentials for same-origin or when explicitly needed
+      // FIXED: Always include credentials for auth requests, omit for others
       credentials: this.shouldIncludeCredentials(endpoint) ? 'include' : 'omit',
       ...options,
     };
 
+    // Remove any problematic headers that might cause CORS preflight issues
+    if (defaultOptions.method === 'GET') {
+      delete defaultOptions.headers['Content-Type'];
+    }
+
     try {
       console.log(`Making ${defaultOptions.method} request to: ${url}`);
-      console.log('Request options:', {
-        method: defaultOptions.method,
-        headers: defaultOptions.headers,
-        credentials: defaultOptions.credentials
-      });
+      console.log('Request credentials mode:', defaultOptions.credentials);
       
       const response = await fetch(url, defaultOptions);
       
       // Enhanced logging for production debugging
       console.log(`Response status: ${response.status} for ${url}`);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (response.ok) {
         const contentType = response.headers.get('content-type');
@@ -112,9 +110,9 @@ class AuthService {
           error.message.includes('cross-origin') ||
           error.message.includes('credentials') ||
           error.message.includes('Access-Control-Allow-Credentials') ||
-          (error.name === 'TypeError' && !navigator.onLine)) {
-        console.error('CORS or connectivity error:', error);
-        throw new Error('Connection error: Unable to reach the server. This may be due to network issues or server configuration.');
+          error.message.includes('preflight')) {
+        console.error('CORS error detected:', error);
+        throw new Error('Server connection error. Please contact support if this continues.');
       }
       
       // Timeout handling
@@ -128,61 +126,62 @@ class AuthService {
   }
 
   /**
-   * FIXED: More conservative credentials policy for Choreo
+   * FIXED: Simplified credentials policy for Choreo
    */
   shouldIncludeCredentials(endpoint = '') {
     try {
       const apiUrl = new URL(this.baseURL);
       const currentUrl = new URL(window.location.href);
       
-      // Check if it's same origin first
-      const isSameOrigin = apiUrl.origin === currentUrl.origin;
-      if (isSameOrigin) {
-        console.log('Using credentials: same origin detected');
-        return true;
-      }
-      
-      // For Choreo, be more conservative about credentials
-      // Only include credentials for specific endpoints that definitely need them
+      // FIXED: For Choreo deployments, always include credentials for auth endpoints
       const isAuthEndpoint = endpoint.includes('/auth/') || 
                            endpoint.includes('/login') || 
                            endpoint.includes('/logout') ||
-                           endpoint.includes('/me');
+                           endpoint.includes('/me') ||
+                           endpoint.includes('/users');
       
-      const isChoreoRelated = apiUrl.hostname.includes('choreoapis.dev') || 
-                            apiUrl.hostname.includes('choreoapps.dev') ||
-                            currentUrl.hostname.includes('choreoapis.dev') ||
-                            currentUrl.hostname.includes('choreoapps.dev');
+      const isChoreoDeployment = apiUrl.hostname.includes('choreoapis.dev') || 
+                               apiUrl.hostname.includes('choreoapps.dev') ||
+                               currentUrl.hostname.includes('choreoapis.dev') ||
+                               currentUrl.hostname.includes('choreoapps.dev');
       
       const isLocalDev = apiUrl.hostname.includes('localhost') || 
                         apiUrl.hostname.includes('127.0.0.1') ||
-                        apiUrl.hostname.includes('ngrok');
+                        currentUrl.hostname.includes('localhost') ||
+                        currentUrl.hostname.includes('127.0.0.1');
       
-      // For Choreo: Only include credentials for auth endpoints
-      // For local dev: Always include credentials
+      // FIXED: Always include credentials for local development
       if (isLocalDev) {
         console.log('Using credentials: local development');
         return true;
       }
       
-      if (isChoreoRelated && isAuthEndpoint) {
+      // FIXED: For Choreo, always include credentials for auth endpoints
+      if (isChoreoDeployment && isAuthEndpoint) {
         console.log('Using credentials: Choreo auth endpoint');
         return true;
       }
       
-      if (isChoreoRelated && !isAuthEndpoint) {
-        console.log('Omitting credentials: Choreo non-auth endpoint');
-        return false;
+      // FIXED: For non-auth endpoints in Choreo, still include credentials to maintain session
+      if (isChoreoDeployment) {
+        console.log('Using credentials: Choreo deployment');
+        return true;  // Changed from false to true
       }
       
-      // Default to false for cross-origin requests to avoid CORS issues
-      console.log('Omitting credentials: cross-origin request');
-      return false;
+      // For same origin, always include credentials
+      if (apiUrl.origin === currentUrl.origin) {
+        console.log('Using credentials: same origin');
+        return true;
+      }
+      
+      // Default to including credentials for better session management
+      console.log('Using credentials: default policy');
+      return true;  // Changed from false to true
       
     } catch (error) {
-      console.warn('Could not determine credential policy, defaulting to omit for safety:', error);
-      // For safety, default to omitting credentials to avoid CORS errors
-      return false;
+      console.warn('Could not determine credential policy, defaulting to include:', error);
+      // FIXED: Default to including credentials since backend expects them
+      return true;
     }
   }
 
@@ -212,8 +211,13 @@ class AuthService {
       localStorage.removeItem('lastLogoutTime');
       localStorage.removeItem('authBlocked');
       
+      // FIXED: Simplified login request for better CORS compatibility
       const response = await this.makeRequest('/api/auth/login', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({ username, password }),
       });
 
@@ -228,17 +232,22 @@ class AuthService {
       console.error('Login error:', error);
       
       // More specific error messages for production
-      if (error.message.includes('Unable to connect')) {
-        throw new Error('Cannot connect to the authentication server. Please check your internet connection and try again.');
-      }
-      
-      if (error.message.includes('Connection error')) {
-        throw new Error('Server connection error. Please try again in a few moments.');
+      if (error.message.includes('Unable to connect') || 
+          error.message.includes('Server connection error')) {
+        throw new Error('Cannot connect to the server. Please check your internet connection and try again.');
       }
       
       // Handle authentication-specific errors
       if (error.message.includes('401') || error.message.includes('Authentication')) {
         throw new Error('Invalid username or password. Please check your credentials and try again.');
+      }
+      
+      if (error.message.includes('403')) {
+        throw new Error('Access denied. Please contact support.');
+      }
+      
+      if (error.message.includes('500') || error.message.includes('Server error')) {
+        throw new Error('Server is currently unavailable. Please try again later.');
       }
       
       throw error;
