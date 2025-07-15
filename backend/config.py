@@ -1,214 +1,60 @@
 import os
 from datetime import timedelta
-from dotenv import load_dotenv
 from urllib.parse import quote_plus
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    # Basic Flask config
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'a-very-secret-key-that-you-should-change'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Database configuration for Choreo
+    # Use /tmp for uploads in containerized environments like Choreo
+    UPLOAD_FOLDER = '/tmp/uploads'
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    # JWT Configuration (if you use it)
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY
+
+    # Logging configuration
+    LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT', 'true').lower() == 'true'
+
+    # Database configuration
     @staticmethod
     def get_database_uri():
-        # Check for full DATABASE_URL first (for Choreo and other cloud platforms)
         database_url = os.environ.get('DATABASE_URL')
         if database_url:
-            print(f"DEBUG: Using DATABASE_URL from environment")
             return database_url
         
-        # Build PostgreSQL connection string from components (for Azure/other clouds)
-        db_host = os.environ.get('DB_HOST')
-        db_user = os.environ.get('DB_USER')
-        db_password = os.environ.get('DB_PASSWORD')
-        db_name = os.environ.get('DB_NAME', 'scott_overhead_doors')
-        db_port = os.environ.get('DB_PORT', '5432')
-        
-        if db_host and db_user and db_password:
-            # URL-encode credentials to handle special characters
-            encoded_user = quote_plus(str(db_user))
-            encoded_password = quote_plus(str(db_password))
-            
-            # PostgreSQL connection with SSL (required for most cloud databases)
-            connection_string = f'postgresql://{encoded_user}:{encoded_password}@{db_host}:{db_port}/{db_name}?sslmode=require'
-            
-            # Debug logging (remove in production)
-            print(f"DEBUG: Connecting to host: {db_host}")
-            print(f"DEBUG: Using username: {db_user}")
-            print(f"DEBUG: Database name: {db_name}")
-            print(f"DEBUG: Connection string: postgresql://{encoded_user}:***@{db_host}:{db_port}/{db_name}?sslmode=require")
-            
-            return connection_string
-        else:
-            # Fallback to SQLite for local development
-            print("DEBUG: Using SQLite - PostgreSQL credentials not found")
-            missing = []
-            if not db_host: missing.append('DB_HOST')
-            if not db_user: missing.append('DB_USER') 
-            if not db_password: missing.append('DB_PASSWORD')
-            print(f"DEBUG: Missing environment variables: {missing}")
-            
-            basedir = os.path.abspath(os.path.dirname(__file__))
-            return f'sqlite:///{os.path.join(basedir, "instance", "scott_overhead_doors.db")}'
-    
-    SQLALCHEMY_DATABASE_URI = get_database_uri()
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-        'pool_recycle': 300,
-        'pool_size': 10,
-        'max_overflow': 20,
-        'connect_args': {
-            'connect_timeout': 30,
-            'application_name': 'scott_overhead_doors_app'
-        }
-    }
-    
-    # File upload configuration
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file size
-    
-    # Upload folder configuration for Choreo (containerized environment)
-    if os.environ.get('FLASK_ENV') == 'production':
-        # Use /tmp for uploads in production containers (Choreo)
-        UPLOAD_FOLDER = '/tmp/uploads'
-        MOBILE_UPLOAD_FOLDER = '/tmp/mobile_uploads'
-        AUDIO_UPLOAD_FOLDER = '/tmp/uploads/audio'
-    else:
-        # Use local uploads folder for development
-        UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'uploads'
-        MOBILE_UPLOAD_FOLDER = os.environ.get('MOBILE_UPLOAD_FOLDER') or 'mobile_uploads'
-        AUDIO_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'audio')
-    
-    # Ensure upload folders exist
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(MOBILE_UPLOAD_FOLDER, exist_ok=True)
-    os.makedirs(AUDIO_UPLOAD_FOLDER, exist_ok=True)
-    
-    # JWT Configuration
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY') or SECRET_KEY
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
-    
-    # Environment
-    ENV = os.environ.get('FLASK_ENV') or 'development'
-    DEBUG = ENV == 'development'
-    
-    # Logging configuration for Choreo containers
-    LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT', 'true').lower() == 'true'
-    
-    # Updated CORS origins for your specific Choreo deployment
-    CORS_ORIGINS = [
-        # Your specific Choreo deployment URLs from the error logs
-        "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
-        "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
-        # Choreo wildcard patterns for any environment
-        "https://*.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapps.dev",
-        "https://*.choreoapis.dev",
-        "https://*.choreoapps.dev",
-        # Development and testing URLs
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://*.ngrok.io",
-        "https://*.ngrok-free.app",
-        "https://scottohd.ngrok.io",
-    ]
-    
-    # CORS configuration dictionary for more detailed setup
-    CORS_CONFIG = {
-        'origins': CORS_ORIGINS,
-        'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],
-        'allow_headers': [
-            'Accept',
-            'Accept-Language',
-            'Authorization', 
-            'Cache-Control',
-            'Content-Language',
-            'Content-Type',
-            'Origin',
-            'Pragma',
-            'User-Agent',
-            'X-Client-Info',
-            'X-Forwarded-For',
-            'X-Forwarded-Host',
-            'X-Forwarded-Proto', 
-            'X-Request-ID',
-            'X-Request-Timestamp',
-            'X-Requested-With',
-        ],
-        'expose_headers': [
-            'Content-Range',
-            'X-Content-Range',
-            'X-Total-Count',
-            'Location'
-        ],
-        'supports_credentials': True,
-        'max_age': 86400,
-        'send_wildcard': False,
-        'vary_header': True
-    }
-    
-    # Audio and media processing
-    ALLOWED_AUDIO_EXTENSIONS = {'wav', 'm4a', 'mp3', 'webm'}
-    ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif'}
-    ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'webm', 'avi', 'mov'}
-    
-    # OpenAI API
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-    
-    # Timezone
-    TIMEZONE = 'America/Los_Angeles'
+        # Fallback to local SQLite for development if no full URL is provided
+        basedir = os.path.abspath(os.path.dirname(__file__))
+        return f'sqlite:///{os.path.join(basedir, "instance", "app.db")}'
 
-class DevelopmentConfig(Config):
-    DEBUG = True
-    ENV = 'development'
-    LOG_TO_STDOUT = False
-    
-    # More permissive CORS for development
-    CORS_ORIGINS = Config.CORS_ORIGINS + [
-        "http://localhost:*",      # Any localhost port
-        "http://127.0.0.1:*",     # Any 127.0.0.1 port
-        "https://*.localhost",     # HTTPS localhost variants
-    ]
+    SQLALCHEMY_DATABASE_URI = get_database_uri()
 
 class ProductionConfig(Config):
-    DEBUG = False
     ENV = 'production'
-    LOG_TO_STDOUT = True
-    
-    # Strict CORS for production - only allow specific Choreo URLs
+    DEBUG = False
+    # CRITICAL: Define the exact origins for your production frontend and backend API.
+    # No wildcards are allowed when `supports_credentials` is True.
     CORS_ORIGINS = [
         "https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev",
         "https://55541a65-8041-4b00-9307-2d837a189865-dev.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapis.dev",
-        "https://*.e1-us-east-azure.choreoapps.dev",
-        "https://*.choreoapis.dev",
-        "https://*.choreoapps.dev",
     ]
-    
-    # In production, ensure these are set via environment variables
-    if not os.environ.get('SECRET_KEY'):
-        print("⚠ WARNING: SECRET_KEY environment variable not set in production")
-    
-    # Database URL is required for Choreo production
-    if not os.environ.get('DATABASE_URL') and not all([
-        os.environ.get('DB_HOST'),
-        os.environ.get('DB_USER'), 
-        os.environ.get('DB_PASSWORD')
-    ]):
-        print("⚠ WARNING: Database configuration missing in production")
 
-class TestingConfig(Config):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    
-    # Allow all origins for testing
-    CORS_ORIGINS = ['*']
+class DevelopmentConfig(Config):
+    ENV = 'development'
+    DEBUG = True
+    # Define origins for local development
+    CORS_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
 # Configuration dictionary
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
-    'testing': TestingConfig,
     'default': DevelopmentConfig
 }

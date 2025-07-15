@@ -1,50 +1,64 @@
 # backend/middleware/auth.py
-from flask import request, jsonify, url_for, redirect
-from flask_login import current_user
+
 from functools import wraps
+from flask import jsonify
+from flask_login import current_user
+import logging
 
-def setup_auth_handlers(app, login_manager):
-    """Setup authentication handlers and decorators"""
-    
-    @login_manager.user_loader
-    def load_user(user_id):
-        """Load user by ID for Flask-Login"""
-        from models import User
-        return User.query.get(int(user_id))
-    
-    @login_manager.unauthorized_handler
-    def unauthorized_api_handler():
-        """Handle unauthorized access attempts"""
-        # Check if the request path starts with API prefix
-        api_prefix = app.config.get("API_PREFIX", "/api/")
-
-        if request.path.startswith(api_prefix):
-            # For API requests, return a JSON 401 response
-            return jsonify(
-                error="Authentication required", 
-                message="Please log in to access this resource."
-            ), 401
-        else:
-            # For non-API requests (e.g., browser navigating to a protected page),
-            # perform the default redirect to the login view.
-            if login_manager.login_view:
-                login_url = url_for(login_manager.login_view)
-                # Preserve the 'next' URL if it was part of the original request
-                if 'next' in request.args:
-                    login_url = url_for(login_manager.login_view, next=request.args.get('next'))
-                return redirect(login_url)
-            else:
-                # If no login view is configured, abort with 401
-                from flask import abort
-                abort(401)
+# It's good practice to set up a logger for your modules
+logger = logging.getLogger(__name__)
 
 def admin_required(f):
-    """Decorator to require admin role for route access"""
+    """
+    Decorator to ensure a user is logged in and has the 'admin' role.
+    This must be placed AFTER the @login_required decorator.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # First, ensure the user is authenticated.
+        if not current_user.is_authenticated:
+            logger.warning("Unauthenticated access attempt to an admin-only route.")
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        # Then, check if the authenticated user has the 'admin' role.
+        if not hasattr(current_user, 'role') or current_user.role != 'admin':
+            logger.warning(f"User '{current_user.username}' (role: {getattr(current_user, 'role', 'N/A')}) attempted to access an admin-only route.")
+            return jsonify({'error': 'Admin access required'}), 403 # 403 Forbidden is more appropriate
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def field_or_admin_required(f):
+    """
+    Decorator to ensure a user has either the 'field' or 'admin' role.
+    This must be placed AFTER the @login_required decorator.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated:
+            logger.warning("Unauthenticated access attempt to a protected route.")
+            return jsonify({'error': 'Authentication required'}), 401
+        
+        if not hasattr(current_user, 'role') or current_user.role not in ['admin', 'field']:
+            logger.warning(f"User '{current_user.username}' (role: {getattr(current_user, 'role', 'N/A')}) attempted access without sufficient permissions.")
+            return jsonify({'error': 'Insufficient permissions'}), 403
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def active_user_required(f):
+    """
+    Decorator to ensure the logged-in user's account is active.
+    This must be placed AFTER the @login_required decorator.
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
             return jsonify({'error': 'Authentication required'}), 401
-        if current_user.role != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
+        
+        if not hasattr(current_user, 'is_active') or not current_user.is_active:
+            logger.warning(f"Inactive user '{current_user.username}' attempted to access a resource.")
+            return jsonify({'error': 'Your account is disabled. Please contact an administrator.'}), 403
+            
         return f(*args, **kwargs)
     return decorated_function
