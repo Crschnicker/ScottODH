@@ -1,10 +1,9 @@
 # backend/app.py
-# Fixed Flask application with proper CORS configuration for Choreo
+# Bulletproof CORS solution for Choreo deployment
 
 import os
 import logging
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, jsonify, request, make_response
 from flask_migrate import Migrate
 from flask_login import LoginManager
 
@@ -14,8 +13,8 @@ from models import db
 
 def create_app(config_name=None):
     """
-    Application factory pattern. This function creates and configures the Flask app.
-    Enhanced with proper CORS handling for Choreo deployment.
+    Application factory with bulletproof CORS handling.
+    This completely bypasses Flask-CORS and handles CORS manually for maximum control.
     """
     if config_name is None:
         config_name = get_config_name()
@@ -24,98 +23,104 @@ def create_app(config_name=None):
     config_obj = config[config_name]
     app.config.from_object(config_obj)
     
-    # Enhanced logging for production debugging
+    # Enhanced logging
     logging.basicConfig(
         level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
         format='%(asctime)s %(levelname)s: %(message)s'
     )
     app.logger.info(f'Starting application with {config_name} configuration')
     app.logger.info(f'Database URI: {app.config.get("SQLALCHEMY_DATABASE_URI", "Not set")[:50]}...')
-    app.logger.info(f'CORS Origins configured: {app.config.get("CORS_ORIGINS", [])}')
 
     # Initialize Extensions
     db.init_app(app)
     Migrate(app, db)
 
-    # FIXED: Explicit CORS origins configuration
+    # CORS Configuration - Manual implementation for maximum control
     cors_origins = app.config.get('CORS_ORIGINS', [])
+    frontend_origin = 'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev'
     
     # Ensure the exact frontend origin is included
-    frontend_origin = 'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev'
     if frontend_origin not in cors_origins:
         cors_origins.append(frontend_origin)
     
     app.logger.info(f'Final CORS origins list: {cors_origins}')
 
-    # FIXED: Simplified CORS Configuration that explicitly handles credentials
-    cors_instance = CORS(app,
-        origins=cors_origins,
-        supports_credentials=True,
-        allow_headers=[
-            "Accept",
-            "Accept-Encoding", 
-            "Accept-Language",
-            "Authorization",
-            "Content-Length",
-            "Content-Type",
-            "Cookie",
-            "Origin",
-            "Referer",
-            "User-Agent",
-            "X-Requested-With"
-        ],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-        expose_headers=["Content-Type", "Authorization"],
-        max_age=86400,
-        send_wildcard=False,
-        vary_header=True
-    )
-
-    # FIXED: Critical - Handle preflight OPTIONS requests explicitly
-    @app.before_request
-    def handle_preflight():
-        """Handle preflight OPTIONS requests with proper CORS headers."""
-        if request.method == "OPTIONS":
-            origin = request.headers.get('Origin')
-            app.logger.info(f'Preflight OPTIONS request from origin: {origin}')
-            
-            # Create empty response for preflight
-            response = jsonify({})
-            
-            # FIXED: Explicitly set CORS headers for preflight
-            if origin in cors_origins:
-                response.headers['Access-Control-Allow-Origin'] = origin
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-                app.logger.info(f'Set Access-Control-Allow-Credentials: true for origin: {origin}')
-            else:
-                app.logger.warning(f'Origin {origin} not in allowed origins: {cors_origins}')
-            
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
-            response.headers['Access-Control-Allow-Headers'] = 'Accept, Authorization, Content-Type, Origin, X-Requested-With'
-            response.headers['Access-Control-Max-Age'] = '86400'
-            response.headers['Vary'] = 'Origin'
-            
-            app.logger.info(f'Preflight response headers: {dict(response.headers)}')
-            return response
-
-    # FIXED: Ensure all responses have proper CORS headers
-    @app.after_request
-    def after_request(response):
-        """Ensure proper CORS headers are set on all responses."""
-        origin = request.headers.get('Origin')
+    def is_origin_allowed(origin):
+        """Check if the origin is allowed with support for wildcards."""
+        if not origin:
+            return False
         
-        app.logger.debug(f'Processing {request.method} request from origin: {origin}')
-        
-        # FIXED: Always set credentials header for allowed origins
+        # Check exact matches first
         if origin in cors_origins:
+            return True
+        
+        # Check wildcard patterns
+        for allowed_origin in cors_origins:
+            if '*' in allowed_origin:
+                # Convert wildcard pattern to regex-like matching
+                pattern = allowed_origin.replace('*', '')
+                if pattern and origin.endswith(pattern.lstrip('.')):
+                    return True
+        
+        return False
+
+    def add_cors_headers(response, origin=None):
+        """Add CORS headers to response with explicit credential support."""
+        if origin is None:
+            origin = request.headers.get('Origin')
+        
+        if origin and is_origin_allowed(origin):
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Credentials'] = 'true'
-            app.logger.debug(f'Set CORS headers for allowed origin: {origin}')
+            app.logger.debug(f'Added CORS headers for origin: {origin}')
         else:
-            app.logger.debug(f'Origin {origin} not in allowed origins list')
+            app.logger.debug(f'Origin not allowed: {origin}')
         
-        # Always set Vary header for proper caching
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
+        response.headers['Access-Control-Allow-Headers'] = 'Accept, Authorization, Content-Type, Origin, X-Requested-With'
+        response.headers['Access-Control-Max-Age'] = '86400'
         response.headers['Vary'] = 'Origin'
+        
+        return response
+
+    # BULLETPROOF: Handle ALL OPTIONS requests at the app level
+    @app.before_request
+    def handle_preflight():
+        """Handle preflight OPTIONS requests with guaranteed CORS headers."""
+        if request.method == 'OPTIONS':
+            origin = request.headers.get('Origin')
+            app.logger.info(f'=== PREFLIGHT REQUEST ===')
+            app.logger.info(f'Origin: {origin}')
+            app.logger.info(f'Method: {request.method}')
+            app.logger.info(f'Path: {request.path}')
+            app.logger.info(f'Headers: {dict(request.headers)}')
+            
+            # Create response for preflight
+            response = make_response('', 200)
+            
+            # Add CORS headers
+            response = add_cors_headers(response, origin)
+            
+            app.logger.info(f'Preflight response headers: {dict(response.headers)}')
+            app.logger.info(f'Access-Control-Allow-Credentials: "{response.headers.get("Access-Control-Allow-Credentials")}"')
+            app.logger.info('=== END PREFLIGHT ===')
+            
+            return response
+
+    # BULLETPROOF: Add CORS headers to ALL responses
+    @app.after_request
+    def after_request(response):
+        """Add CORS headers to all responses."""
+        origin = request.headers.get('Origin')
+        
+        # Always add CORS headers for valid origins
+        response = add_cors_headers(response, origin)
+        
+        # Log for debugging
+        if origin:
+            app.logger.debug(f'{request.method} {request.path} from {origin}')
+            app.logger.debug(f'Response status: {response.status_code}')
+            app.logger.debug(f'Access-Control-Allow-Credentials: "{response.headers.get("Access-Control-Allow-Credentials")}"')
         
         return response
 
@@ -144,43 +149,46 @@ def create_app(config_name=None):
 
     # Register Blueprints and Create Database
     with app.app_context():
-        from routes.auth import auth_bp
-        
-        # Register blueprints
-        app.register_blueprint(auth_bp, url_prefix='/api/auth')
+        # Import and register auth blueprint
+        try:
+            from routes.auth import auth_bp
+            app.register_blueprint(auth_bp, url_prefix='/api/auth')
+            app.logger.info('✓ Auth blueprint imported successfully')
+        except ImportError as e:
+            app.logger.error(f'✗ Failed to import auth blueprint: {e}')
         
         # Import other blueprints as available
-        try:
-            from routes.customers import customers_bp
-            app.register_blueprint(customers_bp, url_prefix='/api/customers')
-        except ImportError:
-            app.logger.info('Customers blueprint not available')
+        blueprints = [
+            ('routes.customers', 'customers_bp', '/api/customers'),
+            ('routes.jobs', 'jobs_bp', '/api/jobs'),
+            ('routes.estimates', 'estimates_bp', '/api/estimates'),
+            ('routes.bids', 'bids_bp', '/api/bids'),
+            ('routes.mobile', 'mobile_bp', '/api/mobile'),
+            ('routes.sites', 'sites_bp', '/api/sites'),
+            ('routes.audio', 'audio_bp', '/api/audio'),
+            ('routes.line_items', 'line_items_bp', '/api/line-items'),
+        ]
         
-        try:
-            from routes.jobs import jobs_bp
-            app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
-        except ImportError:
-            app.logger.info('Jobs blueprint not available')
-        
-        try:
-            from routes.estimates import estimates_bp
-            app.register_blueprint(estimates_bp, url_prefix='/api/estimates')
-        except ImportError:
-            app.logger.info('Estimates blueprint not available')
+        for module_name, blueprint_name, url_prefix in blueprints:
+            try:
+                module = __import__(module_name, fromlist=[blueprint_name])
+                blueprint = getattr(module, blueprint_name)
+                app.register_blueprint(blueprint, url_prefix=url_prefix)
+                app.logger.info(f'✓ {blueprint_name} imported successfully')
+            except ImportError:
+                app.logger.info(f'ℹ {blueprint_name} not available')
+            except Exception as e:
+                app.logger.error(f'✗ Error importing {blueprint_name}: {e}')
 
-        try:
-            from routes.bids import bids_bp
-            app.register_blueprint(bids_bp, url_prefix='/api/bids')
-        except ImportError:
-            app.logger.info('Bids blueprint not available')
-
-        # Create database tables
+        # Create database tables and default users
         try:
             db.create_all()
             app.logger.info('Database tables created successfully')
             
-            # Create default admin user if it doesn't exist
+            # Create default users
             from models import User
+            
+            # Create admin user if it doesn't exist
             if not User.query.filter_by(role='admin').first():
                 try:
                     admin_user = User(
@@ -190,83 +198,98 @@ def create_app(config_name=None):
                         last_name='Administrator',
                         role='admin'
                     )
-                    admin_user.set_password('admin123')  # Change this in production!
+                    admin_user.set_password('admin123')  # Change in production!
                     db.session.add(admin_user)
                     db.session.commit()
                     app.logger.info('Created default admin user: admin/admin123')
                 except Exception as e:
-                    app.logger.error(f'Could not create default admin user: {e}')
+                    app.logger.error(f'Could not create admin user: {e}')
+                    db.session.rollback()
+            
+            # Create kelly user if it doesn't exist
+            if not User.query.filter_by(username='kelly').first():
+                try:
+                    kelly_user = User(
+                        username='kelly',
+                        email='kelly@scottoverheaddoors.com',
+                        first_name='Kelly',
+                        last_name='Field',
+                        role='field'
+                    )
+                    kelly_user.set_password('kelly123')
+                    db.session.add(kelly_user)
+                    db.session.commit()
+                    app.logger.info('Created kelly user: kelly/kelly123')
+                except Exception as e:
+                    app.logger.error(f'Could not create kelly user: {e}')
                     db.session.rollback()
                     
         except Exception as e:
-            app.logger.error(f'Error creating database tables: {str(e)}')
+            app.logger.error(f'Error setting up database: {str(e)}')
 
-    # Global Error Handlers with proper CORS headers
+    # Global Error Handlers with CORS
     @app.errorhandler(404)
     def not_found(error):
         """Handle 404 errors with proper CORS headers."""
         app.logger.warning(f'404 error: {request.url} from {request.remote_addr}')
-        response = jsonify({
+        response = make_response(jsonify({
             'error': 'Not Found', 
             'message': 'The requested resource was not found on the server.',
             'path': request.path
-        })
-        response.status_code = 404
-        return response
+        }), 404)
+        return add_cors_headers(response)
 
     @app.errorhandler(500)
     def internal_server_error(error):
-        """Handle 500 errors with proper cleanup."""
+        """Handle 500 errors with proper cleanup and CORS."""
         app.logger.error(f'500 error: {str(error)} at {request.url}')
         db.session.rollback()
-        response = jsonify({
+        response = make_response(jsonify({
             'error': 'Internal Server Error', 
             'message': 'An unexpected error occurred.'
-        })
-        response.status_code = 500
-        return response
+        }), 500)
+        return add_cors_headers(response)
 
     @app.errorhandler(400)
     def bad_request(error):
-        """Handle 400 errors with detailed messages."""
+        """Handle 400 errors with CORS."""
         app.logger.warning(f'400 error: {error.description} at {request.url}')
-        response = jsonify({
+        response = make_response(jsonify({
             'error': 'Bad Request', 
             'message': error.description or 'The request was malformed.'
-        })
-        response.status_code = 400
-        return response
+        }), 400)
+        return add_cors_headers(response)
 
     @app.errorhandler(403)
     def forbidden(error):
-        """Handle 403 errors."""
+        """Handle 403 errors with CORS."""
         app.logger.warning(f'403 error: Access forbidden to {request.url} from {request.remote_addr}')
-        response = jsonify({
+        response = make_response(jsonify({
             'error': 'Forbidden', 
             'message': 'You do not have permission to access this resource.'
-        })
-        response.status_code = 403
-        return response
+        }), 403)
+        return add_cors_headers(response)
 
-    # Health Check Endpoint with database and CORS testing
+    # Enhanced Health Check Endpoint
     @app.route('/api/health')
     def health_check():
-        """
-        Comprehensive health check endpoint for monitoring and CORS testing.
-        Tests database connectivity and returns system status.
-        """
+        """Comprehensive health check endpoint."""
+        origin = request.headers.get('Origin')
+        app.logger.info(f'Health check request from origin: {origin}')
+        
         health_data = {
             'status': 'healthy',
             'timestamp': str(db.func.now()),
             'environment': config_name,
             'cors_configured': True,
             'database': 'unknown',
-            'cors_origins': cors_origins
+            'cors_origins': cors_origins,
+            'request_origin': origin,
+            'origin_allowed': is_origin_allowed(origin)
         }
         
         # Test database connectivity
         try:
-            # Simple database query to test connection
             db.session.execute(db.text('SELECT 1'))
             db.session.commit()
             health_data['database'] = 'connected'
@@ -277,42 +300,63 @@ def create_app(config_name=None):
             health_data['database_error'] = str(e)
             app.logger.error(f'Health check: Database connection failed: {str(e)}')
             
-            response = jsonify(health_data)
-            response.status_code = 503
-            return response
+            response = make_response(jsonify(health_data), 503)
+            return add_cors_headers(response)
         
-        # Add CORS information for debugging
-        origin = request.headers.get('Origin')
-        if origin:
-            health_data['cors_origin'] = origin
-            health_data['cors_allowed'] = origin in cors_origins
-        
-        app.logger.debug(f'Health check successful from origin: {origin}')
-        return jsonify(health_data)
+        app.logger.info(f'Health check successful - returning data: {health_data}')
+        response = make_response(jsonify(health_data))
+        return add_cors_headers(response)
 
-    # CORS debugging endpoint
+    # CORS Testing Endpoint
     @app.route('/api/cors-test')
     def cors_test():
-        """
-        Dedicated CORS testing endpoint for frontend debugging.
-        Returns CORS configuration and request details.
-        """
+        """Dedicated CORS testing endpoint."""
         origin = request.headers.get('Origin')
+        
         cors_info = {
             'request_origin': origin,
             'configured_origins': cors_origins,
-            'origin_allowed': origin in cors_origins if origin else False,
+            'origin_allowed': is_origin_allowed(origin),
             'credentials_supported': True,
             'request_headers': dict(request.headers),
-            'timestamp': str(db.func.now())
+            'request_method': request.method,
+            'timestamp': str(db.func.now()),
+            'message': 'CORS test endpoint - if you can read this, CORS is working!'
         }
         
         app.logger.info(f'CORS test request from: {origin}')
-        return jsonify(cors_info)
+        app.logger.info(f'CORS test data: {cors_info}')
+        
+        response = make_response(jsonify(cors_info))
+        return add_cors_headers(response)
+
+    # Authentication Test Endpoint
+    @app.route('/api/auth-test', methods=['GET', 'POST', 'OPTIONS'])
+    def auth_test():
+        """Test endpoint for authentication flow."""
+        origin = request.headers.get('Origin')
+        
+        test_data = {
+            'message': 'Authentication test endpoint',
+            'method': request.method,
+            'origin': origin,
+            'origin_allowed': is_origin_allowed(origin),
+            'headers': dict(request.headers),
+            'timestamp': str(db.func.now())
+        }
+        
+        if request.method == 'POST':
+            test_data['body'] = request.get_json() if request.is_json else None
+        
+        app.logger.info(f'Auth test {request.method} request from: {origin}')
+        
+        response = make_response(jsonify(test_data))
+        return add_cors_headers(response)
 
     # Log startup information
     app.logger.info(f'Flask application created successfully with {config_name} configuration')
     app.logger.info(f'CORS origins: {cors_origins}')
+    app.logger.info(f'Frontend origin: {frontend_origin}')
     
     return app
 
