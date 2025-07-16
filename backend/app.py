@@ -1,5 +1,5 @@
 # backend/app.py
-# Ultimate CORS solution that handles CORS at WSGI level for guaranteed compatibility
+# Fixed Flask application with proper config property handling
 
 import os
 import logging
@@ -113,29 +113,73 @@ class CORSMiddleware:
         # For non-OPTIONS requests, proceed normally
         return self.app(environ, new_start_response)
 
+def safe_get_config_value(config_obj, key, default="Not set"):
+    """
+    Safely get a configuration value that might be a property or regular attribute.
+    This handles both regular config attributes and @property decorated methods.
+    """
+    try:
+        # First try to get it as a regular attribute
+        if hasattr(config_obj, key):
+            value = getattr(config_obj, key)
+            # If it's a property or method, it will return the actual value
+            # If it's a regular attribute, it will return the attribute value
+            return str(value) if value is not None else default
+        else:
+            return default
+    except Exception as e:
+        # If there's any error accessing the property, return a safe default
+        return f"Error accessing {key}: {str(e)}"
+
 def create_app(config_name=None):
-    """Application factory with WSGI-level CORS handling."""
+    """Application factory with proper config property handling."""
     if config_name is None:
         config_name = get_config_name()
 
     app = Flask(__name__)
-    config_obj = config[config_name]
+    config_class = config[config_name]
+    
+    # Handle both class-based and instance-based config objects
+    if isinstance(config_class, type):
+        config_obj = config_class()
+    else:
+        config_obj = config_class
+    
     app.config.from_object(config_obj)
     
-    # Enhanced logging
+    # Enhanced logging with safe config value access
     logging.basicConfig(
         level=getattr(logging, app.config.get('LOG_LEVEL', 'INFO')),
         format='%(asctime)s %(levelname)s: %(message)s'
     )
     app.logger.info(f'Starting application with {config_name} configuration')
-    app.logger.info(f'Database URI: {app.config.get("SQLALCHEMY_DATABASE_URI", "Not set")[:50]}...')
+    
+    # FIXED: Safe database URI logging that handles @property decorators
+    db_uri = safe_get_config_value(config_obj, 'SQLALCHEMY_DATABASE_URI', 'Not configured')
+    if len(db_uri) > 50:
+        db_uri_display = db_uri[:50] + '...'
+    else:
+        db_uri_display = db_uri
+    app.logger.info(f'Database URI: {db_uri_display}')
 
     # Initialize Extensions
     db.init_app(app)
     Migrate(app, db)
 
-    # Get CORS origins from config
-    cors_origins = app.config.get('CORS_ORIGINS', [])
+    # Get CORS origins from config safely
+    cors_origins = safe_get_config_value(config_obj, 'CORS_ORIGINS', [])
+    if isinstance(cors_origins, str):
+        # If it came back as a string representation, try to evaluate it safely
+        try:
+            import ast
+            cors_origins = ast.literal_eval(cors_origins)
+        except:
+            cors_origins = []
+    
+    # Ensure it's a list
+    if not isinstance(cors_origins, list):
+        cors_origins = []
+    
     app.logger.info(f'CORS Origins configured: {cors_origins}')
     app.logger.info(f'Final CORS origins list: {cors_origins}')
 
@@ -296,7 +340,9 @@ def create_app(config_name=None):
             'database': 'unknown',
             'cors_origins': cors_origins,
             'request_origin': origin,
-            'wsgi_cors_active': True
+            'wsgi_cors_active': True,
+            'config_fixed': True,  # Indicator that config property handling is fixed
+            'deployment_version': 'v3-config-fixed'
         }
         
         # Test database connectivity
@@ -328,7 +374,8 @@ def create_app(config_name=None):
             'request_method': request.method,
             'timestamp': str(db.func.now()),
             'message': 'CORS test endpoint - WSGI level CORS handling active!',
-            'cors_middleware': 'active'
+            'cors_middleware': 'active',
+            'config_handling': 'fixed'
         }
         
         app.logger.info(f'CORS test request from: {origin}')
@@ -345,7 +392,8 @@ def create_app(config_name=None):
             'method': request.method,
             'origin': origin,
             'headers': dict(request.headers),
-            'timestamp': str(db.func.now())
+            'timestamp': str(db.func.now()),
+            'config_status': 'property_handling_fixed'
         }
         
         if request.method == 'POST':
@@ -361,6 +409,7 @@ def create_app(config_name=None):
     app.logger.info(f'Flask application created successfully with {config_name} configuration')
     app.logger.info(f'CORS origins: {cors_origins}')
     app.logger.info('WSGI-level CORS middleware activated')
+    app.logger.info('Config property handling fixed')
     
     return app
 
