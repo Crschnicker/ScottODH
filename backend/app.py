@@ -1,5 +1,5 @@
 # backend/app.py
-# Bulletproof CORS solution for Choreo deployment
+# Ultimate CORS solution that handles CORS at WSGI level for guaranteed compatibility
 
 import os
 import logging
@@ -11,11 +11,110 @@ from flask_login import LoginManager
 from config import config, get_config_name
 from models import db
 
+class CORSMiddleware:
+    """
+    WSGI middleware for handling CORS at the lowest level.
+    This ensures CORS headers are added before any other processing.
+    """
+    def __init__(self, app, origins=None):
+        self.app = app
+        self.origins = origins or []
+        # Ensure the specific frontend origin is always included
+        frontend_origin = 'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev'
+        if frontend_origin not in self.origins:
+            self.origins.append(frontend_origin)
+        
+        print(f"CORS Middleware initialized with origins: {self.origins}")
+
+    def is_origin_allowed(self, origin):
+        """Check if origin is allowed with wildcard support."""
+        if not origin:
+            return False
+        
+        # Exact match
+        if origin in self.origins:
+            return True
+        
+        # Wildcard match
+        for allowed_origin in self.origins:
+            if '*' in allowed_origin:
+                pattern = allowed_origin.replace('*', '')
+                if pattern and origin.endswith(pattern.lstrip('.')):
+                    return True
+        
+        return False
+
+    def __call__(self, environ, start_response):
+        """WSGI application with CORS handling."""
+        
+        def new_start_response(status, response_headers, exc_info=None):
+            """Wrap start_response to add CORS headers."""
+            origin = environ.get('HTTP_ORIGIN')
+            method = environ.get('REQUEST_METHOD', '').upper()
+            
+            # Convert headers to list if it's not already
+            if response_headers is None:
+                response_headers = []
+            elif not isinstance(response_headers, list):
+                response_headers = list(response_headers)
+            
+            print(f"CORS Middleware: {method} request from origin: {origin}")
+            
+            # Add CORS headers for allowed origins
+            if origin and self.is_origin_allowed(origin):
+                # Remove any existing CORS headers to avoid duplicates
+                response_headers = [
+                    (name, value) for name, value in response_headers 
+                    if not name.lower().startswith('access-control-')
+                ]
+                
+                # Add CORS headers
+                response_headers.extend([
+                    ('Access-Control-Allow-Origin', origin),
+                    ('Access-Control-Allow-Credentials', 'true'),
+                    ('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD'),
+                    ('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, Origin, X-Requested-With'),
+                    ('Access-Control-Max-Age', '86400'),
+                    ('Vary', 'Origin')
+                ])
+                
+                print(f"CORS Middleware: Added CORS headers for origin: {origin}")
+                print(f"CORS Middleware: Access-Control-Allow-Credentials set to 'true'")
+            else:
+                print(f"CORS Middleware: Origin not allowed: {origin}")
+            
+            return start_response(status, response_headers, exc_info)
+        
+        # Handle preflight OPTIONS requests at WSGI level
+        method = environ.get('REQUEST_METHOD', '').upper()
+        if method == 'OPTIONS':
+            origin = environ.get('HTTP_ORIGIN')
+            print(f"CORS Middleware: Handling OPTIONS preflight from {origin}")
+            
+            if origin and self.is_origin_allowed(origin):
+                response_headers = [
+                    ('Access-Control-Allow-Origin', origin),
+                    ('Access-Control-Allow-Credentials', 'true'),
+                    ('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD'),
+                    ('Access-Control-Allow-Headers', 'Accept, Authorization, Content-Type, Origin, X-Requested-With'),
+                    ('Access-Control-Max-Age', '86400'),
+                    ('Vary', 'Origin'),
+                    ('Content-Length', '0')
+                ]
+                
+                print(f"CORS Middleware: Preflight response headers: {response_headers}")
+                start_response('200 OK', response_headers)
+                return [b'']
+            else:
+                print(f"CORS Middleware: Preflight denied for origin: {origin}")
+                start_response('403 Forbidden', [('Content-Length', '0')])
+                return [b'']
+        
+        # For non-OPTIONS requests, proceed normally
+        return self.app(environ, new_start_response)
+
 def create_app(config_name=None):
-    """
-    Application factory with bulletproof CORS handling.
-    This completely bypasses Flask-CORS and handles CORS manually for maximum control.
-    """
+    """Application factory with WSGI-level CORS handling."""
     if config_name is None:
         config_name = get_config_name()
 
@@ -35,94 +134,10 @@ def create_app(config_name=None):
     db.init_app(app)
     Migrate(app, db)
 
-    # CORS Configuration - Manual implementation for maximum control
+    # Get CORS origins from config
     cors_origins = app.config.get('CORS_ORIGINS', [])
-    frontend_origin = 'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev'
-    
-    # Ensure the exact frontend origin is included
-    if frontend_origin not in cors_origins:
-        cors_origins.append(frontend_origin)
-    
+    app.logger.info(f'CORS Origins configured: {cors_origins}')
     app.logger.info(f'Final CORS origins list: {cors_origins}')
-
-    def is_origin_allowed(origin):
-        """Check if the origin is allowed with support for wildcards."""
-        if not origin:
-            return False
-        
-        # Check exact matches first
-        if origin in cors_origins:
-            return True
-        
-        # Check wildcard patterns
-        for allowed_origin in cors_origins:
-            if '*' in allowed_origin:
-                # Convert wildcard pattern to regex-like matching
-                pattern = allowed_origin.replace('*', '')
-                if pattern and origin.endswith(pattern.lstrip('.')):
-                    return True
-        
-        return False
-
-    def add_cors_headers(response, origin=None):
-        """Add CORS headers to response with explicit credential support."""
-        if origin is None:
-            origin = request.headers.get('Origin')
-        
-        if origin and is_origin_allowed(origin):
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            app.logger.debug(f'Added CORS headers for origin: {origin}')
-        else:
-            app.logger.debug(f'Origin not allowed: {origin}')
-        
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
-        response.headers['Access-Control-Allow-Headers'] = 'Accept, Authorization, Content-Type, Origin, X-Requested-With'
-        response.headers['Access-Control-Max-Age'] = '86400'
-        response.headers['Vary'] = 'Origin'
-        
-        return response
-
-    # BULLETPROOF: Handle ALL OPTIONS requests at the app level
-    @app.before_request
-    def handle_preflight():
-        """Handle preflight OPTIONS requests with guaranteed CORS headers."""
-        if request.method == 'OPTIONS':
-            origin = request.headers.get('Origin')
-            app.logger.info(f'=== PREFLIGHT REQUEST ===')
-            app.logger.info(f'Origin: {origin}')
-            app.logger.info(f'Method: {request.method}')
-            app.logger.info(f'Path: {request.path}')
-            app.logger.info(f'Headers: {dict(request.headers)}')
-            
-            # Create response for preflight
-            response = make_response('', 200)
-            
-            # Add CORS headers
-            response = add_cors_headers(response, origin)
-            
-            app.logger.info(f'Preflight response headers: {dict(response.headers)}')
-            app.logger.info(f'Access-Control-Allow-Credentials: "{response.headers.get("Access-Control-Allow-Credentials")}"')
-            app.logger.info('=== END PREFLIGHT ===')
-            
-            return response
-
-    # BULLETPROOF: Add CORS headers to ALL responses
-    @app.after_request
-    def after_request(response):
-        """Add CORS headers to all responses."""
-        origin = request.headers.get('Origin')
-        
-        # Always add CORS headers for valid origins
-        response = add_cors_headers(response, origin)
-        
-        # Log for debugging
-        if origin:
-            app.logger.debug(f'{request.method} {request.path} from {origin}')
-            app.logger.debug(f'Response status: {response.status_code}')
-            app.logger.debug(f'Access-Control-Allow-Credentials: "{response.headers.get("Access-Control-Allow-Credentials")}"')
-        
-        return response
 
     # Setup Flask-Login
     login_manager = LoginManager()
@@ -227,48 +242,44 @@ def create_app(config_name=None):
         except Exception as e:
             app.logger.error(f'Error setting up database: {str(e)}')
 
-    # Global Error Handlers with CORS
+    # Global Error Handlers
     @app.errorhandler(404)
     def not_found(error):
-        """Handle 404 errors with proper CORS headers."""
+        """Handle 404 errors."""
         app.logger.warning(f'404 error: {request.url} from {request.remote_addr}')
-        response = make_response(jsonify({
+        return jsonify({
             'error': 'Not Found', 
             'message': 'The requested resource was not found on the server.',
             'path': request.path
-        }), 404)
-        return add_cors_headers(response)
+        }), 404
 
     @app.errorhandler(500)
     def internal_server_error(error):
-        """Handle 500 errors with proper cleanup and CORS."""
+        """Handle 500 errors with proper cleanup."""
         app.logger.error(f'500 error: {str(error)} at {request.url}')
         db.session.rollback()
-        response = make_response(jsonify({
+        return jsonify({
             'error': 'Internal Server Error', 
             'message': 'An unexpected error occurred.'
-        }), 500)
-        return add_cors_headers(response)
+        }), 500
 
     @app.errorhandler(400)
     def bad_request(error):
-        """Handle 400 errors with CORS."""
+        """Handle 400 errors."""
         app.logger.warning(f'400 error: {error.description} at {request.url}')
-        response = make_response(jsonify({
+        return jsonify({
             'error': 'Bad Request', 
             'message': error.description or 'The request was malformed.'
-        }), 400)
-        return add_cors_headers(response)
+        }), 400
 
     @app.errorhandler(403)
     def forbidden(error):
-        """Handle 403 errors with CORS."""
+        """Handle 403 errors."""
         app.logger.warning(f'403 error: Access forbidden to {request.url} from {request.remote_addr}')
-        response = make_response(jsonify({
+        return jsonify({
             'error': 'Forbidden', 
             'message': 'You do not have permission to access this resource.'
-        }), 403)
-        return add_cors_headers(response)
+        }), 403
 
     # Enhanced Health Check Endpoint
     @app.route('/api/health')
@@ -285,7 +296,7 @@ def create_app(config_name=None):
             'database': 'unknown',
             'cors_origins': cors_origins,
             'request_origin': origin,
-            'origin_allowed': is_origin_allowed(origin)
+            'wsgi_cors_active': True
         }
         
         # Test database connectivity
@@ -299,13 +310,10 @@ def create_app(config_name=None):
             health_data['status'] = 'unhealthy'
             health_data['database_error'] = str(e)
             app.logger.error(f'Health check: Database connection failed: {str(e)}')
-            
-            response = make_response(jsonify(health_data), 503)
-            return add_cors_headers(response)
+            return jsonify(health_data), 503
         
         app.logger.info(f'Health check successful - returning data: {health_data}')
-        response = make_response(jsonify(health_data))
-        return add_cors_headers(response)
+        return jsonify(health_data)
 
     # CORS Testing Endpoint
     @app.route('/api/cors-test')
@@ -316,19 +324,15 @@ def create_app(config_name=None):
         cors_info = {
             'request_origin': origin,
             'configured_origins': cors_origins,
-            'origin_allowed': is_origin_allowed(origin),
-            'credentials_supported': True,
             'request_headers': dict(request.headers),
             'request_method': request.method,
             'timestamp': str(db.func.now()),
-            'message': 'CORS test endpoint - if you can read this, CORS is working!'
+            'message': 'CORS test endpoint - WSGI level CORS handling active!',
+            'cors_middleware': 'active'
         }
         
         app.logger.info(f'CORS test request from: {origin}')
-        app.logger.info(f'CORS test data: {cors_info}')
-        
-        response = make_response(jsonify(cors_info))
-        return add_cors_headers(response)
+        return jsonify(cors_info)
 
     # Authentication Test Endpoint
     @app.route('/api/auth-test', methods=['GET', 'POST', 'OPTIONS'])
@@ -337,10 +341,9 @@ def create_app(config_name=None):
         origin = request.headers.get('Origin')
         
         test_data = {
-            'message': 'Authentication test endpoint',
+            'message': 'Authentication test endpoint with WSGI CORS',
             'method': request.method,
             'origin': origin,
-            'origin_allowed': is_origin_allowed(origin),
             'headers': dict(request.headers),
             'timestamp': str(db.func.now())
         }
@@ -349,14 +352,15 @@ def create_app(config_name=None):
             test_data['body'] = request.get_json() if request.is_json else None
         
         app.logger.info(f'Auth test {request.method} request from: {origin}')
-        
-        response = make_response(jsonify(test_data))
-        return add_cors_headers(response)
+        return jsonify(test_data)
 
+    # Wrap the Flask app with CORS middleware
+    app.wsgi_app = CORSMiddleware(app.wsgi_app, origins=cors_origins)
+    
     # Log startup information
     app.logger.info(f'Flask application created successfully with {config_name} configuration')
     app.logger.info(f'CORS origins: {cors_origins}')
-    app.logger.info(f'Frontend origin: {frontend_origin}')
+    app.logger.info('WSGI-level CORS middleware activated')
     
     return app
 
