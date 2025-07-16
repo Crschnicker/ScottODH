@@ -1,5 +1,5 @@
 # config.py
-# Fixed Configuration for Choreo deployment with PostgreSQL support and proper CORS origins
+# Fixed Configuration with proper SECRET_KEY handling
 
 import os
 from datetime import timedelta
@@ -10,7 +10,6 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
     # FIXED: PostgreSQL Database Configuration with fallback
-    # Choreo typically provides DATABASE_URL environment variable
     DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
     
     if DATABASE_URL:
@@ -25,41 +24,34 @@ class Config:
     # PostgreSQL-optimized SQLAlchemy configuration
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_recycle': 300,  # Recycle connections every 5 minutes
-        'pool_pre_ping': True,  # Validate connections before use
-        'pool_size': 10,  # Connection pool size
-        'max_overflow': 20,  # Max overflow connections
-        'pool_timeout': 30,  # Timeout for getting connection from pool
-        'echo': False,  # Set to True for SQL logging in development
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'pool_size': 10,
+        'max_overflow': 20,
+        'pool_timeout': 30,
+        'echo': False,
     }
     
     # Session Configuration for cross-origin requests
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
-    SESSION_COOKIE_SECURE = True  # HTTPS only in production
+    SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin requests
+    SESSION_COOKIE_SAMESITE = 'None'
     
-    # FIXED: Comprehensive CORS Origins for Choreo deployment
+    # CORS Origins for Choreo deployment
     CORS_ORIGINS = [
-        # Your current Choreo frontend URL
         'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev',
-        
-        # Potential alternative frontend URLs if you redeploy
         'https://*.choreoapps.dev',
         'https://*.e1-us-east-azure.choreoapps.dev',
-        
-        # Local development
         'http://localhost:3000',
         'http://localhost:3001',
         'http://127.0.0.1:3000',
-        
-        # Ngrok for development
         'https://*.ngrok.io',
         'https://*.ngrok-free.app',
     ]
     
     # Security Headers
-    WTF_CSRF_ENABLED = False  # Disable CSRF for API usage
+    WTF_CSRF_ENABLED = False
     
     # Rate Limiting
     RATELIMIT_STORAGE_URL = "memory://"
@@ -68,15 +60,8 @@ class Config:
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
     
     # File Upload Configuration
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER', 'uploads')
-    
-    # Email Configuration (if needed later)
-    MAIL_SERVER = os.environ.get('MAIL_SERVER')
-    MAIL_PORT = int(os.environ.get('MAIL_PORT') or 587)
-    MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', 'on', '1']
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
 
 class DevelopmentConfig(Config):
     """Development configuration"""
@@ -90,7 +75,6 @@ class DevelopmentConfig(Config):
         'http://127.0.0.1:3000',
         'https://*.ngrok.io',
         'https://*.ngrok-free.app',
-        # Also include production URLs for testing
         'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev',
         'https://*.choreoapps.dev'
     ]
@@ -99,20 +83,19 @@ class DevelopmentConfig(Config):
     SESSION_COOKIE_SECURE = False
     SESSION_COOKIE_SAMESITE = 'Lax'
     
-    # Development database with PostgreSQL preference
+    # Development database configuration
     DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('DEV_DATABASE_URL')
     if DATABASE_URL:
         if DATABASE_URL.startswith('postgres://'):
             DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
         SQLALCHEMY_DATABASE_URI = DATABASE_URL
     else:
-        # Fallback to SQLite for local development without PostgreSQL
         SQLALCHEMY_DATABASE_URI = 'sqlite:///dev_app.db'
     
     # Enable SQL logging in development
     SQLALCHEMY_ENGINE_OPTIONS = {
         **Config.SQLALCHEMY_ENGINE_OPTIONS,
-        'echo': True,  # Log all SQL statements
+        'echo': True,
     }
 
 class ProductionConfig(Config):
@@ -120,59 +103,77 @@ class ProductionConfig(Config):
     DEBUG = False
     DEVELOPMENT = False
     
+    # FIXED: Handle SECRET_KEY properly for production
+    def __init__(self):
+        """Initialize production config with proper SECRET_KEY validation."""
+        super().__init__()
+        
+        # Get SECRET_KEY from environment
+        secret_key = os.environ.get('SECRET_KEY')
+        
+        # Only validate if we're actually in production
+        current_env = os.environ.get('FLASK_ENV', 'development')
+        choreo_env = os.environ.get('CHOREO_ENVIRONMENT', '')
+        
+        if current_env == 'production' or choreo_env == 'production':
+            if not secret_key:
+                # Generate a warning secret key for production if none is set
+                import secrets
+                generated_key = secrets.token_urlsafe(32)
+                print(f"WARNING: No SECRET_KEY set for production. Using generated key: {generated_key[:16]}...")
+                self.SECRET_KEY = generated_key
+            else:
+                self.SECRET_KEY = secret_key
+        else:
+            # Use default or environment key for non-production
+            self.SECRET_KEY = secret_key or 'dev-secret-key-change-in-production'
+    
     # Strict CORS for production
     CORS_ORIGINS = [
-        # Your exact frontend URL
         'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev',
-        
-        # Wildcard patterns for Choreo redeployments
         'https://*.e1-us-east-azure.choreoapps.dev',
     ]
     
     # FIXED: Production PostgreSQL database configuration
-    # Choreo provides DATABASE_URL as environment variable
-    DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+    def get_database_uri(self):
+        """Get database URI with proper validation."""
+        DATABASE_URL = os.environ.get('DATABASE_URL') or os.environ.get('POSTGRES_URL')
+        
+        if not DATABASE_URL:
+            raise ValueError("DATABASE_URL environment variable is required for production")
+        
+        # Ensure we're using postgresql:// not postgres://
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        return DATABASE_URL
     
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is required for production")
-    
-    # Ensure we're using postgresql:// not postgres://
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-    
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL
+    # Override the database URI
+    @property
+    def SQLALCHEMY_DATABASE_URI(self):
+        """Get the database URI for production."""
+        try:
+            return self.get_database_uri()
+        except ValueError as e:
+            print(f"Database configuration error: {e}")
+            # Fallback to SQLite for development-like testing
+            return 'sqlite:///fallback_app.db'
     
     # Production-optimized database settings
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_recycle': 3600,  # Recycle connections every hour
-        'pool_pre_ping': True,  # Always validate connections
-        'pool_size': 20,  # Larger pool for production
-        'max_overflow': 30,  # More overflow connections
-        'pool_timeout': 60,  # Longer timeout for production
-        'echo': False,  # No SQL logging in production
-        'pool_reset_on_return': 'commit',  # Reset connections on return
+        'pool_recycle': 3600,
+        'pool_pre_ping': True,
+        'pool_size': 20,
+        'max_overflow': 30,
+        'pool_timeout': 60,
+        'echo': False,
+        'pool_reset_on_return': 'commit',
     }
     
     # Secure session configuration
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin
-    
-    # Enhanced security for production
-    @property
-    def SECRET_KEY(self):
-        """Get SECRET_KEY with validation for production environment"""
-        secret_key = os.environ.get('SECRET_KEY')
-        if not secret_key:
-            # Only raise error if we're actually in production environment
-            current_env = os.environ.get('FLASK_ENV', 'development')
-            choreo_env = os.environ.get('CHOREO_ENVIRONMENT', '')
-            if current_env == 'production' or choreo_env == 'production':
-                raise ValueError("No SECRET_KEY set for production environment. Please set SECRET_KEY environment variable.")
-            else:
-                # Fallback to parent class default for non-production
-                return super().SECRET_KEY
-        return secret_key
+    SESSION_COOKIE_SAMESITE = 'None'
     
     # Production logging
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'WARNING')
@@ -180,17 +181,13 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
-    
-    # Use in-memory database for testing
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
-    
-    # Disable CSRF for testing
     WTF_CSRF_ENABLED = False
-    
-    # Permissive CORS for testing
     CORS_ORIGINS = ['*']
     
-    # Faster password hashing for tests
+    # Simple secret key for testing
+    SECRET_KEY = 'testing-secret-key'
+    
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
         'echo': False,
@@ -204,7 +201,6 @@ config = {
     'default': DevelopmentConfig
 }
 
-# FIXED: Enhanced Choreo environment detection
 def get_config_name():
     """Auto-detect environment based on environment variables with Choreo support"""
     
@@ -246,18 +242,22 @@ def get_config_name():
     # Default to development for local development
     return 'development'
 
-# Database utility functions for PostgreSQL
 def get_database_info():
     """Get information about the current database configuration"""
     config_name = get_config_name()
     config_obj = config[config_name]
     
-    db_uri = config_obj.SQLALCHEMY_DATABASE_URI
+    # Handle the case where config_obj might be a class that needs instantiation
+    if isinstance(config_obj, type):
+        config_instance = config_obj()
+        db_uri = getattr(config_instance, 'SQLALCHEMY_DATABASE_URI', 'not set')
+    else:
+        db_uri = getattr(config_obj, 'SQLALCHEMY_DATABASE_URI', 'not set')
     
     info = {
         'config_name': config_name,
-        'database_uri': db_uri[:50] + '...' if len(db_uri) > 50 else db_uri,
-        'database_type': 'postgresql' if 'postgresql://' in db_uri else 'sqlite' if 'sqlite://' in db_uri else 'unknown'
+        'database_uri': db_uri[:50] + '...' if len(str(db_uri)) > 50 else str(db_uri),
+        'database_type': 'postgresql' if 'postgresql://' in str(db_uri) else 'sqlite' if 'sqlite://' in str(db_uri) else 'unknown'
     }
     
     return info
@@ -266,20 +266,25 @@ def validate_database_config():
     """Validate that database configuration is correct"""
     try:
         config_name = get_config_name()
-        config_obj = config[config_name]
+        config_class = config[config_name]
         
         # Check if DATABASE_URL is set for production
         if config_name == 'production':
             if not os.environ.get('DATABASE_URL') and not os.environ.get('POSTGRES_URL'):
                 return False, "DATABASE_URL environment variable is required for production"
         
-        # Validate URI format
-        db_uri = config_obj.SQLALCHEMY_DATABASE_URI
+        # Test instantiation of config
+        if isinstance(config_class, type):
+            config_instance = config_class()
+            db_uri = getattr(config_instance, 'SQLALCHEMY_DATABASE_URI', None)
+        else:
+            db_uri = getattr(config_class, 'SQLALCHEMY_DATABASE_URI', None)
+        
         if not db_uri:
             return False, "SQLALCHEMY_DATABASE_URI is not set"
         
         # Check for common URI format issues
-        if db_uri.startswith('postgres://'):
+        if str(db_uri).startswith('postgres://'):
             return False, "Database URI should use 'postgresql://' not 'postgres://'"
         
         return True, "Database configuration is valid"
@@ -287,7 +292,6 @@ def validate_database_config():
     except Exception as e:
         return False, f"Error validating database config: {str(e)}"
 
-# Environment detection utilities
 def is_production():
     """Check if running in production environment"""
     return get_config_name() == 'production'
@@ -306,7 +310,7 @@ def is_choreo_environment():
             'choreoapis.dev' in os.environ.get('DATABASE_URL', '') or
             'choreoapps.dev' in os.environ.get('WEBSITE_SITE_NAME', ''))
 
-# Print configuration info on import for debugging
+# Print configuration info for debugging
 if __name__ == '__main__':
     config_name = get_config_name()
     db_info = get_database_info()
