@@ -30,84 +30,92 @@ def create_app(config_name=None):
         format='%(asctime)s %(levelname)s: %(message)s'
     )
     app.logger.info(f'Starting application with {config_name} configuration')
+    app.logger.info(f'Database URI: {app.config.get("SQLALCHEMY_DATABASE_URI", "Not set")[:50]}...')
     app.logger.info(f'CORS Origins configured: {app.config.get("CORS_ORIGINS", [])}')
 
     # Initialize Extensions
     db.init_app(app)
     Migrate(app, db)
 
-    # FIXED: Enhanced CORS Configuration for Choreo
-    # This comprehensive CORS setup handles all the cross-origin issues
+    # FIXED: Explicit CORS origins configuration
+    cors_origins = app.config.get('CORS_ORIGINS', [])
+    
+    # Ensure the exact frontend origin is included
+    frontend_origin = 'https://4e88f448-06ee-4bfb-a80b-1aabe234e03a.e1-us-east-azure.choreoapps.dev'
+    if frontend_origin not in cors_origins:
+        cors_origins.append(frontend_origin)
+    
+    app.logger.info(f'Final CORS origins list: {cors_origins}')
+
+    # FIXED: Simplified CORS Configuration that explicitly handles credentials
     cors_instance = CORS(app,
-        origins=app.config.get('CORS_ORIGINS', []),
+        origins=cors_origins,
         supports_credentials=True,
-        
-        # FIXED: Comprehensive list of allowed headers to prevent preflight failures
         allow_headers=[
             "Accept",
-            "Accept-Encoding",
+            "Accept-Encoding", 
             "Accept-Language",
             "Authorization",
-            "Cache-Control",  # This was causing the error
             "Content-Length",
             "Content-Type",
             "Cookie",
-            "DNT",
-            "Host",
             "Origin",
-            "Pragma",
             "Referer",
-            "Sec-Fetch-Dest",
-            "Sec-Fetch-Mode", 
-            "Sec-Fetch-Site",
             "User-Agent",
-            "X-Client-Info",
-            "X-Forwarded-For",
-            "X-Forwarded-Host",
-            "X-Forwarded-Proto",
             "X-Requested-With"
         ],
-        
-        # FIXED: Comprehensive list of allowed methods
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
-        
-        # FIXED: Additional CORS settings for better compatibility
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
         expose_headers=["Content-Type", "Authorization"],
-        max_age=86400,  # Cache preflight responses for 24 hours
-        send_wildcard=False,  # Don't send wildcard origins when credentials are used
-        vary_header=True  # Add Vary: Origin header
+        max_age=86400,
+        send_wildcard=False,
+        vary_header=True
     )
-    
-    # FIXED: Enhanced CORS error handling
+
+    # FIXED: Critical - Handle preflight OPTIONS requests explicitly
+    @app.before_request
+    def handle_preflight():
+        """Handle preflight OPTIONS requests with proper CORS headers."""
+        if request.method == "OPTIONS":
+            origin = request.headers.get('Origin')
+            app.logger.info(f'Preflight OPTIONS request from origin: {origin}')
+            
+            # Create empty response for preflight
+            response = jsonify({})
+            
+            # FIXED: Explicitly set CORS headers for preflight
+            if origin in cors_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                app.logger.info(f'Set Access-Control-Allow-Credentials: true for origin: {origin}')
+            else:
+                app.logger.warning(f'Origin {origin} not in allowed origins: {cors_origins}')
+            
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD'
+            response.headers['Access-Control-Allow-Headers'] = 'Accept, Authorization, Content-Type, Origin, X-Requested-With'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Vary'] = 'Origin'
+            
+            app.logger.info(f'Preflight response headers: {dict(response.headers)}')
+            return response
+
+    # FIXED: Ensure all responses have proper CORS headers
     @app.after_request
     def after_request(response):
-        """
-        Enhanced CORS headers handling for Choreo deployment.
-        This ensures proper CORS headers are always present.
-        """
+        """Ensure proper CORS headers are set on all responses."""
         origin = request.headers.get('Origin')
         
-        # Log CORS request details for debugging
-        app.logger.debug(f'CORS request from origin: {origin}')
-        app.logger.debug(f'Request method: {request.method}')
-        app.logger.debug(f'Request headers: {dict(request.headers)}')
+        app.logger.debug(f'Processing {request.method} request from origin: {origin}')
         
-        # Ensure credentials header is explicitly set
-        if origin and origin in app.config.get('CORS_ORIGINS', []):
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        # FIXED: Always set credentials header for allowed origins
+        if origin in cors_origins:
             response.headers['Access-Control-Allow-Origin'] = origin
-            app.logger.debug(f'CORS: Allowed origin {origin} with credentials')
-        elif '*' in app.config.get('CORS_ORIGINS', []):
-            response.headers['Access-Control-Allow-Origin'] = '*'
-            # Note: Cannot use credentials with wildcard origin
-            app.logger.debug('CORS: Using wildcard origin (no credentials)')
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            app.logger.debug(f'Set CORS headers for allowed origin: {origin}')
+        else:
+            app.logger.debug(f'Origin {origin} not in allowed origins list')
         
-        # Ensure proper headers for preflight requests
-        if request.method == 'OPTIONS':
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH'
-            response.headers['Access-Control-Allow-Headers'] = 'Accept, Authorization, Cache-Control, Content-Type, Origin, Pragma, X-Requested-With'
-            response.headers['Access-Control-Max-Age'] = '86400'
-            app.logger.debug('CORS: Handled preflight request')
+        # Always set Vary header for proper caching
+        response.headers['Vary'] = 'Origin'
         
         return response
 
@@ -137,19 +145,63 @@ def create_app(config_name=None):
     # Register Blueprints and Create Database
     with app.app_context():
         from routes.auth import auth_bp
-        # from routes.customers import customers_bp # Add other blueprints as needed
-
+        
+        # Register blueprints
         app.register_blueprint(auth_bp, url_prefix='/api/auth')
-        # app.register_blueprint(customers_bp, url_prefix='/api/customers')
+        
+        # Import other blueprints as available
+        try:
+            from routes.customers import customers_bp
+            app.register_blueprint(customers_bp, url_prefix='/api/customers')
+        except ImportError:
+            app.logger.info('Customers blueprint not available')
+        
+        try:
+            from routes.jobs import jobs_bp
+            app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
+        except ImportError:
+            app.logger.info('Jobs blueprint not available')
+        
+        try:
+            from routes.estimates import estimates_bp
+            app.register_blueprint(estimates_bp, url_prefix='/api/estimates')
+        except ImportError:
+            app.logger.info('Estimates blueprint not available')
+
+        try:
+            from routes.bids import bids_bp
+            app.register_blueprint(bids_bp, url_prefix='/api/bids')
+        except ImportError:
+            app.logger.info('Bids blueprint not available')
 
         # Create database tables
         try:
             db.create_all()
             app.logger.info('Database tables created successfully')
+            
+            # Create default admin user if it doesn't exist
+            from models import User
+            if not User.query.filter_by(role='admin').first():
+                try:
+                    admin_user = User(
+                        username='admin',
+                        email='admin@scottoverheaddoors.com',
+                        first_name='System',
+                        last_name='Administrator',
+                        role='admin'
+                    )
+                    admin_user.set_password('admin123')  # Change this in production!
+                    db.session.add(admin_user)
+                    db.session.commit()
+                    app.logger.info('Created default admin user: admin/admin123')
+                except Exception as e:
+                    app.logger.error(f'Could not create default admin user: {e}')
+                    db.session.rollback()
+                    
         except Exception as e:
             app.logger.error(f'Error creating database tables: {str(e)}')
 
-    # FIXED: Enhanced Global Error Handlers with better logging
+    # Global Error Handlers with proper CORS headers
     @app.errorhandler(404)
     def not_found(error):
         """Handle 404 errors with proper CORS headers."""
@@ -196,7 +248,7 @@ def create_app(config_name=None):
         response.status_code = 403
         return response
 
-    # FIXED: Enhanced Health Check Endpoint with database and CORS testing
+    # Health Check Endpoint with database and CORS testing
     @app.route('/api/health')
     def health_check():
         """
@@ -205,16 +257,17 @@ def create_app(config_name=None):
         """
         health_data = {
             'status': 'healthy',
-            'timestamp': db.func.now(),
+            'timestamp': str(db.func.now()),
             'environment': config_name,
             'cors_configured': True,
-            'database': 'unknown'
+            'database': 'unknown',
+            'cors_origins': cors_origins
         }
         
         # Test database connectivity
         try:
             # Simple database query to test connection
-            db.session.execute('SELECT 1')
+            db.session.execute(db.text('SELECT 1'))
             db.session.commit()
             health_data['database'] = 'connected'
             app.logger.debug('Health check: Database connection successful')
@@ -232,12 +285,12 @@ def create_app(config_name=None):
         origin = request.headers.get('Origin')
         if origin:
             health_data['cors_origin'] = origin
-            health_data['cors_allowed'] = origin in app.config.get('CORS_ORIGINS', [])
+            health_data['cors_allowed'] = origin in cors_origins
         
         app.logger.debug(f'Health check successful from origin: {origin}')
         return jsonify(health_data)
 
-    # FIXED: Additional endpoint for CORS debugging
+    # CORS debugging endpoint
     @app.route('/api/cors-test')
     def cors_test():
         """
@@ -247,11 +300,11 @@ def create_app(config_name=None):
         origin = request.headers.get('Origin')
         cors_info = {
             'request_origin': origin,
-            'configured_origins': app.config.get('CORS_ORIGINS', []),
-            'origin_allowed': origin in app.config.get('CORS_ORIGINS', []) if origin else False,
+            'configured_origins': cors_origins,
+            'origin_allowed': origin in cors_origins if origin else False,
             'credentials_supported': True,
             'request_headers': dict(request.headers),
-            'timestamp': db.func.now()
+            'timestamp': str(db.func.now())
         }
         
         app.logger.info(f'CORS test request from: {origin}')
@@ -259,7 +312,7 @@ def create_app(config_name=None):
 
     # Log startup information
     app.logger.info(f'Flask application created successfully with {config_name} configuration')
-    app.logger.info(f'CORS origins: {app.config.get("CORS_ORIGINS", [])}')
+    app.logger.info(f'CORS origins: {cors_origins}')
     
     return app
 
@@ -275,5 +328,5 @@ if __name__ == '__main__':
         host='0.0.0.0', 
         port=port, 
         debug=debug_mode,
-        threaded=True  # Enable threading for better performance
+        threaded=True
     )
