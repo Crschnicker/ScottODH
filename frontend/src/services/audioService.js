@@ -108,10 +108,11 @@ export const uploadAudio = async (audioBlob, estimateId) => {
   }
 };
 
-export default {
+const audioService = {
   getAudioRecordings,
   transcribeAudio,
   processAudioWithAI,
   deleteAudio,
   uploadAudio
 };
+export default audioService;

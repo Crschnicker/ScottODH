@@ -455,7 +455,7 @@ export const calculateBidTotals = (doors) => {
 // =================================================================
 // This list only contains functions that are actually defined in this file.
 // `exportBid` and `validateBid` were removed because they were not defined.
-export default {
+const bidService = {
   getBids,
   getBid,
   createBid,
@@ -476,10 +476,7 @@ export default {
   generateBidProposal,
   addDoorsToBid,
   getBidSummary,
-  // Removed `exportBid`
-  // Removed `validateBid`
-  // Removed `getBidHistory`
-  // Removed `restoreBidVersion`
-  // Removed `cloneBid`
   calculateBidTotals,
 };
+
+export default bidService;

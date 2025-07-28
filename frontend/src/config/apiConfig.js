@@ -472,7 +472,7 @@ if (azureEnvironment.isDevelopment()) {
 }
 
 // Export all configuration and utilities
-export default {
+const apiConfig = {
     API_BASE_URL,
     API_CONFIG,
     checkAzureServiceCommunication,
@@ -481,3 +481,4 @@ export default {
     getApiHeaders,
     azureEnvironment
 };
+export default apiConfig;

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Nav, Tab, Form, Button, Table } from 'react-bootstrap';
+import { Card, Row, Col, Nav, Tab, Button, Table } from 'react-bootstrap';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { FaPlus, FaSave, FaFileInvoiceDollar, FaFileAlt } from 'react-icons/fa';
 import DoorTabs from './DoorTabs';
 import LineItemTable from './LineItemTable';
 import { createBid, getBid, approveBid } from '../../services/bidService';

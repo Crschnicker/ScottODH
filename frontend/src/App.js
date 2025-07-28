@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
+//commit
 // Common Components
 import Header from './components/common/Header';
 import Footer from './components/common/Footer';
@@ -71,7 +71,7 @@ function App() {
     if (!isLoggingOut && !logoutComplete) {
       initializeAuthentication();
     }
-  }, []); // Empty dependency array - only run once on mount
+}, [initializeAuthentication, isLoggingOut, logoutComplete]); // Add missing dependencies
 
   /**
    * Clear logout state after a delay - but keep it longer to prevent issues
