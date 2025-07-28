@@ -755,31 +755,9 @@ export const cancelJob = async (jobId, cancelData = {}) => {
     
     const response = await retryWithAuth(
       async () => {
-        const result = await fetch(`/api/jobs/${jobId}/cancel`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include', // Include cookies for authentication
-          body: JSON.stringify(cancelData),
-        });
-
-        if (!result.ok) {
-          // Get error details if available
-          let errorData;
-          try {
-            errorData = await result.json();
-          } catch (e) {
-            // If error response is not valid JSON
-            throw new Error(`Failed to cancel job: ${result.status} ${result.statusText}`);
-          }
-          
-          // Throw detailed error
-          throw new Error(errorData.error || `Failed to cancel job: ${result.status}`);
-        }
-
-        // Return the successful response data
-        return await result.json();
+        // FIXED: Use api instance instead of direct fetch
+        const result = await api.post(`/jobs/${jobId}/cancel`, cancelData);
+        return result.data;
       },
       [],
       1

@@ -1,9 +1,9 @@
 /**
- * Authentication Service - Fixed for Choreo CORS Issues
+ * Authentication Service - Fixed for Azure CORS Issues with Updated Endpoints
  * Handles all authentication-related API calls for Scott Overhead Doors
  */
 
-import { API_BASE_URL } from '../config/apiConfig';
+import { API_BASE_URL, API_ENDPOINTS } from '../config/apiConfig';
 
 class AuthService {
   constructor() {
@@ -23,12 +23,12 @@ class AuthService {
   }
 
   /**
-   * Make authenticated API request with Choreo-optimized CORS handling
+   * Make authenticated API request with Azure-optimized CORS handling
    */
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
-    // FIXED: Simplified CORS configuration for Choreo
+    // FIXED: Simplified CORS configuration for Azure
     const defaultOptions = {
       method: options.method || 'GET',
       mode: 'cors',
@@ -126,24 +126,24 @@ class AuthService {
   }
 
   /**
-   * FIXED: Simplified credentials policy for Choreo
+   * FIXED: Simplified credentials policy for Azure
    */
   shouldIncludeCredentials(endpoint = '') {
     try {
       const apiUrl = new URL(this.baseURL);
       const currentUrl = new URL(window.location.href);
       
-      // FIXED: For Choreo deployments, always include credentials for auth endpoints
+      // FIXED: For Azure deployments, always include credentials for auth endpoints
       const isAuthEndpoint = endpoint.includes('/auth/') || 
                            endpoint.includes('/login') || 
                            endpoint.includes('/logout') ||
                            endpoint.includes('/me') ||
                            endpoint.includes('/users');
       
-      const isChoreoDeployment = apiUrl.hostname.includes('choreoapis.dev') || 
-                               apiUrl.hostname.includes('choreoapps.dev') ||
-                               currentUrl.hostname.includes('choreoapis.dev') ||
-                               currentUrl.hostname.includes('choreoapps.dev');
+      const isAzureDeployment = apiUrl.hostname.includes('azurewebsites.net') || 
+                               apiUrl.hostname.includes('azurestaticapps.net') ||
+                               currentUrl.hostname.includes('azurewebsites.net') ||
+                               currentUrl.hostname.includes('azurestaticapps.net');
       
       const isLocalDev = apiUrl.hostname.includes('localhost') || 
                         apiUrl.hostname.includes('127.0.0.1') ||
@@ -156,15 +156,15 @@ class AuthService {
         return true;
       }
       
-      // FIXED: For Choreo, always include credentials for auth endpoints
-      if (isChoreoDeployment && isAuthEndpoint) {
-        console.log('Using credentials: Choreo auth endpoint');
+      // FIXED: For Azure, always include credentials for auth endpoints
+      if (isAzureDeployment && isAuthEndpoint) {
+        console.log('Using credentials: Azure auth endpoint');
         return true;
       }
       
-      // FIXED: For non-auth endpoints in Choreo, still include credentials to maintain session
-      if (isChoreoDeployment) {
-        console.log('Using credentials: Choreo deployment');
+      // FIXED: For non-auth endpoints in Azure, still include credentials to maintain session
+      if (isAzureDeployment) {
+        console.log('Using credentials: Azure deployment');
         return true;  // Changed from false to true
       }
       
@@ -211,8 +211,8 @@ class AuthService {
       localStorage.removeItem('lastLogoutTime');
       localStorage.removeItem('authBlocked');
       
-      // FIXED: Simplified login request for better CORS compatibility
-      const response = await this.makeRequest('/api/auth/login', {
+      // FIXED: Use API_ENDPOINTS for consistent endpoint paths
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -275,7 +275,7 @@ class AuthService {
       
       // Try server logout with timeout
       try {
-        const logoutPromise = this.makeRequest('/api/auth/logout', { method: 'POST' });
+        const logoutPromise = this.makeRequest(API_ENDPOINTS.AUTH.LOGOUT, { method: 'POST' });
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Logout request timeout')), 10000)
         );
@@ -426,7 +426,7 @@ class AuthService {
         return null;
       }
       
-      const response = await this.makeRequest('/api/auth/me');
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.ME);
       
       if (response && response.id) {
         localStorage.setItem('currentUser', JSON.stringify(response));
@@ -462,7 +462,7 @@ class AuthService {
         throw new Error('New password must be at least 6 characters long');
       }
       
-      const response = await this.makeRequest('/api/auth/change-password', {
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
         method: 'POST',
         body: JSON.stringify({
           current_password: currentPassword,
@@ -543,7 +543,7 @@ class AuthService {
   // User Management Methods (Admin only) with enhanced error handling
   async getUsers() {
     try {
-      const response = await this.makeRequest('/api/users');
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.USERS);
       return response;
     } catch (error) {
       console.error('Get users error:', error);
@@ -557,7 +557,7 @@ class AuthService {
         throw new Error('Username and email are required to create a user');
       }
       
-      const response = await this.makeRequest('/api/users', {
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.USERS, {
         method: 'POST',
         body: JSON.stringify(userData),
       });
@@ -574,7 +574,7 @@ class AuthService {
         throw new Error('User ID is required to update a user');
       }
       
-      const response = await this.makeRequest(`/api/users/${userId}`, {
+      const response = await this.makeRequest(`${API_ENDPOINTS.AUTH.USERS}/${userId}`, {
         method: 'PUT',
         body: JSON.stringify(userData),
       });
@@ -591,7 +591,7 @@ class AuthService {
         throw new Error('User ID is required to delete a user');
       }
       
-      const response = await this.makeRequest(`/api/users/${userId}`, {
+      const response = await this.makeRequest(`${API_ENDPOINTS.AUTH.USERS}/${userId}`, {
         method: 'DELETE',
       });
       return response;
@@ -611,7 +611,7 @@ class AuthService {
         throw new Error('New password must be at least 6 characters long');
       }
       
-      const response = await this.makeRequest(`/api/users/${userId}/reset-password`, {
+      const response = await this.makeRequest(API_ENDPOINTS.AUTH.RESET_PASSWORD(userId), {
         method: 'POST',
         body: JSON.stringify({ new_password: newPassword }),
       });
