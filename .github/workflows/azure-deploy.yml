@@ -1,128 +1,52 @@
-# Azure deployment workflow for Scott Overhead Doors
-name: Deploy to Azure
+# Simplified Azure deployment workflow for Scott Overhead Doors
+name: Deploy to Azure App Service
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: scott-overhead-doors    # Replace with your app name
-  AZURE_WEBAPP_PACKAGE_PATH: 'backend'
+  AZURE_WEBAPP_NAME: scott-overhead-doors
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18.x'
 
 jobs:
-  build-frontend:
-    name: Build React Frontend
+  build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Setup Node.js
+    - name: Setup Node.js for frontend
       uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
     
-    - name: Install frontend dependencies
+    - name: Install and build frontend
       run: |
         cd frontend
-        npm ci --only=production
-    
-    - name: Build frontend
-      run: |
-        cd frontend
+        npm ci
         npm run build
-      env:
-        CI: false
-        GENERATE_SOURCEMAP: false
-    
-    - name: Upload frontend build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/build/
-        retention-days: 1
-
-  deploy-backend:
-    name: Deploy Flask Backend to Azure App Service
-    runs-on: ubuntu-latest
-    needs: build-frontend
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
     
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
     
-    - name: Download frontend build
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend-build/
-    
-    - name: Create virtual environment
-      run: |
-        cd backend
-        python -m venv venv
-        source venv/bin/activate
-        pip install --upgrade pip
-    
     - name: Install backend dependencies
       run: |
         cd backend
-        source venv/bin/activate
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Copy frontend build to backend static folder
+    - name: Copy frontend build to backend
       run: |
         mkdir -p backend/static
-        cp -r frontend-build/* backend/static/
-        ls -la backend/static/
-    
-    - name: Create deployment package
-      run: |
-        cd backend
-        # Remove unnecessary files from deployment
-        rm -rf __pycache__
-        rm -rf .pytest_cache
-        rm -rf venv
-        find . -name "*.pyc" -delete
-        find . -name "*.pyo" -delete
-        find . -name "__pycache__" -type d -exec rm -rf {} +
-        
-        # Create web.config for Azure App Service
-        cat > web.config << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <configuration>
-          <system.webServer>
-            <handlers>
-              <add name="PythonHandler" path="*" verb="*" modules="FlaskHandler" scriptProcessor="D:\home\python364x64\python.exe" resourceType="Unspecified" requireAccess="Script"/>
-            </handlers>
-            <rewrite>
-              <rules>
-                <rule name="Static Files" stopProcessing="true">
-                  <match url="^static/.*" />
-                  <action type="Rewrite" url="{R:0}" />
-                </rule>
-                <rule name="Flask App" stopProcessing="true">
-                  <match url=".*" />
-                  <action type="Rewrite" url="startup.py" />
-                </rule>
-              </rules>
-            </rewrite>
-          </system.webServer>
-        </configuration>
-        EOF
+        cp -r frontend/build/* backend/static/
     
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
@@ -130,145 +54,3 @@ jobs:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./backend
-    
-    - name: Test deployment
-      run: |
-        echo "Testing deployment..."
-        sleep 30
-        curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/health || echo "Health check failed"
-
-  deploy-frontend:
-    name: Deploy React Frontend to Azure Static Web Apps
-    runs-on: ubuntu-latest
-    needs: build-frontend
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Download frontend build
-      uses: actions/download-artifact@v4
-      with:
-        name: frontend-build
-        path: frontend/build/
-    
-    - name: Deploy to Azure Static Web Apps
-      uses: Azure/static-web-apps-deploy@v1
-      with:
-        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        action: "upload"
-        app_location: "frontend/build"
-        api_location: ""
-        output_location: ""
-        skip_app_build: true
-
-  create-database:
-    name: Setup Azure PostgreSQL Database
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Azure CLI Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-    - name: Create PostgreSQL Database (if not exists)
-      run: |
-        # Check if database exists
-        DB_EXISTS=$(az postgres flexible-server list --query "[?name=='scott-overhead-doors-db'].name" -o tsv)
-        
-        if [ -z "$DB_EXISTS" ]; then
-          echo "Creating PostgreSQL database..."
-          az postgres flexible-server create \
-            --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-            --name scott-overhead-doors-db \
-            --location eastus \
-            --admin-user ${{ secrets.DB_ADMIN_USER }} \
-            --admin-password ${{ secrets.DB_ADMIN_PASSWORD }} \
-            --sku-name Standard_B1ms \
-            --tier Burstable \
-            --storage-size 32 \
-            --version 14
-        else
-          echo "Database already exists"
-        fi
-    
-    - name: Configure database firewall
-      run: |
-        # Allow Azure services
-        az postgres flexible-server firewall-rule create \
-          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-          --name scott-overhead-doors-db \
-          --rule-name AllowAzureServices \
-          --start-ip-address 0.0.0.0 \
-          --end-ip-address 0.0.0.0
-    
-    - name: Create application database
-      run: |
-        # Install PostgreSQL client
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
-        
-        # Create database
-        PGPASSWORD=${{ secrets.DB_ADMIN_PASSWORD }} psql \
-          -h scott-overhead-doors-db.postgres.database.azure.com \
-          -U ${{ secrets.DB_ADMIN_USER }} \
-          -d postgres \
-          -c "CREATE DATABASE scott_overhead_doors;" || echo "Database may already exist"
-
-  run-migrations:
-    name: Run Database Migrations
-    runs-on: ubuntu-latest
-    needs: [deploy-backend, create-database]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install dependencies
-      run: |
-        cd backend
-        pip install -r requirements.txt
-    
-    - name: Run database migrations
-      run: |
-        cd backend
-        export DATABASE_URL="${{ secrets.DATABASE_URL }}"
-        export FLASK_APP=app.py
-        
-        # Initialize migration repository if it doesn't exist
-        flask db init || echo "Migration repo already exists"
-        
-        # Create migration
-        flask db migrate -m "Azure deployment migration" || echo "No changes detected"
-        
-        # Apply migrations
-        flask db upgrade
-      env:
-        DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        SECRET_KEY: ${{ secrets.SECRET_KEY }}
-
-  cleanup:
-    name: Cleanup Artifacts
-    runs-on: ubuntu-latest
-    needs: [deploy-backend, deploy-frontend]
-    if: always()
-    
-    steps:
-    - name: Delete artifacts
-      uses: geekyeggo/delete-artifact@v4
-      with:
-        name: frontend-build
-        failOnError: false
