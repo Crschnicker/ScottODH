@@ -38,9 +38,10 @@ const getBackendApiUrl = () => {
 
     // Local Development Environment
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        const localBackendUrl = 'http://localhost:5000';
+        // Use a relative path to engage the 'proxy' setting in package.json
+        const localBackendUrl = ''; // <-- An empty string uses the proxy
         console.log('🔧 [API CONFIG] Local Development Environment Detected');
-        console.log('🎯 [API CONFIG] Backend URL:', localBackendUrl);
+        console.log("🎯 [API CONFIG] Using relative URL to trigger proxy to 'http://localhost:5000'");
         return localBackendUrl;
     }
 
