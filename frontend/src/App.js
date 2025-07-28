@@ -63,31 +63,6 @@ function App() {
   const [passwordStrength, setPasswordStrength] = useState(0);
 
   /**
-   * Initialize authentication check on app startup
-   * Only runs once and respects logout state
-   */
-  useEffect(() => {
-    // Only initialize authentication once on mount, not during logout
-    if (!isLoggingOut && !logoutComplete) {
-      initializeAuthentication();
-    }
-}, [initializeAuthentication, isLoggingOut, logoutComplete]); // Add missing dependencies
-
-  /**
-   * Clear logout state after a delay - but keep it longer to prevent issues
-   */
-  useEffect(() => {
-    if (logoutComplete) {
-      // Clear logout complete flag after 20 seconds (longer protection)
-      const timeout = setTimeout(() => {
-        setLogoutComplete(false);
-      }, 20000);
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [logoutComplete]);
-
-  /**
    * Initialize authentication system with comprehensive error handling
    * Checks for existing valid sessions and manages app startup flow
    * Enhanced to respect logout state and prevent unwanted re-authentication
@@ -210,6 +185,32 @@ function App() {
       setIsAuthLoading(false);
     }
   };
+
+  /**
+   * Initialize authentication check on app startup
+   * Only runs once and respects logout state
+   */
+  useEffect(() => {
+    // Only initialize authentication once on mount, not during logout
+    if (!isLoggingOut && !logoutComplete) {
+      initializeAuthentication();
+    }
+}, [initializeAuthentication, isLoggingOut, logoutComplete]); // Add missing dependencies
+
+  /**
+   * Clear logout state after a delay - but keep it longer to prevent issues
+   */
+  useEffect(() => {
+    if (logoutComplete) {
+      // Clear logout complete flag after 20 seconds (longer protection)
+      const timeout = setTimeout(() => {
+        setLogoutComplete(false);
+      }, 20000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [logoutComplete]);
+
 
   /**
    * Handle successful login with proper state management and user feedback

@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Button, Modal } from 'react-bootstrap';
-import { FaUserPlus } from 'react-icons/fa';
+import {Modal } from 'react-bootstrap';
 import CustomerList from '../components/customers/CustomerList';
 import CustomerForm from '../components/customers/CustomerForm';
 import SiteForm from '../components/customers/SiteForm';

@@ -14,7 +14,6 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
     username: '',
     password: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(initialError || '');
   const [remember, setRemember] = useState(false);
@@ -25,7 +24,6 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
   const [lockoutTime, setLockoutTime] = useState(null);
   const [capsLockWarning, setCapsLockWarning] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
-  const [credentialsVisible, setCredentialsVisible] = useState(false);
   
   // Refs for form management
   const usernameRef = useRef(null);
@@ -35,60 +33,6 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
   // Constants for security features
   const MAX_LOGIN_ATTEMPTS = 5;
   const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
-
-  /**
-   * Initialize component with session checking and stored preferences
-   * Handles existing sessions and restores user preferences
-   */
-  useEffect(() => {
-    // Note: The original 'checkCurrentUser' fetch call is omitted as it's better
-    // handled by a parent component (like App.js) that manages routing.
-    // This component's job is to handle the login action itself.
-    loadStoredPreferences();
-    setupSecurityFeatures();
-    
-    // Focus username field on mount for better UX
-    if (usernameRef.current) {
-      usernameRef.current.focus();
-    }
-  }, []);
-
-  /**
-   * Handle initial error display and cleanup
-   */
-  useEffect(() => {
-    if (initialError) {
-      setError(initialError);
-      toast.error(initialError, {
-        position: "bottom-right",
-        autoClose: 6000,
-      });
-    }
-  }, [initialError]);
-
-  /**
-   * Monitor lockout status and provide countdown feedback
-   */
-  useEffect(() => {
-    if (isLocked && lockoutTime) {
-      const interval = setInterval(() => {
-        const timeRemaining = lockoutTime - Date.now();
-        
-        if (timeRemaining <= 0) {
-          setIsLocked(false);
-          setLockoutTime(null);
-          setLoginAttempts(0);
-          setError('');
-          toast.info("Account unlocked. You may now try logging in again.", {
-            position: "bottom-right",
-            autoClose: 4000,
-          });
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isLocked, lockoutTime]);
 
   /**
    * Load stored user preferences and remember me settings
@@ -143,6 +87,60 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
       document.removeEventListener('keydown', handleKeyPress);
     };
   }, []);
+
+  /**
+   * Initialize component with session checking and stored preferences
+   * Handles existing sessions and restores user preferences
+   */
+  useEffect(() => {
+    // Note: The original 'checkCurrentUser' fetch call is omitted as it's better
+    // handled by a parent component (like App.js) that manages routing.
+    // This component's job is to handle the login action itself.
+    loadStoredPreferences();
+    setupSecurityFeatures();
+    
+    // Focus username field on mount for better UX
+    if (usernameRef.current) {
+      usernameRef.current.focus();
+    }
+  }, [loadStoredPreferences, setupSecurityFeatures]);
+
+  /**
+   * Handle initial error display and cleanup
+   */
+  useEffect(() => {
+    if (initialError) {
+      setError(initialError);
+      toast.error(initialError, {
+        position: "bottom-right",
+        autoClose: 6000,
+      });
+    }
+  }, [initialError]);
+
+  /**
+   * Monitor lockout status and provide countdown feedback
+   */
+  useEffect(() => {
+    if (isLocked && lockoutTime) {
+      const interval = setInterval(() => {
+        const timeRemaining = lockoutTime - Date.now();
+        
+        if (timeRemaining <= 0) {
+          setIsLocked(false);
+          setLockoutTime(null);
+          setLoginAttempts(0);
+          setError('');
+          toast.info("Account unlocked. You may now try logging in again.", {
+            position: "bottom-right",
+            autoClose: 4000,
+          });
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isLocked, lockoutTime]);
 
   /**
    * Enhanced input change handler
@@ -250,17 +248,56 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
     }
   };
 
-  // ... (The rest of your component's helper functions and JSX are perfect and do not need changes) ...
+  /**
+   * Handle keydown events for form navigation
+   */
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.target.name === 'username' && passwordRef.current) {
+        passwordRef.current.focus();
+      } else {
+        handleSubmit(e);
+      }
+    }
+  }, []);
 
-  const togglePasswordVisibility = useCallback(() => { /* ... no changes needed ... */ });
-  const toggleCredentialsVisibility = useCallback(() => { /* ... no changes needed ... */ });
-  const handleKeyDown = useCallback((e) => { /* ... no changes needed ... */ });
-  const getLockoutTimeRemaining = useCallback(() => { /* ... no changes needed ... */ });
-  const getFieldValidationClass = useCallback((fieldName, value) => { /* ... no changes needed ... */ });
+  /**
+   * Get lockout time remaining in formatted string
+   */
+  const getLockoutTimeRemaining = useCallback(() => {
+    if (!lockoutTime) return '';
+    const timeRemaining = Math.max(0, lockoutTime - Date.now());
+    const minutes = Math.floor(timeRemaining / 60000);
+    const seconds = Math.floor((timeRemaining % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }, [lockoutTime]);
+
+  /**
+   * Get field validation class for styling
+   */
+  const getFieldValidationClass = useCallback((fieldName, value) => {
+    if (!formTouched) return '';
+    
+    if (fieldName === 'username') {
+      if (!value?.trim() || value.length < 2 || !/^[a-zA-Z0-9_.-]+$/.test(value)) {
+        return 'is-invalid';
+      }
+      return 'is-valid';
+    }
+    
+    if (fieldName === 'password') {
+      if (!value?.trim() || value.length < 3) {
+        return 'is-invalid';
+      }
+      return 'is-valid';
+    }
+    
+    return '';
+  }, [formTouched]);
 
   return (
     <div className="login-container">
-      {/* --- ALL JSX REMAINS THE SAME --- */}
       <div className="login-wrapper">
         <div className="login-header">
           <div className="login-logo">
@@ -305,7 +342,7 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
                   ref={passwordRef}
                   id="password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type="password"
                   autoComplete="current-password"
                   required
                   value={formData.password}
@@ -316,9 +353,6 @@ const LoginPage = ({ onLoginSuccess, initialError, onClearError }) => {
                   maxLength="100"
                   aria-describedby="password-help"
                 />
-                <button type="button" className="password-toggle" onClick={togglePasswordVisibility} disabled={isLoading || isLocked} aria-label={showPassword ? 'Hide password' : 'Show password'}>
-                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                </button>
               </div>
               {capsLockWarning && (<small className="form-text text-warning"><i className="fas fa-exclamation-triangle me-1"></i>Caps Lock is on</small>)}
               {formTouched && getFieldValidationClass('password', formData.password) === 'is-invalid' && (

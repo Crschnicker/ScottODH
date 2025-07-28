@@ -122,7 +122,7 @@ const JobCalendar = ({ region, onSelectDate }) => {
    * @param {Date} date - The selected date
    * @param {Array} jobsList - List of jobs to filter (defaults to current jobs state)
    */
-  const updateSelectedDateJobs = (date, jobsList = jobs) => {
+  const updateSelectedDateJobs = useCallback((date, jobsList = jobs) => {
     const dateStr = formatDateKey(date);
     const filtered = jobsList.filter(job => {
       const jobDateStr = formatDateKey(job.start);
@@ -130,7 +130,7 @@ const JobCalendar = ({ region, onSelectDate }) => {
     }).map(job => job.resource);
     
     setSelectedDateJobs(filtered);
-  };
+  }, [jobs]);
   
   /**
    * Handle date selection in the calendar

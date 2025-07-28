@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Button, Form, InputGroup, Card, Row, Col, Spinner, Alert } from 'react-bootstrap';
 import { 
   FaSearch, FaUserPlus, FaSync, FaExclamationTriangle, FaTimes, 
-  FaPencilAlt, FaTrashAlt, FaPlus, FaBuilding, FaMapMarkerAlt, 
-  FaPhone, FaEnvelope, FaUser, FaCalendarAlt, FaCheck 
+  FaPencilAlt, FaTrashAlt, FaPlus, FaBuilding, FaUser, FaCalendarAlt, FaCheck 
 } from 'react-icons/fa';
 import { getCustomers, getSitesForCustomer, createSite, updateSite, deleteSite, updateCustomer, deleteCustomer } from '../../services/customerService';
 import SiteForm from './SiteForm';

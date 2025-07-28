@@ -94,7 +94,7 @@ const JobDetails = () => {
     }
   }, [jobId]);
 
-  const loadDoorTimeTrackingAndActions = async (doors) => {
+  const loadDoorTimeTrackingAndActions = useCallback(async (doors) => {
     console.log('🔄 Starting loadDoorTimeTrackingAndActions for doors:', doors?.length || 0);
     
     try {
@@ -394,12 +394,12 @@ const JobDetails = () => {
         jobTimingStatus: 'error'
       });
     }
-  };
+  }, [jobId]);
 
   /**
    * Load media (photos and videos) for doors
    */
-  const loadDoorMedia = async (doors) => {
+  const loadDoorMedia = useCallback(async (doors) => {
     const mediaPromises = doors.map(async (door) => {
       setLoadingMedia((prev) => ({ ...prev, [door.id]: true }));
 
@@ -433,7 +433,7 @@ const JobDetails = () => {
 
     // Also load time tracking and actions data
     await loadDoorTimeTrackingAndActions(doors);
-  };
+  }, [jobId, loadDoorTimeTrackingAndActions]);
 
   /**
    * Toggle door expansion for detailed view

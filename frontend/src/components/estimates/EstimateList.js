@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Badge, Form, InputGroup, Modal, Row, Col, Alert } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
-import { FaSearch, FaEye, FaCalendarAlt, FaUserClock, FaClock } from 'react-icons/fa';
+import {FaEye, FaCalendarAlt } from 'react-icons/fa';
 import { getEstimates } from '../../services/estimateService';
 
 /**

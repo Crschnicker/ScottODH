@@ -1,6 +1,6 @@
 // frontend/src/components/jobs/MobileJobWorker.js
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Play,
   CheckCircle,
@@ -12,14 +12,11 @@ import {
   Video,
   FileText,
   ChevronRight,
-  ChevronDown,
   ArrowLeft,
   CheckSquare,
   Square,
   AlertTriangle,
   PenTool,
-  Save,
-  X,
   Wifi,
   WifiOff,
   RefreshCw,
@@ -71,7 +68,7 @@ const rotateVideoBlob = async (videoBlob, rotationDegrees) => {
     const ctx = canvas.getContext('2d');
     
     video.onloadedmetadata = () => {
-      const { videoWidth, videoHeight, duration } = video;
+      const { videoWidth, videoHeight } = video;
       
       // Set canvas dimensions based on rotation
       if (rotationDegrees === 90 || rotationDegrees === 270) {
@@ -463,15 +460,6 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
   const [error, setError] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    startCamera();
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, []);
-
   const startCamera = async () => {
     try {
       const constraints = {
@@ -498,6 +486,15 @@ const CameraCapture = ({ onCapture, onCancel, type = "photo" }) => {
       );
     }
   };
+
+  useEffect(() => {
+    startCamera();
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [startCamera, stream]);
 
   const capturePhoto = () => {
     const canvas = document.createElement("canvas");
@@ -676,8 +673,6 @@ const MobileJobWorker = ({ jobId }) => {
   const [showCamera, setShowCamera] = useState(false);
   const [cameraType, setCameraType] = useState("photo"); // 'photo' or 'video'
   const [signatureType, setSignatureType] = useState("start"); // 'start', 'pause', 'resume', 'door_complete', 'final'
-  const [isVacantStart, setIsVacantStart] = useState(false); // For vacant site start
-  const [isVacantPause, setIsVacantPause] = useState(false); // For vacant site pause
   const [currentWorkSummary, setCurrentWorkSummary] = useState(null); // Work summary for pause operations
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1145,11 +1140,9 @@ const MobileJobWorker = ({ jobId }) => {
   const handleStartOptionSelect = async (option) => { // Made async as it calls async functions
     setShowStartOptions(false);
     if (option === "signature") {
-      setIsVacantStart(false);
       setSignatureType("start");
       setShowSignaturePad(true);
     } else if (option === "vacant") {
-      setIsVacantStart(true);
       await handleVacantJobStart(); // Await this call
     }
   };
@@ -1160,11 +1153,9 @@ const MobileJobWorker = ({ jobId }) => {
   const handlePauseOptionSelect = async (option) => {
     setShowPauseOptions(false);
     if (option === "signature") {
-      setIsVacantPause(false);
       setSignatureType("pause");
       setShowSignaturePad(true); // Signature pad will now display workSummary
     } else if (option === "vacant") {
-      setIsVacantPause(true);
       await handleVacantJobPause(); // Await this call
     }
   };
@@ -1768,7 +1759,7 @@ const MobileJobWorker = ({ jobId }) => {
                 <div className="photo-thumbnail-gallery">
                     {selectedDoor.photos.map(photo => (
                         <div key={photo.id} className="photo-thumbnail-item">
-                            <img src={apiServerRoot + photo.thumbnail_url} alt={`Photo thumbnail for door #${selectedDoor.door_number}`} />
+                            <img src={apiServerRoot + photo.thumbnail_url} alt={`Photo for door #${selectedDoor.door_number}`} />
                         </div>
                     ))}
                 </div>

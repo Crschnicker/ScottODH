@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import { useNavigate } from 'react-router-dom';
 import moment from 'moment';
-import { Card, Button, Badge } from 'react-bootstrap'; // Removed ListGroup as it's not directly used for list items anymore
-import { FaClock, FaUser } from 'react-icons/fa'; // Removed unused icons for now
+import { Card, Button, Badge } from 'react-bootstrap';
+import { FaUser } from 'react-icons/fa';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './Calendar.css'; // Assuming this file exists and has relevant styles
 
@@ -118,7 +118,7 @@ const EstimateCalendar = () => {
     fetchEstimates();
   }, [fetchEstimates]);
   
-  const updateSelectedDateEstimates = (date, estimatesList = estimates) => {
+  const updateSelectedDateEstimates = useCallback((date, estimatesList = estimates) => {
     const dateStr = formatDateKey(date);
     const filtered = estimatesList.filter(estimate => 
       formatDateKey(estimate.start) === dateStr
@@ -126,7 +126,7 @@ const EstimateCalendar = () => {
     
     filtered.sort((a, b) => a.start - b.start);
     setSelectedDateEstimates(filtered);
-  };
+  }, [estimates]);
   
   const handleSelectSlot = ({ start }) => {
     setCalendarDate(start);
@@ -140,15 +140,6 @@ const EstimateCalendar = () => {
   const formatDisplayDate = (date) => {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString(undefined, options);
-  };
-  
-  // eslint-disable-next-line no-unused-vars
-  const handleMapRedirect = (address, e) => {
-    e.stopPropagation(); 
-    if (address) {
-      const encodedAddress = encodeURIComponent(address);
-      window.open(`https://maps.google.com/?q=${encodedAddress}`, '_blank');
-    }
   };
   
   const eventStyleGetter = (event) => {
@@ -281,7 +272,6 @@ const CustomToolbar = (toolbar) => {
     );
   };
   
-  // eslint-disable-next-line no-unused-vars
   const StatusBadge = ({ status }) => {
     let variant = 'warning';
     switch (status) {
