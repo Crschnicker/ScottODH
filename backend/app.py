@@ -27,12 +27,32 @@ def create_app(config_name='production'):
     # Initialize extensions
     db.init_app(app)
     
-    # Setup CORS
+    # ✅ FIXED: Comprehensive CORS configuration for Azure deployment
     CORS(app, 
-         origins=['https://scott-overhead-doors.azurewebsites.net', 'http://localhost:3000'], 
-         supports_credentials=True,
-         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-         allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'])
+         origins=[
+             'https://scott-overhead-doors.azurewebsites.net',  # Backend domain
+             'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',  # Your frontend domain
+             'https://*.azurestaticapps.net',  # All Azure Static Web Apps
+             'https://*.azurewebsites.net',  # All Azure App Services  
+             'http://localhost:3000',  # Local development
+             'http://localhost:3001',  # Alternative local port
+             'http://127.0.0.1:3000',  # Local IP
+         ], 
+         supports_credentials=True,  # ✅ Critical for session auth
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+         allow_headers=[
+             'Content-Type', 
+             'Authorization', 
+             'X-Requested-With',
+             'Accept',
+             'Origin',
+             'Access-Control-Request-Method',
+             'Access-Control-Request-Headers',
+             'Cache-Control'
+         ],
+         expose_headers=['Content-Type', 'Authorization'],
+         max_age=86400  # Cache preflight for 24 hours
+    )
     
     # Setup Flask-Login
     login_manager = LoginManager()
@@ -54,7 +74,7 @@ def create_app(config_name='production'):
         ))
         app.logger.addHandler(handler)
     
-    # Import and register blueprints - THIS IS THE CRITICAL FIX
+    # Import and register blueprints
     from routes import (
         auth_bp, customers_bp, estimates_bp, bids_bp, jobs_bp, 
         mobile_bp, audio_bp, sites_bp, line_items_bp, doors_bp, dispatch_bp
@@ -135,15 +155,43 @@ def create_app(config_name='production'):
             }
         })
     
-    # Add CORS headers to all responses
+    # ✅ ENHANCED: More comprehensive CORS headers for Azure
     @app.after_request
     def after_request(response):
         origin = request.headers.get('Origin')
-        if origin in ['https://scott-overhead-doors.azurewebsites.net', 'http://localhost:3000']:
+        
+        # List of allowed origins
+        allowed_origins = [
+            'https://scott-overhead-doors.azurewebsites.net',
+            'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://127.0.0.1:3000'
+        ]
+        
+        # Check for Azure Static Web Apps domains (wildcard support)
+        if origin and (origin in allowed_origins or 
+                      '.azurestaticapps.net' in origin or 
+                      '.azurewebsites.net' in origin or
+                      'localhost' in origin):
             response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+        
+        # Add other CORS headers
+        response.headers.add('Access-Control-Allow-Headers', 
+                           'Content-Type,Authorization,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers,Cache-Control')
+        response.headers.add('Access-Control-Allow-Methods', 
+                           'GET,PUT,POST,DELETE,OPTIONS,PATCH')
+        response.headers.add('Access-Control-Expose-Headers', 
+                           'Content-Type,Authorization')
+        response.headers.add('Access-Control-Max-Age', '86400')
+        
+        # Handle preflight requests
+        if request.method == 'OPTIONS':
+            response.headers.add('Access-Control-Allow-Origin', origin)
+            response.headers.add('Access-Control-Allow-Credentials', 'true')
+            response.status_code = 200
+        
         return response
     
     # Create database tables
