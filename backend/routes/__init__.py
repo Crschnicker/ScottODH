@@ -1,7 +1,6 @@
-# routes/__init__.py
+# backend/routes/__init__.py
 """
 Routes package for Scott Overhead Doors API
-
 This package contains all the Flask blueprints for different API endpoints.
 """
 
@@ -69,6 +68,20 @@ except ImportError as e:
     print(f"⚠ Line items blueprint import failed: {e}")
     line_items_bp = None
 
+try:
+    from .door import doors_bp
+    print("✓ Doors blueprint imported successfully")
+except ImportError as e:
+    print(f"⚠ Doors blueprint import failed: {e}")
+    doors_bp = None
+
+try:
+    from .dispatch import dispatch_bp
+    print("✓ Dispatch blueprint imported successfully")
+except ImportError as e:
+    print(f"⚠ Dispatch blueprint import failed: {e}")
+    dispatch_bp = None
+
 # List of all available blueprints
 __all__ = [
     'auth_bp',
@@ -79,5 +92,7 @@ __all__ = [
     'mobile_bp',
     'audio_bp',
     'sites_bp',
-    'line_items_bp'
+    'line_items_bp',
+    'doors_bp',
+    'dispatch_bp'
 ]

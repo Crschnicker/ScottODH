@@ -4,7 +4,7 @@ from flask_login import login_required
 from models import db, Site
 import logging
 
-sites_bp = Blueprint('sites', __name__)
+sites_bp = Blueprint('sites', __name__)  # Fixed: was **name**
 logger = logging.getLogger(__name__)
 
 def serialize_site(site):

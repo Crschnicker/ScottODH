@@ -69,6 +69,119 @@ const getBackendApiUrl = () => {
 // Export the dynamically determined backend URL
 export const API_BASE_URL = getBackendApiUrl();
 
+// All endpoints now consistently use /api/ prefix to match backend blueprint registration
+export const API_ENDPOINTS = {
+    // Authentication
+    AUTH: {
+        LOGIN: '/api/auth/login',
+        LOGOUT: '/api/auth/logout',
+        ME: '/api/auth/me',
+        CHANGE_PASSWORD: '/api/auth/change-password',
+        USERS: '/api/auth/users',
+        RESET_PASSWORD: (userId) => `/api/auth/users/${userId}/reset-password`
+    },
+    
+    // Customers
+    CUSTOMERS: {
+        LIST: '/api/customers',
+        GET: (id) => `/api/customers/${id}`,
+        CREATE: '/api/customers',
+        UPDATE: (id) => `/api/customers/${id}`,
+        DELETE: (id) => `/api/customers/${id}`,
+        SITES: (customerId) => `/api/customers/${customerId}/sites`
+    },
+    
+    // Sites
+    SITES: {
+        GET: (id) => `/api/sites/${id}`,
+        UPDATE: (id) => `/api/sites/${id}`,
+        DELETE: (id) => `/api/sites/${id}`
+    },
+    
+    // Estimates
+    ESTIMATES: {
+        LIST: '/api/estimates',
+        GET: (id) => `/api/estimates/${id}`,
+        CREATE: '/api/estimates',
+        UPDATE: (id) => `/api/estimates/${id}`,
+        DELETE: (id) => `/api/estimates/${id}`
+    },
+    
+    // Bids
+    BIDS: {
+        LIST: '/api/bids',
+        GET: (id) => `/api/bids/${id}`,
+        CREATE: (estimateId) => `/api/bids/estimates/${estimateId}`,
+        APPROVE: (id) => `/api/bids/${id}/approve`,
+        SAVE_CHANGES: (id) => `/api/bids/${id}/save-changes`,
+        ADD_DOOR: (id) => `/api/bids/${id}/doors`,
+        DELETE_DOOR: (bidId, doorId) => `/api/bids/${bidId}/doors/${doorId}`,
+        REPORT: (id) => `/api/bids/${id}/report`,
+        PROPOSAL: (id) => `/api/bids/${id}/proposal`
+    },
+    
+    // Jobs
+    JOBS: {
+        LIST: '/api/jobs',
+        GET: (id) => `/api/jobs/${id}`,
+        SCHEDULE: (id) => `/api/jobs/${id}/schedule`,
+        UPDATE_STATUS: (id) => `/api/jobs/${id}/status`,
+        CANCEL: (id) => `/api/jobs/${id}/cancel`,
+        COMPLETE_DOOR: (jobId, doorId) => `/api/jobs/${jobId}/doors/${doorId}/complete`
+    },
+    
+    // Dispatch
+    DISPATCH: {
+        GET_FOR_DATE: (date) => `/api/dispatch/${date}`,
+        SAVE: '/api/dispatch'
+    },
+    
+    // Line Items
+    LINE_ITEMS: {
+        ADD: (doorId) => `/api/line-items/doors/${doorId}/line-items`,
+        UPDATE: (doorId, itemId) => `/api/line-items/doors/${doorId}/line-items/${itemId}`,
+        DELETE: (doorId, itemId) => `/api/line-items/doors/${doorId}/line-items/${itemId}`,
+        DUPLICATE: (doorId) => `/api/line-items/doors/${doorId}/duplicate`
+    },
+    
+    // Doors
+    DOORS: {
+        ADD_LINE_ITEM: (doorId) => `/api/doors/${doorId}/line-items`,
+        ACTIONS: (doorId) => `/api/doors/${doorId}/actions`,
+        DUPLICATE: (doorId) => `/api/doors/${doorId}/duplicate`
+    },
+    
+    // Mobile
+    MOBILE: {
+        CONFIG: '/api/mobile/config',
+        FIELD_JOBS: '/api/mobile/field-jobs',
+        JOB_DETAIL: (jobId) => `/api/mobile/field-jobs/${jobId}`,
+        START_JOB: (jobId) => `/api/mobile/jobs/${jobId}/start`,
+        PAUSE_JOB: (jobId) => `/api/mobile/jobs/${jobId}/pause`,
+        RESUME_JOB: (jobId) => `/api/mobile/jobs/${jobId}/resume`,
+        COMPLETE_JOB: (jobId) => `/api/mobile/jobs/${jobId}/complete`,
+        TOGGLE_LINE_ITEM: (jobId, itemId) => `/api/mobile/jobs/${jobId}/line-items/${itemId}/toggle`,
+        UPLOAD_MEDIA: (doorId) => `/api/mobile/doors/${doorId}/media/upload`,
+        COMPLETE_DOOR: (doorId) => `/api/mobile/doors/${doorId}/complete`,
+        GET_MEDIA: (doorId) => `/api/mobile/doors/${doorId}/media`,
+        SERVE_MEDIA: (mediaId, mediaType) => `/api/mobile/media/${mediaId}/${mediaType}`,
+        TIME_TRACKING: (jobId) => `/api/mobile/jobs/${jobId}/time-tracking`,
+        FIELD_SUMMARY: '/api/mobile/field-summary',
+        TEST: '/api/mobile/test'
+    },
+    
+    // Audio
+    AUDIO: {
+        UPLOAD: '/api/audio/upload',
+        GET: (recordingId) => `/api/audio/${recordingId}`,
+        DELETE: (recordingId) => `/api/audio/${recordingId}/delete`,
+        TRANSCRIBE: (recordingId) => `/api/audio/${recordingId}/transcribe`,
+        PROCESS_AI: (recordingId) => `/api/audio/${recordingId}/process-with-ai`,
+        GET_RECORDINGS: (estimateId) => `/api/audio/estimate/${estimateId}/recordings`,
+        SERVE_FILE: (filename) => `/api/audio/uploads/${filename}`
+    }
+};
+
 // Comprehensive API configuration for Azure service communication
 export const API_CONFIG = {
     baseURL: API_BASE_URL,
@@ -95,6 +208,7 @@ console.log('🚀 [API CONFIG] Azure Configuration Initialized:', {
     timeout: API_CONFIG.timeout,
     credentials: API_CONFIG.withCredentials,
     azureServices: API_CONFIG.azureConfig,
+    endpointsConfigured: Object.keys(API_ENDPOINTS).length,
     timestamp: new Date().toISOString()
 });
 
@@ -118,7 +232,7 @@ export const checkAzureServiceCommunication = async () => {
             connectivity: { status: 'pending', message: '', duration: 0 },
             cors: { status: 'pending', message: '', duration: 0 },
             authentication: { status: 'pending', message: '', duration: 0 },
-            database: { status: 'pending', message: '', duration: 0 }
+            endpoints: { status: 'pending', message: '', duration: 0 }
         },
         overall: { status: 'pending', message: '' }
     };
@@ -130,7 +244,7 @@ export const checkAzureServiceCommunication = async () => {
         console.log('📡 [AZURE TEST] Testing backend connectivity...');
         const connectivityStart = Date.now();
         
-        const healthResponse = await fetch(`${API_BASE_URL}/api/health`, {
+        const healthResponse = await fetch(`${API_BASE_URL}/health`, {
             method: 'GET',
             mode: 'cors',
             credentials: 'include',
@@ -146,7 +260,7 @@ export const checkAzureServiceCommunication = async () => {
             const healthData = await healthResponse.json();
             testResults.tests.connectivity = {
                 status: 'success',
-                message: `Connected to ${healthData.service || 'backend'} (${healthData.status})`,
+                message: `Connected to ${healthData.app || 'backend'} (${healthData.status})`,
                 duration: connectivityDuration,
                 data: healthData
             };
@@ -174,7 +288,7 @@ export const checkAzureServiceCommunication = async () => {
             console.log('🌐 [AZURE TEST] Testing CORS configuration...');
             const corsStart = Date.now();
             
-            const corsResponse = await fetch(`${API_BASE_URL}/api/service-info`, {
+            const corsResponse = await fetch(`${API_BASE_URL}/`, {
                 method: 'GET',
                 mode: 'cors',
                 credentials: 'include',
@@ -219,7 +333,7 @@ export const checkAzureServiceCommunication = async () => {
             console.log('🔐 [AZURE TEST] Testing authentication system...');
             const authStart = Date.now();
             
-            const authResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+            const authResponse = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH.ME}`, {
                 method: 'GET',
                 mode: 'cors',
                 credentials: 'include',
@@ -264,57 +378,62 @@ export const checkAzureServiceCommunication = async () => {
         }
     }
 
-    // Test 4: Database Connection (via health endpoint)
+    // Test 4: Key Endpoints (test the ones that were failing)
     if (testResults.tests.connectivity.status === 'success') {
         try {
-            console.log('🗄️ [AZURE TEST] Testing database connection...');
-            const dbStart = Date.now();
+            console.log('🔗 [AZURE TEST] Testing key API endpoints...');
+            const endpointsStart = Date.now();
             
-            const dbResponse = await fetch(`${API_BASE_URL}/api/health`, {
-                method: 'GET',
-                mode: 'cors',
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            const dbDuration = Date.now() - dbStart;
+            const testEndpoints = [
+                { name: 'bids', url: `${API_BASE_URL}${API_ENDPOINTS.BIDS.LIST}` },
+                { name: 'jobs', url: `${API_BASE_URL}${API_ENDPOINTS.JOBS.LIST}` },
+                { name: 'estimates', url: `${API_BASE_URL}${API_ENDPOINTS.ESTIMATES.LIST}` }
+            ];
             
-            if (dbResponse.ok) {
-                const dbData = await dbResponse.json();
-                if (dbData.database_status === 'connected') {
-                    testResults.tests.database = {
-                        status: 'success',
-                        message: `Azure PostgreSQL connected (${dbData.user_count || 0} users)`,
-                        duration: dbDuration,
-                        data: dbData
-                    };
-                    console.log('✅ [AZURE TEST] Database test passed:', dbData);
-                } else {
-                    testResults.tests.database = {
-                        status: 'warning',
-                        message: `Database status: ${dbData.database_status}`,
-                        duration: dbDuration,
-                        data: dbData
-                    };
-                    console.warn('⚠️ [AZURE TEST] Database connection issues:', dbData);
+            const endpointResults = [];
+            
+            for (const endpoint of testEndpoints) {
+                try {
+                    const response = await fetch(endpoint.url, {
+                        method: 'GET',
+                        mode: 'cors',
+                        credentials: 'include',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    endpointResults.push({
+                        name: endpoint.name,
+                        status: response.ok ? 'success' : (response.status === 401 ? 'auth_required' : 'failed'),
+                        statusCode: response.status
+                    });
+                } catch (error) {
+                    endpointResults.push({
+                        name: endpoint.name,
+                        status: 'error',
+                        error: error.message
+                    });
                 }
-            } else {
-                testResults.tests.database = {
-                    status: 'failed',
-                    message: `Database test failed: HTTP ${dbResponse.status}`,
-                    duration: dbDuration
-                };
-                console.error('❌ [AZURE TEST] Database test failed:', dbResponse.status);
             }
+            
+            const endpointsDuration = Date.now() - endpointsStart;
+            const successfulEndpoints = endpointResults.filter(r => r.status === 'success' || r.status === 'auth_required').length;
+            
+            testResults.tests.endpoints = {
+                status: successfulEndpoints === testEndpoints.length ? 'success' : 'failed',
+                message: `${successfulEndpoints}/${testEndpoints.length} endpoints accessible`,
+                duration: endpointsDuration,
+                data: endpointResults
+            };
+            
+            console.log('🔗 [AZURE TEST] Endpoints test completed:', endpointResults);
+            
         } catch (error) {
-            testResults.tests.database = {
+            testResults.tests.endpoints = {
                 status: 'error',
-                message: `Database test error: ${error.message}`,
+                message: `Endpoints test error: ${error.message}`,
                 duration: 0
             };
-            console.error('❌ [AZURE TEST] Database test error:', error);
+            console.error('❌ [AZURE TEST] Endpoints test error:', error);
         }
     }
 
@@ -363,7 +482,7 @@ export const quickAzureConnectivityTest = async () => {
     console.log('⚡ [AZURE QUICK TEST] Testing Azure backend connectivity...');
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/health`, {
+        const response = await fetch(`${API_BASE_URL}/health`, {
             method: 'GET',
             mode: 'cors',
             credentials: 'include',
@@ -429,6 +548,11 @@ export const azureEnvironment = {
  * Format API endpoint URLs consistently
  */
 export const formatApiUrl = (endpoint) => {
+    // Handle both absolute and relative endpoints
+    if (endpoint.startsWith('http')) {
+        return endpoint;
+    }
+    
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
     const apiEndpoint = cleanEndpoint.startsWith('api/') ? cleanEndpoint : `api/${cleanEndpoint}`;
     const fullUrl = `${API_BASE_URL}/${apiEndpoint}`;
@@ -457,6 +581,16 @@ export const getApiHeaders = (includeAuth = false) => {
     return headers;
 };
 
+/**
+ * Helper function to build full URLs for API endpoints
+ */
+export const buildApiUrl = (endpoint) => {
+    if (typeof endpoint === 'function') {
+        throw new Error('Endpoint is a function. Call it with required parameters first.');
+    }
+    return `${API_BASE_URL}${endpoint}`;
+};
+
 // Auto-run connectivity test in development
 if (azureEnvironment.isDevelopment()) {
     console.log('🔧 [DEV MODE] Auto-running Azure connectivity test...');
@@ -475,11 +609,14 @@ if (azureEnvironment.isDevelopment()) {
 // Export all configuration and utilities
 const apiConfig = {
     API_BASE_URL,
+    API_ENDPOINTS,
     API_CONFIG,
     checkAzureServiceCommunication,
     quickAzureConnectivityTest,
     formatApiUrl,
+    buildApiUrl,
     getApiHeaders,
     azureEnvironment
 };
+
 export default apiConfig;
