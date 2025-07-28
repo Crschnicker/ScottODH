@@ -42,11 +42,6 @@ openai==1.6.1
 # Utilities
 pytz==2024.1
 
-# Monitoring and logging (Azure Application Insights)
-opencensus-ext-azure==1.1.13
-opencensus-ext-flask==0.7.6
-opencensus-ext-requests==0.8.0
-
 # Email (if using Azure Communication Services)
 azure-communication-email==1.0.0
 

@@ -20,7 +20,7 @@ const getBackendApiUrl = () => {
 
     // Azure Static Web Apps Environment
     if (hostname.includes('azurestaticapps.net')) {
-        // Replace with your actual Azure App Service backend URL
+        // Your actual Azure App Service backend URL
         const backendUrl = 'https://scott-overhead-doors.azurewebsites.net';
         console.log('✅ [API CONFIG] Azure Static Web Apps Environment Detected');
         console.log('🎯 [API CONFIG] Backend URL:', backendUrl);
