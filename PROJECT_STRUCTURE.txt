@@ -1,0 +1,155 @@
+Scott Overhead Doors - Cleaned Project Structure
+==================================================
+├── backend
+│   ├── app.py
+│   ├── auth_middleware.py
+│   ├── config.py
+│   ├── controllers
+│   │   └── audio_controller.py
+│   ├── Dockerfile
+│   ├── instance
+│   │   ├── scott_overhead_doors old.backup
+│   │   └── scott_overhead_doors old.db
+│   ├── middleware
+│   │   ├── __init__.py
+│   │   └── auth.py
+│   ├── migrations
+│   │   ├── alembic.ini
+│   │   ├── env.py
+│   │   ├── README
+│   │   ├── script.py.mako
+│   │   └── versions
+│   ├── mobile_uploads
+│   │   ├── job_1
+│   │   ├── job_5
+│   │   └── job_6
+│   ├── models
+│   │   ├── __init__.py
+│   │   ├── audio.py
+│   │   ├── base.py
+│   │   ├── bid.py
+│   │   ├── customer.py
+│   │   ├── door.py
+│   │   ├── door_media.py
+│   │   ├── estimate.py
+│   │   ├── job.py
+│   │   ├── line_item.py
+│   │   ├── mobile.py
+│   │   ├── models.py
+│   │   └── user.py
+│   ├── openapi.yaml
+│   ├── requirements.txt
+│   ├── routes
+│   │   ├── __init__.py
+│   │   ├── audio.py
+│   │   ├── auth.py
+│   │   ├── bids.py
+│   │   ├── customers.py
+│   │   ├── dispatch.py
+│   │   ├── door.py
+│   │   ├── estimates.py
+│   │   ├── jobs.py
+│   │   ├── line_items.py
+│   │   ├── mobile.py
+│   │   └── sites.py
+│   ├── services
+│   │   ├── __init__.py
+│   │   ├── audio_service.py
+│   │   ├── azure_storage.py
+│   │   ├── date_utils.py
+│   │   ├── file_utils.py
+│   │   └── mobile_service.py
+│   ├── startup.py
+│   ├── static
+│   ├── test.py
+│   ├── uploads
+│   │   ├── 009f4bb0-e8e4-4784-a913-ddd86a6ec376.m4a
+│   │   ├── 01a3079a-a4fd-42bb-b201-e2c062d68b0d.wav
+│   │   ├── 026763ab-05e6-4bee-9d52-88a06686b3b9.wav
+│   │   ├── 037e6789-f497-4de7-81b5-30af3af285dd.wav
+│   │   ├── 058726d0-24ed-488f-8d19-bd7cdb695b73.m4a
+│   │   ├── 1da123bc-894f-499a-960e-e819923ef438.wav
+│   │   ├── 1df45238-748b-484e-ae7d-62e82d5b5ea2.wav
+│   │   ├── 1e87fd59-13f3-4a29-8206-922bc99881b5.wav
+│   │   ├── 30bb4ac8-7036-415b-8d23-da50aad2f951.wav
+│   │   ├── 3228bba9-6081-4819-9e97-864045eec415.wav
+│   │   ├── 37392638-671a-455a-a59b-1064ac3a9e35.m4a
+│   │   ├── 4047a85c-eb69-4d59-ba52-cde1b52ee59a.wav
+│   │   ├── 47293beb-bc73-426c-bd9c-ef81a4028a4d.wav
+│   │   ├── 47de4396-1277-4572-bd02-7a6bfd9e9b2d.wav
+│   │   ├── 499429ba-b496-4bcb-b572-b9749aa6484c.wav
+│   │   ├── 4df6061f-b3bb-43d8-a2db-0e2c00386e16.wav
+│   │   ├── 527e7ce2-a841-4fe3-bf23-3e2a2fb42d65.wav
+│   │   ├── 6ec50469-1a0e-48f9-96b0-04f56da0f2c0.wav
+│   │   ├── 7a456f8d-04de-42c4-a440-da409acca0d9.wav
+│   │   ├── 7a57d68a-3c44-458c-83f6-99577ea7e045.wav
+│   │   ├── 7b340025-1451-4497-bbdf-c56c9725b4e0.m4a
+│   │   ├── 8974445d-0b19-442a-9d93-6b405864ca7a.m4a
+│   │   ├── 8d247e45-8d40-43f1-a92c-b55a2fb7e34f.wav
+│   │   ├── 91bca09d-0ca0-4f38-8efc-75d42800cd7a.wav
+│   │   ├── 9881e611-b2fe-4c20-b3ad-fc572fe24eff.wav
+│   │   ├── 9aa1b735-a910-425a-ab1b-1bf570d01b30.wav
+│   │   ├── 9c5af273-0be7-4d33-8317-5a76c7873928.wav
+│   │   ├── a670d33c-3698-412d-9a3d-a2165cf92925.m4a
+│   │   ├── a756f53e-7418-4670-8539-c3151039380e.wav
+│   │   ├── a8a9fbaf-dc63-4dc4-ba92-02060c3b8ebe.wav
+│   │   ├── aa3770f7-54e5-47d2-bbc7-2d74625959dd.wav
+│   │   ├── audio
+│   │   ├── b2f4ca3d-f5d0-4fea-bc9f-410444d66f04.wav
+│   │   ├── b39cd816-b5fc-4bc8-8d41-def0e8ea3ef8.m4a
+│   │   ├── c9f5270f-f1d5-47b2-8e61-4ac55f73e40e.wav
+│   │   ├── d9fceaec-bb7f-4262-a3b6-275677afa4a7.wav
+│   │   ├── df5b37be-cc45-4dfd-8c8c-8c892aef4a04.wav
+│   │   ├── e397fe91-3652-4a07-86ef-3d71df8f04ae.wav
+│   │   ├── e39e6aeb-9736-4bb5-b783-41ee2bdaf2eb.wav
+│   │   ├── e57deb97-504f-49f7-b703-31590cc09564.wav
+│   │   ├── fe7fc893-be00-407d-b77b-a92e10d19081.wav
+│   │   ├── job_1
+│   │   ├── job_2
+│   │   ├── job_3
+│   │   ├── job_4
+│   │   ├── job_5
+│   │   ├── job_6
+│   │   └── job_7
+│   ├── web.config
+│   └── wgsi.py
+├── Cleanup.py
+├── config.py
+├── docker-compose.yml
+├── Dockerfile
+├── frontend
+│   ├── build
+│   │   ├── asset-manifest.json
+│   │   ├── index.html
+│   │   ├── mobile
+│   │   ├── mobile.html
+│   │   └── static
+│   ├── choreo
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── public
+│   │   └── index.html
+│   └── src
+│       ├── App.css
+│       ├── App.js
+│       ├── components
+│       ├── config
+│       ├── index.js
+│       ├── mobileIndex.js
+│       ├── pages
+│       ├── services
+│       ├── styles
+│       └── utils
+├── instance
+├── LICENSE
+├── PROJECT_STRUCTURE.txt
+├── ProjectTree.py
+├── README.md
+├── requirements.txt
+├── scripts
+│   ├── deploy.sh
+│   └── setup-azure.sh
+├── startup.sh
+└── Test.py

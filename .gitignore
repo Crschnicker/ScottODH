@@ -1,18 +1,20 @@
-# Create .gitignore in the root directory
-echo "# Dependencies
-node_modules/
-frontend/node_modules/
-
-# Build outputs  
-frontend/build/
-frontend/dist/
+# Azure deployment
+.azure/
+*.publish
 
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.production
+
+# Database
+*.db
+*.db-journal
+
+# Uploads (will be moved to Azure Blob Storage)
+backend/uploads/
+backend/mobile_uploads/
+uploads/
 
 # Python
 __pycache__/
@@ -20,20 +22,14 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-backend/__pycache__/
-*.py[cod]
-*$py.class
+env/
+venv/
+ENV/
 
-# Database files (optional - you might want to keep some)
-instance/
-backend/instance/
-
-# Logs
-*.log
+# Node
+node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-date_handling.log
+build/
 
 # IDE
 .vscode/
@@ -41,11 +37,10 @@ date_handling.log
 *.swp
 *.swo
 
+# Logs
+*.log
+logs/
+
 # OS
 .DS_Store
 Thumbs.db
-
-# Uploads (consider if you want these tracked)
-uploads/
-backend/uploads/
-backend/mobile_uploads/" > .gitignore
