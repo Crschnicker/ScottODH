@@ -28,7 +28,10 @@ def get_estimates():
                 'status': estimate.status,
                 'estimated_hours': estimate.estimated_hours,
                 'created_at': estimate.created_at.isoformat() if estimate.created_at else None,
-                'doors_count': len(json.loads(estimate.doors_data)) if estimate.doors_data else 0
+                'doors_count': len(json.loads(estimate.doors_data)) if estimate.doors_data else 0,
+                # Also return schedule info for the main list
+                'scheduled_date': estimate.scheduled_date.isoformat() if estimate.scheduled_date else None,
+                'estimator_name': estimate.estimator_name
             }
             result.append(estimate_data)
         
@@ -62,7 +65,11 @@ def get_estimate(estimate_id):
             'status': estimate.status,
             'estimated_hours': estimate.estimated_hours,
             'doors_data': doors_data,
-            'created_at': estimate.created_at.isoformat() if estimate.created_at else None
+            'created_at': estimate.created_at.isoformat() if estimate.created_at else None,
+            'scheduled_date': estimate.scheduled_date.isoformat() if estimate.scheduled_date else None,
+            'estimator_name': estimate.estimator_name,
+            'duration': estimate.duration,
+            'schedule_notes': estimate.schedule_notes
         })
     except Exception as e:
         logger.error(f"Error retrieving estimate {estimate_id}: {str(e)}")
@@ -118,6 +125,59 @@ def create_estimate():
         db.session.rollback()
         logger.error(f"Error creating estimate: {str(e)}")
         return jsonify({'error': 'Failed to create estimate'}), 500
+
+# --- NEW ROUTE TO HANDLE SCHEDULING ---
+@estimates_bp.route('/<int:estimate_id>/schedule', methods=['POST'])
+@login_required
+def schedule_estimate(estimate_id):
+    """Schedule an estimate by updating its date, status, and other details"""
+    try:
+        estimate = Estimate.query.get_or_404(estimate_id)
+        data = request.json
+
+        if not data.get('scheduled_date'):
+            return jsonify({'error': 'Scheduled date is required'}), 400
+
+        # The frontend sends an ISO string (e.g., "2025-08-01T13:00:00.000Z")
+        # Python's fromisoformat can parse this if we handle the 'Z' suffix
+        iso_date_string = data['scheduled_date']
+        if iso_date_string.endswith('Z'):
+            iso_date_string = iso_date_string[:-1] + '+00:00'
+        
+        # Update the estimate record
+        estimate.scheduled_date = datetime.fromisoformat(iso_date_string)
+        estimate.estimator_name = data.get('estimator_name')
+        estimate.estimator_id = data.get('estimator_id')
+        estimate.duration = data.get('duration')
+        estimate.schedule_notes = data.get('schedule_notes')
+        estimate.status = 'scheduled'  # Update the status to 'scheduled'
+
+        db.session.commit()
+
+        # Return the complete, updated estimate object. The frontend will use this
+        # to update its state, so it needs all the fields it displays.
+        return jsonify({
+            'id': estimate.id,
+            'customer_id': estimate.customer_id,
+            'customer_name': estimate.customer_direct_link.name,
+            'site_id': estimate.site_id,
+            'site_name': estimate.site.name if estimate.site else None,
+            'site_address': estimate.site.address if estimate.site else None,
+            'status': estimate.status,
+            'estimated_hours': estimate.estimated_hours,
+            'created_at': estimate.created_at.isoformat(),
+            'doors_count': len(json.loads(estimate.doors_data)) if estimate.doors_data else 0,
+            'scheduled_date': estimate.scheduled_date.isoformat(),
+            'estimator_name': estimate.estimator_name,
+            'duration': estimate.duration,
+            'schedule_notes': estimate.schedule_notes
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error scheduling estimate {estimate_id}: {str(e)}")
+        return jsonify({'error': 'Failed to schedule estimate'}), 500
+# ------------------------------------
 
 @estimates_bp.route('/<int:estimate_id>', methods=['PUT'])
 @login_required

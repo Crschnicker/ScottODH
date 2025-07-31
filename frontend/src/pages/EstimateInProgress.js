@@ -759,32 +759,31 @@ const EstimateInProgress = () => {
     }
   };
 
-  /**
-   * Handle playing an audio recording
-   */
   const handlePlayAudio = (filePath, recordingId) => {
-    // If there's already audio playing, stop it
     if (currentAudio) {
       currentAudio.pause();
       currentAudio.currentTime = 0;
     }
 
-    // If we're clicking the same recording that's playing, just toggle pause/play
     if (isPlaying && currentPlayingId === recordingId) {
       currentAudio.pause();
       setIsPlaying(false);
       return;
     }
 
-    // Create audio element with correct path
-    const apiBasePath = window.location.origin;
+    const backendApiUrl = api.defaults.baseURL;
+    const backendRootUrl = backendApiUrl.replace('/api', '');
+
+    // Construct the full, correct path to the audio file on the backend server.
+    // The filePath from the database is likely "uploads/recording.wav".
     const audioPath = filePath.startsWith("http")
       ? filePath
-      : `${apiBasePath}/${filePath.replace(/^\//, "")}`;
+      : `${backendRootUrl}/${filePath.replace(/^\//, "")}`;
+
+    console.log("Attempting to play audio from:", audioPath); // For debugging
 
     const audio = new Audio(audioPath);
 
-    // Add event listeners
     audio.addEventListener("ended", () => {
       setIsPlaying(false);
       setCurrentPlayingId(null);
@@ -792,16 +791,15 @@ const EstimateInProgress = () => {
 
     audio.addEventListener("error", (err) => {
       console.error("Error playing audio:", err);
+      // More specific error message
       setError(
-        `Unable to play audio recording. The file may be missing or inaccessible.`
+        `Unable to play audio. File not found at ${audioPath} or network issue.`
       );
       setIsPlaying(false);
       setCurrentPlayingId(null);
     });
 
-    // Start playing
-    audio
-      .play()
+    audio.play()
       .then(() => {
         setIsPlaying(true);
         setCurrentAudio(audio);
@@ -809,7 +807,7 @@ const EstimateInProgress = () => {
       })
       .catch((err) => {
         console.error("Error playing audio:", err);
-        setError(`Failed to play audio: ${err.message || "Unknown error"}`);
+        setError(`Failed to play audio: ${err.message || "Browser prevented playback."}`);
       });
   };
 
