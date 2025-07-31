@@ -15,6 +15,9 @@ azure-keyvault-secrets==4.7.0
 psycopg2-binary==2.9.9
 SQLAlchemy==2.0.25
 
+azure-storage-blob
+
+
 # Production WSGI server
 gunicorn==21.2.0
 
