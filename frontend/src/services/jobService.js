@@ -70,6 +70,24 @@ const logAuthenticationError = (operation, error, config = {}) => {
       ]
     });
   }
+
+  // NEW: Handle 405 Method Not Allowed with login redirect
+  if (error.response?.status === 405) {
+    console.warn('[AUTH DEBUG] 405 Method Not Allowed - Possible backend routing issue:', {
+      possibleIssues: [
+        'Backend redirecting GET request to POST-only login endpoint',
+        'Jobs endpoint not properly configured',
+        'Authentication middleware misconfigured for this endpoint',
+        'Route handler missing or incorrectly set up'
+      ],
+      recommendations: [
+        'Check backend routing configuration for /api/jobs',
+        'Verify authentication middleware is not redirecting GET requests',
+        'Ensure jobs blueprint is properly registered',
+        'Check if endpoint exists and accepts GET method'
+      ]
+    });
+  }
 };
 
 /**
@@ -110,7 +128,7 @@ export const testAuthentication = async () => {
 };
 
 /**
- * Retry failed requests with fresh authentication
+ * Enhanced retry function with better error handling for 405 errors
  * @param {Function} requestFunction - The original request function
  * @param {Array} args - Arguments for the request function
  * @param {number} maxRetries - Maximum number of retry attempts
@@ -120,7 +138,10 @@ const retryWithAuth = async (requestFunction, args, maxRetries = 1) => {
   try {
     return await requestFunction(...args);
   } catch (error) {
-    if (error.response?.status === 401 && maxRetries > 0) {
+    const status = error.response?.status;
+    
+    // Handle 401 Unauthorized with retry
+    if (status === 401 && maxRetries > 0) {
       console.warn('[RETRY AUTH] 401 detected, testing authentication...');
       
       const authStatus = await testAuthentication();
@@ -132,6 +153,31 @@ const retryWithAuth = async (requestFunction, args, maxRetries = 1) => {
         throw new Error('Authentication required. Please log in again.');
       }
     }
+    
+    // Handle 405 Method Not Allowed - likely backend routing issue
+    if (status === 405) {
+      console.error('[RETRY AUTH] 405 Method Not Allowed - Backend routing issue detected');
+      
+      // Check if this is a login redirect issue by examining the response
+      const responseData = error.response?.data;
+      if (typeof responseData === 'string' && responseData.includes('login')) {
+        console.error('[RETRY AUTH] Detected backend redirect to login endpoint with wrong method');
+        throw new Error('Backend authentication configuration error. The server is incorrectly redirecting to login. Please contact support.');
+      } else {
+        throw new Error('API endpoint not found or method not allowed. This may be a backend configuration issue.');
+      }
+    }
+    
+    // Handle 404 Not Found
+    if (status === 404) {
+      throw new Error('API endpoint not found. Please check if the backend server is running and properly configured.');
+    }
+    
+    // Handle network errors
+    if (!error.response) {
+      throw new Error('Network error. Please check your connection and ensure the backend server is accessible.');
+    }
+    
     throw error;
   }
 };
@@ -227,7 +273,7 @@ function formatDateForDisplay(date) {
 }
 
 /**
- * Get all jobs with optional filters
+ * Get all jobs with optional filters - Enhanced with comprehensive error handling
  * @param {Object} params - Optional query parameters
  * @returns {Promise<Array>} Promise resolving to an array of jobs
  */
@@ -235,9 +281,63 @@ export const getJobs = async (params = {}) => {
   try {
     console.log('[GET JOBS] Requesting with params:', params);
     
+    // Pre-flight authentication check to catch issues early
+    console.log('[GET JOBS] Testing authentication before request...');
+    const authStatus = await testAuthentication();
+    
+    if (!authStatus.authenticated) {
+      console.error('[GET JOBS] Authentication test failed:', authStatus);
+      throw new Error('Not authenticated. Please log in again.');
+    }
+    
+    console.log('[GET JOBS] Authentication verified, proceeding with jobs request...');
+    
+    // Enhanced error handling with specific messaging for different failure modes
     const response = await retryWithAuth(
-      async () => await api.get('/jobs', { params }),
-      []
+      async () => {
+        console.log('[GET JOBS] Making API request to /jobs...');
+        
+        // Detailed logging of the request being made
+        console.log('[GET JOBS] Request details:', {
+          url: '/jobs',
+          method: 'GET',
+          params: params,
+          withCredentials: api.defaults.withCredentials,
+          baseURL: api.defaults.baseURL,
+          fullURL: `${api.defaults.baseURL}/jobs`
+        });
+        
+        try {
+          const result = await api.get('/jobs', { params });
+          console.log('[GET JOBS] API request successful:', {
+            status: result.status,
+            dataLength: result.data?.length || 0
+          });
+          return result;
+        } catch (requestError) {
+          console.error('[GET JOBS] Direct API request failed:', {
+            status: requestError.response?.status,
+            statusText: requestError.response?.statusText,
+            errorData: requestError.response?.data,
+            message: requestError.message
+          });
+          
+          // Re-throw with additional context
+          if (requestError.response?.status === 405) {
+            const enhancedError = new Error(
+              'Backend routing error: The jobs endpoint is not properly configured. ' +
+              'This is likely a server-side issue that needs to be resolved by checking the backend routing configuration.'
+            );
+            enhancedError.originalError = requestError;
+            enhancedError.response = requestError.response;
+            throw enhancedError;
+          }
+          
+          throw requestError;
+        }
+      },
+      [],
+      2 // Allow 2 retries for jobs requests
     );
     
     // Process dates to prevent timezone issues when displaying
@@ -274,6 +374,22 @@ export const getJobs = async (params = {}) => {
   } catch (error) {
     console.error('Error getting jobs:', error);
     logAuthenticationError('GET_JOBS', error);
+    
+    // Provide user-friendly error messages based on the specific error
+    if (error.message.includes('Backend routing error')) {
+      throw error; // Re-throw enhanced error as-is
+    } else if (error.response?.status === 405) {
+      throw new Error('The jobs service is temporarily unavailable due to a server configuration issue. Please try again later or contact support.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Jobs service not found. Please ensure the backend server is running and properly configured.');
+    } else if (!error.response) {
+      throw new Error('Unable to connect to the jobs service. Please check your network connection and try again.');
+    } else if (error.response?.status === 401) {
+      throw new Error('Your session has expired. Please log out and log back in.');
+    } else if (error.response?.status === 403) {
+      throw new Error('You do not have permission to access jobs. Please contact your administrator.');
+    }
+    
     throw error;
   }
 };
@@ -289,7 +405,8 @@ export const getJob = async (id) => {
     
     const response = await retryWithAuth(
       async () => await api.get(`/jobs/${id}`),
-      []
+      [],
+      2
     );
     
     // Fix date handling in the response
@@ -426,7 +543,8 @@ export const scheduleJob = async (jobId, scheduleData) => {
     
     const response = await retryWithAuth(
       async () => await api.post(`/jobs/${jobId}/schedule`, processedData),
-      []
+      [],
+      2
     );
     
     // Log the response
@@ -577,7 +695,8 @@ export const completeDoor = async (jobId, doorId, completionData) => {
     
     const response = await retryWithAuth(
       async () => await api.post(`/jobs/${jobId}/doors/${doorId}/complete`, completionData),
-      []
+      [],
+      2
     );
     
     console.log(`[COMPLETE DOOR] Server response:`, response.data);
@@ -631,7 +750,8 @@ export const getScheduledJobs = async (startDate, endDate, region = null) => {
     
     const response = await retryWithAuth(
       async () => await api.get('/jobs', { params }),
-      []
+      [],
+      2
     );
     
     // Process the dates in each job to fix timezone issues
@@ -700,7 +820,8 @@ export const getJobsForDate = async (date, region = null) => {
     
     const response = await retryWithAuth(
       async () => await api.get('/jobs', { params }),
-      []
+      [],
+      2
     );
     
     // Process the dates in each job to fix timezone issues
@@ -755,12 +876,12 @@ export const cancelJob = async (jobId, cancelData = {}) => {
     
     const response = await retryWithAuth(
       async () => {
-        // FIXED: Use api instance instead of direct fetch
+        // Use api instance instead of direct fetch
         const result = await api.post(`/jobs/${jobId}/cancel`, cancelData);
         return result.data;
       },
       [],
-      1
+      2
     );
 
     console.log(`[CANCEL JOB] Job #${jobId} cancelled successfully:`, response);

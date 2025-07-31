@@ -54,15 +54,55 @@ def create_app(config_name='production'):
          max_age=86400  # Cache preflight for 24 hours
     )
     
-    # Setup Flask-Login
+    # ✅ FIXED: Setup Flask-Login with proper API handling
     login_manager = LoginManager()
     login_manager.init_app(app)
-    login_manager.login_view = 'auth.login'
+    
+    # ✅ CRITICAL FIX: Remove login_view to prevent redirects for API endpoints
+    # login_manager.login_view = 'auth.login'  # ❌ This causes redirects
     login_manager.session_protection = 'strong'
+    
+    # ✅ FIXED: Custom unauthorized handler for API endpoints
+    @login_manager.unauthorized_handler
+    def handle_unauthorized():
+        """Custom handler for unauthorized access to return JSON instead of redirects"""
+        
+        # Check if this is an API request
+        if request.path.startswith('/api/'):
+            app.logger.warning(f"Unauthorized API access attempt to {request.path} from {request.remote_addr}")
+            return jsonify({
+                'error': 'Authentication required',
+                'message': 'You must be logged in to access this endpoint',
+                'code': 'UNAUTHORIZED'
+            }), 401
+        
+        # For non-API requests, you could redirect to login page
+        # But since this is primarily an API, we'll return JSON for all
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this resource'
+        }), 401
     
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        """Load user by ID for Flask-Login"""
+        try:
+            return User.query.get(int(user_id))
+        except (ValueError, TypeError):
+            app.logger.warning(f"Invalid user_id provided to user_loader: {user_id}")
+            return None
+    
+    # ✅ ENHANCED: Custom session validation
+    @login_manager.needs_refresh_handler
+    def refresh_handler():
+        """Handle session refresh requirements"""
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'error': 'Session expired',
+                'message': 'Your session has expired. Please log in again.',
+                'code': 'SESSION_EXPIRED'
+            }), 401
+        return jsonify({'error': 'Session refresh required'}), 401
     
     # Configure logging
     if not app.debug:
@@ -74,72 +114,98 @@ def create_app(config_name='production'):
         ))
         app.logger.addHandler(handler)
     
-    # Import and register blueprints
-    from routes import (
-        auth_bp, customers_bp, estimates_bp, bids_bp, jobs_bp, 
-        mobile_bp, audio_bp, sites_bp, line_items_bp, doors_bp, dispatch_bp
-    )
+    # ✅ ENHANCED: Import and register blueprints with better error handling
+    app.logger.info("Starting blueprint registration...")
+    
+    try:
+        from routes import (
+            auth_bp, customers_bp, estimates_bp, bids_bp, jobs_bp, 
+            mobile_bp, audio_bp, sites_bp, line_items_bp, doors_bp, dispatch_bp
+        )
+        app.logger.info("✓ All blueprints imported successfully")
+    except ImportError as e:
+        app.logger.error(f"❌ Blueprint import failed: {e}")
+        raise
     
     # Register ALL blueprints with /api prefix for consistency
-    if auth_bp:
-        app.register_blueprint(auth_bp, url_prefix='/api/auth')
-        app.logger.info("✓ Registered auth blueprint at /api/auth")
+    blueprint_registrations = [
+        (auth_bp, '/api/auth', 'auth'),
+        (customers_bp, '/api/customers', 'customers'),
+        (estimates_bp, '/api/estimates', 'estimates'),
+        (bids_bp, '/api/bids', 'bids'),
+        (jobs_bp, '/api/jobs', 'jobs'),
+        (mobile_bp, '/api/mobile', 'mobile'),
+        (audio_bp, '/api/audio', 'audio'),
+        (sites_bp, '/api/sites', 'sites'),
+        (line_items_bp, '/api/line-items', 'line-items'),
+        (doors_bp, '/api/doors', 'doors'),
+        (dispatch_bp, '/api/dispatch', 'dispatch')
+    ]
     
-    if customers_bp:
-        app.register_blueprint(customers_bp, url_prefix='/api/customers')
-        app.logger.info("✓ Registered customers blueprint at /api/customers")
+    registered_blueprints = []
+    failed_blueprints = []
     
-    if estimates_bp:
-        app.register_blueprint(estimates_bp, url_prefix='/api/estimates')
-        app.logger.info("✓ Registered estimates blueprint at /api/estimates")
+    for blueprint, url_prefix, name in blueprint_registrations:
+        try:
+            if blueprint is not None:
+                app.register_blueprint(blueprint, url_prefix=url_prefix)
+                app.logger.info(f"✓ Registered {name} blueprint at {url_prefix}")
+                registered_blueprints.append(name)
+                
+                # ✅ ENHANCED: Verify blueprint routes were registered
+                blueprint_routes = [rule.rule for rule in app.url_map.iter_rules() 
+                                  if rule.rule.startswith(url_prefix)]
+                if blueprint_routes:
+                    app.logger.info(f"  └─ Routes: {blueprint_routes[:3]}{'...' if len(blueprint_routes) > 3 else ''}")
+                else:
+                    app.logger.warning(f"  └─ No routes found for {name} blueprint")
+                    
+            else:
+                app.logger.error(f"❌ {name} blueprint is None - import failed")
+                failed_blueprints.append(name)
+        except Exception as e:
+            app.logger.error(f"❌ Failed to register {name} blueprint: {e}")
+            failed_blueprints.append(name)
     
-    if bids_bp:
-        app.register_blueprint(bids_bp, url_prefix='/api/bids')
-        app.logger.info("✓ Registered bids blueprint at /api/bids")
+    # ✅ ENHANCED: Blueprint registration summary
+    app.logger.info(f"Blueprint registration complete: {len(registered_blueprints)} successful, {len(failed_blueprints)} failed")
+    if failed_blueprints:
+        app.logger.error(f"Failed blueprints: {failed_blueprints}")
     
-    if jobs_bp:
-        app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
-        app.logger.info("✓ Registered jobs blueprint at /api/jobs")
-    
-    if mobile_bp:
-        app.register_blueprint(mobile_bp, url_prefix='/api/mobile')
-        app.logger.info("✓ Registered mobile blueprint at /api/mobile")
-    
-    if audio_bp:
-        app.register_blueprint(audio_bp, url_prefix='/api/audio')
-        app.logger.info("✓ Registered audio blueprint at /api/audio")
-    
-    if sites_bp:
-        app.register_blueprint(sites_bp, url_prefix='/api/sites')
-        app.logger.info("✓ Registered sites blueprint at /api/sites")
-    
-    if line_items_bp:
-        app.register_blueprint(line_items_bp, url_prefix='/api/line-items')
-        app.logger.info("✓ Registered line-items blueprint at /api/line-items")
-    
-    if doors_bp:
-        app.register_blueprint(doors_bp, url_prefix='/api/doors')
-        app.logger.info("✓ Registered doors blueprint at /api/doors")
-    
-    if dispatch_bp:
-        app.register_blueprint(dispatch_bp, url_prefix='/api/dispatch')
-        app.logger.info("✓ Registered dispatch blueprint at /api/dispatch")
-    
-    # Health check endpoint
+    # ✅ ENHANCED: Health check endpoint with blueprint status
     @app.route('/health')
     def health_check():
         return jsonify({
             'status': 'healthy',
             'app': 'Scott Overhead Doors API',
-            'version': '1.0.0'
+            'version': '1.0.0',
+            'blueprints': {
+                'registered': registered_blueprints,
+                'failed': failed_blueprints,
+                'total_routes': len(list(app.url_map.iter_rules()))
+            },
+            'database': 'connected' if db else 'not configured'
         })
     
-    # Root endpoint
+    # ✅ ENHANCED: Root endpoint with detailed API information
     @app.route('/')
     def index():
+        # Get all registered routes for documentation
+        routes = {}
+        for rule in app.url_map.iter_rules():
+            if rule.rule.startswith('/api/'):
+                endpoint_group = rule.rule.split('/')[2] if len(rule.rule.split('/')) > 2 else 'root'
+                if endpoint_group not in routes:
+                    routes[endpoint_group] = []
+                routes[endpoint_group].append({
+                    'path': rule.rule,
+                    'methods': list(rule.methods - {'HEAD', 'OPTIONS'})
+                })
+        
         return jsonify({
             'message': 'Scott Overhead Doors API',
             'status': 'running',
+            'version': '1.0.0',
             'endpoints': {
                 'auth': '/api/auth',
                 'customers': '/api/customers',
@@ -152,7 +218,13 @@ def create_app(config_name='production'):
                 'line-items': '/api/line-items',
                 'doors': '/api/doors',
                 'dispatch': '/api/dispatch'
-            }
+            },
+            'blueprint_status': {
+                'registered': registered_blueprints,
+                'failed': failed_blueprints
+            },
+            'available_routes': len(list(app.url_map.iter_rules())),
+            'documentation': f"{request.base_url}health"
         })
     
     # ✅ ENHANCED: More comprehensive CORS headers for Azure
@@ -194,13 +266,59 @@ def create_app(config_name='production'):
         
         return response
     
-    # Create database tables
+    # ✅ ENHANCED: Global error handlers for better API responses
+    @app.errorhandler(404)
+    def not_found(error):
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'error': 'Not Found',
+                'message': f'The requested endpoint {request.path} does not exist',
+                'code': 'NOT_FOUND'
+            }), 404
+        return jsonify({'error': 'Not Found'}), 404
+    
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'error': 'Method Not Allowed',
+                'message': f'The method {request.method} is not allowed for endpoint {request.path}',
+                'code': 'METHOD_NOT_ALLOWED',
+                'allowed_methods': error.description if hasattr(error, 'description') else None
+            }), 405
+        return jsonify({'error': 'Method Not Allowed'}), 405
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        app.logger.error(f"Internal server error: {error}")
+        if request.path.startswith('/api/'):
+            return jsonify({
+                'error': 'Internal Server Error',
+                'message': 'An unexpected error occurred. Please try again later.',
+                'code': 'INTERNAL_ERROR'
+            }), 500
+        return jsonify({'error': 'Internal Server Error'}), 500
+    
+    # ✅ ENHANCED: Database initialization with better error handling
     with app.app_context():
         try:
             db.create_all()
-            app.logger.info("✓ Database tables created/verified")
+            app.logger.info("✓ Database tables created/verified successfully")
+            
+            # Test database connection
+            db.session.execute('SELECT 1')
+            app.logger.info("✓ Database connection test successful")
+            
         except Exception as e:
-            app.logger.error(f"Database initialization error: {e}")
+            app.logger.error(f"❌ Database initialization error: {e}")
+            # Don't raise exception in production - let app start but log the error
+            if config_name == 'development':
+                raise
+    
+    # ✅ FINAL: Log successful app creation
+    app.logger.info(f"✓ Scott Overhead Doors API created successfully in {config_name} mode")
+    app.logger.info(f"✓ Total registered routes: {len(list(app.url_map.iter_rules()))}")
     
     return app
 

@@ -50,7 +50,10 @@ const EstimateList = ({ onSelectEstimate, refreshTrigger }) => {
   }, [loadEstimates, refreshTrigger]);
   
   useEffect(() => {
-    let currentEstimates = estimates.filter(estimate => estimate.status === 'pending');
+    // ✅ FIXED: Show estimates that don't have a status (new estimates) or are explicitly pending
+    let currentEstimates = estimates.filter(estimate => 
+      !estimate.status || estimate.status === 'pending'
+    );
     
     if (searchTerm) {
       const lowercasedTerm = searchTerm.toLowerCase();
@@ -65,7 +68,6 @@ const EstimateList = ({ onSelectEstimate, refreshTrigger }) => {
     
     setFilteredEstimates(currentEstimates);
   }, [searchTerm, estimates]);
-
   const handleScheduleClick = (estimate) => {
     setSelectedEstimate(estimate);
     if (estimate.scheduled_date) {
