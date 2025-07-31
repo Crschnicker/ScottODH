@@ -99,24 +99,16 @@ class ProductionConfig(Config):
     DEBUG = False
     DEVELOPMENT = False
     
-    # Ensure SECRET_KEY is set for production
     def __init__(self):
         super().__init__()
         
+        # Ensure SECRET_KEY is set for production
         secret_key = os.environ.get('SECRET_KEY')
         if not secret_key:
             raise ValueError("SECRET_KEY environment variable is required for production")
         self.SECRET_KEY = secret_key
-    
-    # Production CORS - restrict to your actual domains
-    CORS_ORIGINS = [
-        'https://your-frontend.azurestaticapps.net',  # Replace with your actual frontend URL
-        'https://scottoverheaddoors.azurewebsites.net',  # Replace with your actual backend URL
-    ]
-    
-    # Production database validation
-    @property
-    def SQLALCHEMY_DATABASE_URI(self):
+        
+        # ✅ FIXED: Set database URI as attribute, not property
         database_url = os.environ.get('DATABASE_URL')
         if not database_url:
             raise ValueError("DATABASE_URL environment variable is required for production")
@@ -124,7 +116,13 @@ class ProductionConfig(Config):
         if database_url.startswith('postgres://'):
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
         
-        return database_url
+        self.SQLALCHEMY_DATABASE_URI = database_url
+    
+    # Production CORS - restrict to your actual domains
+    CORS_ORIGINS = [
+        'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',  # Your actual frontend URL
+        'https://scott-overhead-doors.azurewebsites.net',  # Your actual backend URL
+    ]
     
     # Production-optimized database settings
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -141,7 +139,7 @@ class ProductionConfig(Config):
     def validate_azure_storage(self):
         if not os.environ.get('AZURE_STORAGE_CONNECTION_STRING'):
             raise ValueError("AZURE_STORAGE_CONNECTION_STRING is required for production")
-
+        
 class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
