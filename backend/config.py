@@ -1,6 +1,3 @@
-# config.py - Azure-optimized configuration for Scott Overhead Doors
-# Supports Azure App Service, PostgreSQL, and Blob Storage
-
 import os
 from datetime import timedelta
 
@@ -10,20 +7,26 @@ class Config:
     # Security Configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
-    # Azure PostgreSQL Database Configuration
-    DATABASE_URL = os.environ.get('DATABASE_URL')
+    # ✅ FIXED: Database Configuration - Returns string, not property
+    @staticmethod
+    def get_database_url():
+        """Get properly formatted database URL string"""
+        database_url = os.environ.get('DATABASE_URL')
+        
+        if database_url:
+            # Ensure we're using postgresql:// not postgres://
+            if database_url.startswith('postgres://'):
+                database_url = database_url.replace('postgres://', 'postgresql://', 1)
+            return database_url
+        else:
+            # Fallback for local development
+            return 'sqlite:///instance/dev_app.db'
     
-    if DATABASE_URL:
-        # Ensure we're using postgresql:// not postgres://
-        if DATABASE_URL.startswith('postgres://'):
-            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-        SQLALCHEMY_DATABASE_URI = DATABASE_URL
-    else:
-        # Fallback for local development only
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///app.db'
+    # ✅ CRITICAL FIX: Set as string attribute, not property
+    SQLALCHEMY_DATABASE_URI = None  # Will be set in __init__
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # SQLAlchemy Configuration for Azure PostgreSQL
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_recycle': 3600,
         'pool_pre_ping': True,
@@ -42,11 +45,15 @@ class Config:
     
     # Azure-specific CORS Origins
     CORS_ORIGINS = [
-        'https://*.azurestaticapps.net',  # Azure Static Web Apps
-        'https://*.azurewebsites.net',    # Azure App Service
-        'http://localhost:3000',          # Local development
-        'http://127.0.0.1:3000',         # Local development
+        'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',
+        'https://scott-overhead-doors.azurewebsites.net',
+        'https://*.azurestaticapps.net',
+        'https://*.azurewebsites.net',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
     ]
+    
+    CORS_SUPPORTS_CREDENTIALS = True
     
     # Azure Blob Storage Configuration
     AZURE_STORAGE_CONNECTION_STRING = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
@@ -60,39 +67,47 @@ class Config:
     WTF_CSRF_ENABLED = False
     RATELIMIT_STORAGE_URL = "memory://"
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
+    
+    def __init__(self):
+        """Initialize configuration with proper database URL"""
+        # ✅ CRITICAL: Set database URI as string attribute in constructor
+        self.SQLALCHEMY_DATABASE_URI = self.get_database_url()
 
 class DevelopmentConfig(Config):
     """Development configuration for local testing"""
     DEBUG = True
     DEVELOPMENT = True
     
-    # Relaxed settings for development
-    SESSION_COOKIE_SECURE = False
-    SESSION_COOKIE_SAMESITE = 'Lax'
-    
-    # Additional CORS origins for development
-    CORS_ORIGINS = [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:3001',
-        'https://*.ngrok.io',
-        'https://*.ngrok-free.app',
-    ]
-    
-    # Development database
-    DEV_DATABASE_URL = os.environ.get('DEV_DATABASE_URL')
-    if DEV_DATABASE_URL:
-        if DEV_DATABASE_URL.startswith('postgres://'):
-            DEV_DATABASE_URL = DEV_DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-        SQLALCHEMY_DATABASE_URI = DEV_DATABASE_URL
-    else:
-        SQLALCHEMY_DATABASE_URI = 'sqlite:///dev_app.db'
-    
-    # Enable SQL logging in development
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        **Config.SQLALCHEMY_ENGINE_OPTIONS,
-        'echo': True,
-    }
+    def __init__(self):
+        super().__init__()
+        
+        # Relaxed settings for development
+        self.SESSION_COOKIE_SECURE = False
+        self.SESSION_COOKIE_SAMESITE = 'Lax'
+        
+        # Additional CORS origins for development
+        self.CORS_ORIGINS = [
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://localhost:3001',
+            'https://*.ngrok.io',
+            'https://*.ngrok-free.app',
+        ]
+        
+        # Development database - override with dev-specific URL if provided
+        dev_database_url = os.environ.get('DEV_DATABASE_URL')
+        if dev_database_url:
+            if dev_database_url.startswith('postgres://'):
+                dev_database_url = dev_database_url.replace('postgres://', 'postgresql://', 1)
+            self.SQLALCHEMY_DATABASE_URI = dev_database_url
+        else:
+            self.SQLALCHEMY_DATABASE_URI = 'sqlite:///instance/dev_app.db'
+        
+        # Enable SQL logging in development
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            **Config.SQLALCHEMY_ENGINE_OPTIONS,
+            'echo': True,
+        }
 
 class ProductionConfig(Config):
     """Production configuration for Azure App Service"""
@@ -108,7 +123,7 @@ class ProductionConfig(Config):
             raise ValueError("SECRET_KEY environment variable is required for production")
         self.SECRET_KEY = secret_key
         
-        # ✅ FIXED: Set database URI as attribute, not property
+        # ✅ FIXED: Ensure database URL is set and valid for production
         database_url = os.environ.get('DATABASE_URL')
         if not database_url:
             raise ValueError("DATABASE_URL environment variable is required for production")
@@ -117,36 +132,38 @@ class ProductionConfig(Config):
             database_url = database_url.replace('postgres://', 'postgresql://', 1)
         
         self.SQLALCHEMY_DATABASE_URI = database_url
-    
-    # Production CORS - restrict to your actual domains
-    CORS_ORIGINS = [
-        'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',  # Your actual frontend URL
-        'https://scott-overhead-doors.azurewebsites.net',  # Your actual backend URL
-    ]
-    
-    # Production-optimized database settings
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_recycle': 3600,
-        'pool_pre_ping': True,
-        'pool_size': 20,
-        'max_overflow': 30,
-        'pool_timeout': 60,
-        'echo': False,
-        'pool_reset_on_return': 'commit',
-    }
-    
-    # Azure Blob Storage is required in production
-    def validate_azure_storage(self):
-        if not os.environ.get('AZURE_STORAGE_CONNECTION_STRING'):
-            raise ValueError("AZURE_STORAGE_CONNECTION_STRING is required for production")
         
+        # Production CORS - restrict to your actual domains
+        self.CORS_ORIGINS = [
+            'https://gray-glacier-0afce1c0f.1.azurestaticapps.net',
+            'https://scott-overhead-doors.azurewebsites.net',
+        ]
+        
+        # Production-optimized database settings
+        self.SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_recycle': 3600,
+            'pool_pre_ping': True,
+            'pool_size': 20,
+            'max_overflow': 30,
+            'pool_timeout': 60,
+            'echo': False,
+            'pool_reset_on_return': 'commit',
+        }
+        
+        # Validate Azure Blob Storage in production
+        if not os.environ.get('AZURE_STORAGE_CONNECTION_STRING'):
+            print("WARNING: AZURE_STORAGE_CONNECTION_STRING not set - file uploads may not work")
+
 class TestingConfig(Config):
     """Testing configuration"""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False
     SECRET_KEY = 'testing-secret-key'
-    CORS_ORIGINS = ['*']
+    
+    def __init__(self):
+        super().__init__()
+        self.SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+        self.CORS_ORIGINS = ['*']
 
 # Configuration mapping
 config = {
@@ -165,12 +182,11 @@ def get_config_name():
         return flask_env
     
     # Check for Azure App Service environment
-    if os.environ.get('WEBSITE_SITE_NAME'):  # Azure App Service indicator
+    if os.environ.get('WEBSITE_SITE_NAME'):
         return 'production'
     
     # Check for production database URL
     if os.environ.get('DATABASE_URL'):
-        # If we have Azure PostgreSQL URL, likely production
         if 'postgres.database.azure.com' in os.environ.get('DATABASE_URL', ''):
             return 'production'
     
@@ -188,8 +204,7 @@ def validate_azure_config():
     if config_name == 'production':
         required_vars = [
             'SECRET_KEY',
-            'DATABASE_URL',
-            'AZURE_STORAGE_CONNECTION_STRING'
+            'DATABASE_URL'
         ]
         
         missing_vars = [var for var in required_vars if not os.environ.get(var)]

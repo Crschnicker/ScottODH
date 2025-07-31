@@ -1,12 +1,11 @@
 import api from './api';
 
 /**
- * Logger for date operations to help debug timezone issues
- * @param {string} operation - The operation being performed
- * @param {any} input - The input data
- * @param {any} output - The output data
- * @param {string} message - Optional additional context message
+ * Enhanced logging system for debugging job service operations
+ * Provides comprehensive debugging information for authentication and API issues
  */
+
+// Logger configuration for different operation types
 const logDateOperation = (operation, input, output, message = '') => {
   console.log(`[JOB DATE DEBUG - ${operation}]${message ? ' ' + message : ''}`, {
     input: typeof input === 'object' ? JSON.parse(JSON.stringify(input)) : input,
@@ -19,176 +18,258 @@ const logDateOperation = (operation, input, output, message = '') => {
   });
 };
 
-/**
- * Enhanced authentication debugging helper
- * @param {string} operation - The operation being performed
- * @param {Object} error - The error object
- * @param {Object} config - The request configuration
- */
-const logAuthenticationError = (operation, error, config = {}) => {
+// Enhanced authentication error logging with comprehensive debugging
+const logAuthError = (operation, errorDetails) => {
   console.error(`[AUTH ERROR - ${operation}]`, {
-    status: error.response?.status,
-    statusText: error.response?.statusText,
-    errorData: error.response?.data,
-    requestUrl: error.config?.url,
-    requestMethod: error.config?.method,
-    requestHeaders: error.config?.headers,
-    withCredentials: error.config?.withCredentials,
-    baseURL: error.config?.baseURL,
+    ...errorDetails,
     timestamp: new Date().toISOString(),
     userAgent: navigator.userAgent,
     origin: window.location.origin,
-    currentPath: window.location.pathname
+    currentPath: window.location.pathname,
+    apiBaseURL: api.defaults?.baseURL,
+    withCredentials: api.defaults?.withCredentials
   });
   
-  // Additional debugging for common auth issues
-  if (error.response?.status === 401) {
-    console.warn('[AUTH DEBUG] 401 Unauthorized - Common causes:', {
-      possibleIssues: [
+  // Provide actionable debugging information based on status codes
+  if (errorDetails.status === 401) {
+    console.warn('[AUTH DEBUG] 401 Unauthorized - Authentication failed:', {
+      possibleCauses: [
         'Session cookie expired or missing',
-        'CORS credentials not being sent',
-        'Authentication header missing',
-        'Server session storage issue',
-        'Cross-domain cookie settings'
+        'User not logged in',
+        'Authentication credentials invalid',
+        'CORS credentials not being sent properly'
       ],
       recommendations: [
-        'Check if withCredentials is set to true',
-        'Verify CORS_SUPPORTS_CREDENTIALS on server',
-        'Check browser dev tools for cookie presence',
-        'Verify API base URL configuration',
-        'Try logging out and back in'
+        'Check browser dev tools for authentication cookies',
+        'Verify user login status in authService',
+        'Ensure withCredentials is set to true for API calls',
+        'Try logging out and back in to refresh session'
       ]
     });
-  }
-  
-  if (error.response?.status === 403) {
-    console.warn('[AUTH DEBUG] 403 Forbidden - Possible permission issue:', {
-      possibleIssues: [
+  } else if (errorDetails.status === 403) {
+    console.warn('[AUTH DEBUG] 403 Forbidden - Access denied:', {
+      possibleCauses: [
         'User authenticated but lacks required permissions',
-        'Admin role required for this operation',
-        'User account deactivated'
-      ]
-    });
-  }
-
-  // NEW: Handle 405 Method Not Allowed with login redirect
-  if (error.response?.status === 405) {
-    console.warn('[AUTH DEBUG] 405 Method Not Allowed - Possible backend routing issue:', {
-      possibleIssues: [
-        'Backend redirecting GET request to POST-only login endpoint',
-        'Jobs endpoint not properly configured',
-        'Authentication middleware misconfigured for this endpoint',
-        'Route handler missing or incorrectly set up'
+        'Insufficient user role for this operation',
+        'Account may be deactivated or restricted'
       ],
       recommendations: [
-        'Check backend routing configuration for /api/jobs',
-        'Verify authentication middleware is not redirecting GET requests',
-        'Ensure jobs blueprint is properly registered',
-        'Check if endpoint exists and accepts GET method'
+        'Check user role and permissions',
+        'Contact administrator for access rights',
+        'Verify account status is active'
+      ]
+    });
+  } else if (errorDetails.status === 404) {
+    console.warn('[AUTH DEBUG] 404 Not Found - Endpoint missing:', {
+      possibleCauses: [
+        'API endpoint does not exist on server',
+        'Backend routing configuration issue',
+        'Blueprint not registered properly',
+        'Server not running or unreachable'
+      ],
+      recommendations: [
+        'Verify backend server is running',
+        'Check API endpoint exists in backend routes',
+        'Ensure all blueprints are registered',
+        'Test endpoint directly with API testing tool'
+      ]
+    });
+  } else if (errorDetails.status === 405) {
+    console.warn('[AUTH DEBUG] 405 Method Not Allowed - HTTP method issue:', {
+      possibleCauses: [
+        'Wrong HTTP method for endpoint (GET vs POST)',
+        'Backend authentication redirecting incorrectly',
+        'Route handler not configured for this method'
+      ],
+      recommendations: [
+        'Check if correct HTTP method is being used',
+        'Verify backend route accepts the request method',
+        'Check for authentication redirects causing method changes'
+      ]
+    });
+  } else if (errorDetails.status >= 500) {
+    console.error('[AUTH DEBUG] Server Error - Backend issue:', {
+      possibleCauses: [
+        'Internal server error',
+        'Database connection issue',
+        'Backend application crash or misconfiguration'
+      ],
+      recommendations: [
+        'Check backend server logs',
+        'Verify database connectivity',
+        'Restart backend service if necessary',
+        'Contact system administrator'
+      ]
+    });
+  } else if (!errorDetails.status) {
+    console.error('[AUTH DEBUG] Network Error - Connection issue:', {
+      possibleCauses: [
+        'Backend server not accessible',
+        'Network connectivity problems',
+        'CORS preflight request blocked',
+        'DNS resolution failure'
+      ],
+      recommendations: [
+        'Check network connection',
+        'Verify backend server URL is correct',
+        'Test backend accessibility directly',
+        'Check CORS configuration on backend'
       ]
     });
   }
 };
 
 /**
- * Test authentication status and API connectivity
- * @returns {Promise<Object>} Authentication status and user info
+ * Enhanced authentication testing with multiple fallback strategies
+ * Tests user authentication without relying on potentially missing endpoints
+ * 
+ * @returns {Promise<Object>} Comprehensive authentication status and connectivity info
  */
 export const testAuthentication = async () => {
+  console.log('[AUTH TEST] Starting comprehensive authentication test...');
+  
   try {
-    console.log('[AUTH TEST] Testing authentication status...');
-    
-    // First, try to get current user info
+    // Primary authentication test - check current user status
+    console.log('[AUTH TEST] Testing user authentication with /auth/me...');
     const userResponse = await api.get('/auth/me');
-    console.log('[AUTH TEST] User authenticated successfully:', userResponse.data);
+    console.log('[AUTH TEST] User authentication successful:', userResponse.data);
     
-    // Test a simple API endpoint
-    const healthResponse = await api.get('/health');
-    console.log('[AUTH TEST] API health check passed:', healthResponse.data);
+    // Authentication confirmed - now test API connectivity with existing endpoint
+    console.log('[AUTH TEST] Testing API connectivity with known working endpoint...');
     
-    return {
-      authenticated: true,
-      user: userResponse.data,
-      apiConnected: true,
-      timestamp: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('[AUTH TEST] Authentication test failed:', error);
-    logAuthenticationError('AUTH_TEST', error);
+    // Instead of testing /health (which may not exist), test a lightweight existing endpoint
+    // Use a simple endpoint that we know exists from the logs - like /auth/users
+    try {
+      await api.get('/auth/users');
+      console.log('[AUTH TEST] API connectivity confirmed via /auth/users');
+      
+      return {
+        authenticated: true,
+        user: userResponse.data,
+        apiConnected: true,
+        connectivityTest: 'success',
+        timestamp: new Date().toISOString()
+      };
+    } catch (connectivityError) {
+      console.log('[AUTH TEST] Secondary connectivity test failed, but user is authenticated');
+      console.debug('[AUTH TEST] Connectivity error details:', {
+        status: connectivityError.response?.status,
+        statusText: connectivityError.response?.statusText,
+        url: connectivityError.config?.url
+      });
+      
+      // User is authenticated but there might be API connectivity issues
+      // This is still a success for authentication purposes
+      return {
+        authenticated: true,
+        user: userResponse.data,
+        apiConnected: false,
+        connectivityTest: 'failed',
+        connectivityError: connectivityError.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+  } catch (authError) {
+    console.error('[AUTH TEST] Authentication test failed:', authError);
+    
+    // Log comprehensive error details for debugging
+    logAuthError('AUTH_TEST', {
+      status: authError.response?.status,
+      statusText: authError.response?.statusText,
+      errorData: authError.response?.data,
+      requestUrl: authError.config?.url,
+      requestMethod: authError.config?.method,
+      message: authError.message
+    });
     
     return {
       authenticated: false,
       user: null,
       apiConnected: false,
-      error: error.message,
-      status: error.response?.status,
+      error: authError.message,
+      status: authError.response?.status,
       timestamp: new Date().toISOString()
     };
   }
 };
 
 /**
- * Enhanced retry function with better error handling for 405 errors
- * @param {Function} requestFunction - The original request function
- * @param {Array} args - Arguments for the request function
+ * Enhanced retry mechanism with intelligent error handling
+ * Provides sophisticated retry logic with authentication recovery
+ * 
+ * @param {Function} requestFunction - The API request function to retry
+ * @param {Array} args - Arguments to pass to the request function
  * @param {number} maxRetries - Maximum number of retry attempts
- * @returns {Promise<any>} Result of the request
+ * @returns {Promise<any>} Result of the successful request
  */
 const retryWithAuth = async (requestFunction, args, maxRetries = 1) => {
-  try {
-    return await requestFunction(...args);
-  } catch (error) {
-    const status = error.response?.status;
-    
-    // Handle 401 Unauthorized with retry
-    if (status === 401 && maxRetries > 0) {
-      console.warn('[RETRY AUTH] 401 detected, testing authentication...');
+  let lastError = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[RETRY AUTH] Attempt ${attempt + 1}/${maxRetries + 1}`);
+      return await requestFunction(...args);
       
-      const authStatus = await testAuthentication();
-      if (authStatus.authenticated) {
-        console.log('[RETRY AUTH] Authentication valid, retrying request...');
-        return await requestFunction(...args);
-      } else {
-        console.error('[RETRY AUTH] Authentication invalid, cannot retry');
-        throw new Error('Authentication required. Please log in again.');
+    } catch (error) {
+      lastError = error;
+      const status = error.response?.status;
+      
+      console.log(`[RETRY AUTH] Attempt ${attempt + 1} failed with status ${status}`);
+      
+      // Handle 401 Unauthorized with authentication retry
+      if (status === 401 && attempt < maxRetries) {
+        console.warn('[RETRY AUTH] 401 detected, testing authentication for retry...');
+        
+        const authStatus = await testAuthentication();
+        if (authStatus.authenticated) {
+          console.log('[RETRY AUTH] Authentication confirmed, retrying request...');
+          continue; // Retry the request
+        } else {
+          console.error('[RETRY AUTH] Authentication invalid, cannot retry');
+          throw new Error('Authentication required. Please log in again.');
+        }
+      }
+      
+      // For other errors or final attempt, don't retry
+      if (attempt >= maxRetries) {
+        console.error(`[RETRY AUTH] All ${maxRetries + 1} attempts failed`);
+        break;
       }
     }
-    
-    // Handle 405 Method Not Allowed - likely backend routing issue
-    if (status === 405) {
-      console.error('[RETRY AUTH] 405 Method Not Allowed - Backend routing issue detected');
-      
-      // Check if this is a login redirect issue by examining the response
-      const responseData = error.response?.data;
-      if (typeof responseData === 'string' && responseData.includes('login')) {
-        console.error('[RETRY AUTH] Detected backend redirect to login endpoint with wrong method');
-        throw new Error('Backend authentication configuration error. The server is incorrectly redirecting to login. Please contact support.');
-      } else {
-        throw new Error('API endpoint not found or method not allowed. This may be a backend configuration issue.');
-      }
-    }
-    
-    // Handle 404 Not Found
-    if (status === 404) {
-      throw new Error('API endpoint not found. Please check if the backend server is running and properly configured.');
-    }
-    
-    // Handle network errors
-    if (!error.response) {
-      throw new Error('Network error. Please check your connection and ensure the backend server is accessible.');
-    }
-    
-    throw error;
+  }
+  
+  // Handle final error with user-friendly messages
+  const status = lastError.response?.status;
+  
+  if (status === 401) {
+    throw new Error('Authentication required. Please log in again.');
+  } else if (status === 403) {
+    throw new Error('Access denied. You do not have permission for this operation.');
+  } else if (status === 404) {
+    throw new Error('Service endpoint not found. This may be a backend configuration issue.');
+  } else if (status === 405) {
+    throw new Error('Request method not allowed. This indicates a backend routing issue.');
+  } else if (status >= 500) {
+    throw new Error('Server error. Please try again later or contact support.');
+  } else if (!lastError.response) {
+    throw new Error('Network error. Please check your connection and ensure the backend server is accessible.');
+  } else {
+    throw lastError; // Re-throw original error if no specific handling applies
   }
 };
 
 /**
- * Formats a date to YYYY-MM-DD format for job scheduling
+ * Date formatting utility for consistent YYYY-MM-DD format
+ * Handles timezone issues by working with local dates only
+ * 
  * @param {Date} date - The date to format
- * @returns {string} Formatted date string
+ * @returns {string|null} Formatted date string or null if invalid
  */
 function formatDateToYYYYMMDD(date) {
-  if (!(date instanceof Date)) return null;
+  if (!(date instanceof Date) || isNaN(date.getTime())) {
+    return null;
+  }
   
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -198,63 +279,61 @@ function formatDateToYYYYMMDD(date) {
 }
 
 /**
- * Parse a date string in YYYY-MM-DD format without timezone conversion
- * @param {string} dateStr - Date string in YYYY-MM-DD format
- * @returns {Date} Date object with the same date in local timezone, set to noon
+ * Enhanced date parsing that preserves the intended day
+ * Prevents timezone-related day shifting issues
+ * 
+ * @param {string} dateStr - Date string in various formats
+ * @returns {Date|null} Date object set to noon local time or null if invalid
  */
 function parseDatePreservingDay(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return null;
   
-  // For ISO date strings with time component like 2025-05-30T00:00:00.000Z
+  // Handle ISO date strings with time component like 2025-05-30T00:00:00.000Z
   if (dateStr.includes('T')) {
-    // Extract just the date part
     dateStr = dateStr.split('T')[0];
   }
   
-  // For date strings like "Fri, 30 May 2025 00:00:00 GMT"
+  // Handle date strings like "Fri, 30 May 2025 00:00:00 GMT"
   if (dateStr.includes(',')) {
     try {
-      // Parse the date and force local noon time to prevent day shifting
       const tempDate = new Date(dateStr);
       const year = tempDate.getUTCFullYear();
       const month = tempDate.getUTCMonth();
       const day = tempDate.getUTCDate();
-      
-      // Create a new date with local noon time to prevent any timezone issues
       return new Date(year, month, day, 12, 0, 0);
     } catch (e) {
-      console.error('Error parsing date with comma:', e);
+      console.error('[DATE PARSE] Error parsing date with comma:', e);
       return null;
     }
   }
   
-  // For simple YYYY-MM-DD format
+  // Handle simple YYYY-MM-DD format
   if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
     const [year, month, day] = dateStr.split('-').map(Number);
-    // Set to noon local time to avoid any timezone issues
     return new Date(year, month - 1, day, 12, 0, 0);
   }
   
   // Fallback to standard parsing with noon time set
   try {
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return null;
     date.setHours(12, 0, 0, 0);
     return date;
   } catch (e) {
-    console.error('Error in fallback date parsing:', e);
+    console.error('[DATE PARSE] Error in fallback date parsing:', e);
     return null;
   }
 }
 
 /**
- * Format a date for display in MM/DD/YYYY format
+ * Display-friendly date formatting in MM/DD/YYYY format
+ * 
  * @param {Date|string} date - Date to format
- * @returns {string} Formatted date string
+ * @returns {string} Formatted date string or empty string if invalid
  */
 function formatDateForDisplay(date) {
   if (!date) return '';
   
-  // Parse string to Date if needed, preserving the day
   let dateObj = date;
   if (typeof date === 'string') {
     dateObj = parseDatePreservingDay(date);
@@ -264,7 +343,6 @@ function formatDateForDisplay(date) {
     return '';
   }
   
-  // Format as MM/DD/YYYY
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
   const day = String(dateObj.getDate()).padStart(2, '0');
   const year = dateObj.getFullYear();
@@ -273,312 +351,350 @@ function formatDateForDisplay(date) {
 }
 
 /**
- * Get all jobs with optional filters - Enhanced with comprehensive error handling
- * @param {Object} params - Optional query parameters
- * @returns {Promise<Array>} Promise resolving to an array of jobs
+ * Enhanced job retrieval with comprehensive error handling and authentication management
+ * Implements robust retry logic and detailed error reporting
+ * 
+ * @param {Object} params - Optional query parameters for filtering jobs
+ * @returns {Promise<Array>} Promise resolving to an array of processed jobs
  */
 export const getJobs = async (params = {}) => {
+  console.log('[GET JOBS] Starting job retrieval with params:', params);
+  
   try {
-    console.log('[GET JOBS] Requesting with params:', params);
-    
-    // Pre-flight authentication check to catch issues early
-    console.log('[GET JOBS] Testing authentication before request...');
+    // Pre-flight authentication check to identify issues early
+    console.log('[GET JOBS] Performing pre-flight authentication check...');
     const authStatus = await testAuthentication();
     
     if (!authStatus.authenticated) {
-      console.error('[GET JOBS] Authentication test failed:', authStatus);
+      console.error('[GET JOBS] Pre-flight authentication failed:', authStatus);
+      
+      // Log the authentication error for debugging
+      logAuthError('GET_JOBS_PRECHECK', {
+        status: authStatus.status,
+        statusText: undefined,
+        errorData: undefined,
+        requestUrl: '/auth/me',
+        requestMethod: 'GET',
+        message: authStatus.error
+      });
+      
       throw new Error('Not authenticated. Please log in again.');
     }
     
-    console.log('[GET JOBS] Authentication verified, proceeding with jobs request...');
+    console.log('[GET JOBS] Authentication confirmed, proceeding with API request...');
     
-    // Enhanced error handling with specific messaging for different failure modes
+    // Make the actual API request with enhanced error handling
     const response = await retryWithAuth(
       async () => {
         console.log('[GET JOBS] Making API request to /jobs...');
         
-        // Detailed logging of the request being made
-        console.log('[GET JOBS] Request details:', {
-          url: '/jobs',
+        // Log detailed request information for debugging
+        console.log('[GET JOBS] Request configuration:', {
+          endpoint: '/jobs',
           method: 'GET',
           params: params,
-          withCredentials: api.defaults.withCredentials,
-          baseURL: api.defaults.baseURL,
-          fullURL: `${api.defaults.baseURL}/jobs`
+          baseURL: api.defaults?.baseURL,
+          withCredentials: api.defaults?.withCredentials,
+          headers: api.defaults?.headers
         });
         
         try {
           const result = await api.get('/jobs', { params });
           console.log('[GET JOBS] API request successful:', {
             status: result.status,
-            dataLength: result.data?.length || 0
+            statusText: result.statusText,
+            dataLength: Array.isArray(result.data) ? result.data.length : 'non-array response',
+            responseHeaders: result.headers
           });
+          
           return result;
+          
         } catch (requestError) {
           console.error('[GET JOBS] Direct API request failed:', {
             status: requestError.response?.status,
             statusText: requestError.response?.statusText,
             errorData: requestError.response?.data,
-            message: requestError.message
+            message: requestError.message,
+            requestUrl: requestError.config?.url,
+            requestMethod: requestError.config?.method
           });
           
-          // Re-throw with additional context
-          if (requestError.response?.status === 405) {
-            const enhancedError = new Error(
-              'Backend routing error: The jobs endpoint is not properly configured. ' +
-              'This is likely a server-side issue that needs to be resolved by checking the backend routing configuration.'
-            );
-            enhancedError.originalError = requestError;
-            enhancedError.response = requestError.response;
-            throw enhancedError;
-          }
-          
+          // Re-throw with the original error for retry mechanism to handle
           throw requestError;
         }
       },
-      [],
-      2 // Allow 2 retries for jobs requests
+      [], // No additional arguments for the request function
+      2   // Allow up to 2 retry attempts
     );
     
-    // Process dates to prevent timezone issues when displaying
-    const processedJobs = response.data.map(job => {
-      if (job.scheduled_date) {
-        // Parse the date preserving the day
-        const parsedDate = parseDatePreservingDay(job.scheduled_date);
-        
-        // Add additional date properties for debugging
-        job._original_scheduled_date = job.scheduled_date;
-        job._parsed_date_obj = parsedDate;
-        job.formatted_date = formatDateForDisplay(parsedDate);
-      }
-      return job;
-    });
+    // Process the response data to handle date formatting issues
+    console.log('[GET JOBS] Processing response data for date handling...');
     
-    // Log the jobs data focusing on dates
-    if (processedJobs.length > 0) {
-      console.log('[GET JOBS] Received jobs with fixed date handling:', 
-        processedJobs.map(job => ({
-          id: job.id,
-          jobNumber: job.job_number,
-          status: job.status,
-          originalDate: job._original_scheduled_date,
-          parsedDate: job._parsed_date_obj,
-          formattedDate: job.formatted_date
-        }))
-      );
-    } else {
-      console.log('[GET JOBS] No jobs returned matching criteria');
+    if (!Array.isArray(response.data)) {
+      console.warn('[GET JOBS] Response data is not an array:', typeof response.data);
+      return [];
     }
     
-    return processedJobs;
-  } catch (error) {
-    console.error('Error getting jobs:', error);
-    logAuthenticationError('GET_JOBS', error);
+    const processedJobs = response.data.map((job, index) => {
+      try {
+        // Create a copy to avoid modifying original data
+        const processedJob = { ...job };
+        
+        // Handle scheduled_date formatting
+        if (processedJob.scheduled_date) {
+          const originalDate = processedJob.scheduled_date;
+          const parsedDate = parseDatePreservingDay(originalDate);
+          
+          // Add debugging properties
+          processedJob._original_scheduled_date = originalDate;
+          processedJob._parsed_date_obj = parsedDate;
+          processedJob.formatted_date = formatDateForDisplay(parsedDate);
+          
+          // Log date processing for first few jobs
+          if (index < 3) {
+            logDateOperation('PROCESS JOB DATE', originalDate, parsedDate, 
+              `Job #${processedJob.job_number || processedJob.id}`);
+          }
+        }
+        
+        return processedJob;
+        
+      } catch (processingError) {
+        console.error(`[GET JOBS] Error processing job at index ${index}:`, processingError);
+        // Return original job if processing fails
+        return job;
+      }
+    });
     
-    // Provide user-friendly error messages based on the specific error
-    if (error.message.includes('Backend routing error')) {
-      throw error; // Re-throw enhanced error as-is
-    } else if (error.response?.status === 405) {
-      throw new Error('The jobs service is temporarily unavailable due to a server configuration issue. Please try again later or contact support.');
-    } else if (error.response?.status === 404) {
-      throw new Error('Jobs service not found. Please ensure the backend server is running and properly configured.');
-    } else if (!error.response) {
-      throw new Error('Unable to connect to the jobs service. Please check your network connection and try again.');
-    } else if (error.response?.status === 401) {
+    // Log summary of processed jobs
+    console.log('[GET JOBS] Successfully processed jobs:', {
+      totalJobs: processedJobs.length,
+      jobsWithDates: processedJobs.filter(job => job.scheduled_date).length,
+      sampleJobs: processedJobs.slice(0, 3).map(job => ({
+        id: job.id,
+        jobNumber: job.job_number,
+        status: job.status,
+        originalDate: job._original_scheduled_date,
+        formattedDate: job.formatted_date
+      }))
+    });
+    
+    return processedJobs;
+    
+  } catch (error) {
+    console.error('[GET JOBS] Job retrieval failed:', error);
+    
+    // Log comprehensive error information
+    logAuthError('GET_JOBS', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
+    // Provide user-friendly error messages based on error characteristics
+    if (error.message === 'Not authenticated. Please log in again.') {
+      throw error; // Re-throw authentication errors as-is
+    } else if (error.message.includes('Authentication required')) {
       throw new Error('Your session has expired. Please log out and log back in.');
     } else if (error.response?.status === 403) {
       throw new Error('You do not have permission to access jobs. Please contact your administrator.');
+    } else if (error.response?.status === 404) {
+      throw new Error('Jobs service not found. Please ensure the backend server is running and properly configured.');
+    } else if (error.response?.status === 405) {
+      throw new Error('The jobs service is temporarily unavailable due to a server configuration issue. Please try again later or contact support.');
+    } else if (error.response?.status >= 500) {
+      throw new Error('Server error occurred while retrieving jobs. Please try again later.');
+    } else if (!error.response) {
+      throw new Error('Unable to connect to the jobs service. Please check your network connection and try again.');
+    } else {
+      throw new Error(`Failed to load jobs: ${error.message}`);
     }
-    
-    throw error;
   }
 };
 
 /**
- * Get job by ID
- * @param {number|string} id - The job ID
- * @returns {Promise<Object>} Promise resolving to the job data
+ * Enhanced individual job retrieval with comprehensive error handling
+ * 
+ * @param {number|string} id - The job ID to retrieve
+ * @returns {Promise<Object>} Promise resolving to the processed job data
  */
 export const getJob = async (id) => {
+  console.log(`[GET JOB] Retrieving job #${id}...`);
+  
   try {
-    console.log(`[GET JOB] Requesting job #${id}`);
-    
     const response = await retryWithAuth(
-      async () => await api.get(`/jobs/${id}`),
+      async () => {
+        console.log(`[GET JOB] Making API request for job #${id}...`);
+        return await api.get(`/jobs/${id}`);
+      },
       [],
-      2
+      2 // Allow 2 retry attempts
     );
     
-    // Fix date handling in the response
     const job = response.data;
+    console.log(`[GET JOB] Successfully retrieved job #${id}`);
     
-    // Log the job data with date details
+    // Process date fields if present
     if (job.scheduled_date) {
-      logDateOperation('GET JOB', id, job.scheduled_date, 
-        `Job #${id} has a scheduled date`);
+      const originalDate = job.scheduled_date;
+      const parsedDate = parseDatePreservingDay(originalDate);
       
-      // Parse the date preserving the day
-      const parsedDate = parseDatePreservingDay(job.scheduled_date);
-      
-      // Store original date and add parsed version
-      job._original_scheduled_date = job.scheduled_date;
+      job._original_scheduled_date = originalDate;
       job._parsed_date_obj = parsedDate;
       job.formatted_date = formatDateForDisplay(parsedDate);
       
-      // Detailed date logging
-      console.log(`[JOB ${id}] Fixed date handling:`, {
-        originalFromServer: job._original_scheduled_date,
-        parsedDate: job._parsed_date_obj,
-        formattedForDisplay: job.formatted_date,
-        dateComponents: {
-          year: parsedDate.getFullYear(),
-          month: parsedDate.getMonth() + 1,
-          day: parsedDate.getDate()
-        }
-      });
-    }
-    
-    return job;
-  } catch (error) {
-    console.error(`Error getting job ${id}:`, error);
-    logAuthenticationError('GET_JOB', error);
-    throw error;
-  }
-};
-
-/**
- * Schedule a job
- * @param {number|string} jobId - The job ID
- * @param {Object} scheduleData - The scheduling information
- * @returns {Promise<Object>} Promise resolving to the scheduled job
- */
-export const scheduleJob = async (jobId, scheduleData) => {
-  try {
-    // Log original data before any modifications
-    console.log(`[SCHEDULE JOB ${jobId}] Original scheduling data:`, 
-      JSON.parse(JSON.stringify(scheduleData)));
-    
-    // Log timezone information
-    console.log('[SCHEDULE JOB] Browser timezone information:', {
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      offset: new Date().getTimezoneOffset(),
-      currentDate: new Date().toISOString(),
-      currentDateLocal: new Date().toLocaleString()
-    });
-    
-    // Create a copy for processing
-    const processedData = { ...scheduleData };
-    
-    // For jobs, we want to standardize on just the date (without time component)
-    // to prevent timezone issues across days
-    if (processedData.scheduled_date) {
-      // Handle different types of date inputs
-      if (processedData.scheduled_date instanceof Date) {
-        // Format date as YYYY-MM-DD to prevent timezone issues
-        const formattedDate = formatDateToYYYYMMDD(processedData.scheduled_date);
-        
-        console.log(`[SCHEDULE JOB ${jobId}] Formatted Date object to YYYY-MM-DD:`, {
-          original: processedData.scheduled_date,
-          formatted: formattedDate
-        });
-        
-        processedData.scheduled_date = formattedDate;
-      } 
-      // If it's a string with timezone info (ISO format)
-      else if (typeof processedData.scheduled_date === 'string' && 
-              (processedData.scheduled_date.includes('T') || 
-               processedData.scheduled_date.includes('Z') || 
-               processedData.scheduled_date.includes('+') || 
-               processedData.scheduled_date.includes('-', 10))) {
-               
-        // Parse the date and extract just the date part
-        const parsedDate = new Date(processedData.scheduled_date);
-        const formattedDate = formatDateToYYYYMMDD(parsedDate);
-        
-        console.log(`[SCHEDULE JOB ${jobId}] Extracted date from ISO string:`, {
-          original: processedData.scheduled_date,
-          parsed: parsedDate,
-          formatted: formattedDate
-        });
-        
-        processedData.scheduled_date = formattedDate;
-      }
-      // If it's already in YYYY-MM-DD format, leave it as is
-      else if (typeof processedData.scheduled_date === 'string' && 
-               !processedData.scheduled_date.includes('T') &&
-               processedData.scheduled_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                 
-        console.log(`[SCHEDULE JOB ${jobId}] Date already in YYYY-MM-DD format:`, 
-          processedData.scheduled_date);
-      }
-      // Any other format, try to parse and convert to YYYY-MM-DD
-      else {
-        try {
-          const parsedDate = new Date(processedData.scheduled_date);
-          const formattedDate = formatDateToYYYYMMDD(parsedDate);
-          
-          console.log(`[SCHEDULE JOB ${jobId}] Parsed and formatted unknown date format:`, {
-            original: processedData.scheduled_date,
-            parsed: parsedDate,
-            formatted: formattedDate
-          });
-          
-          processedData.scheduled_date = formattedDate;
-        } catch (error) {
-          console.error(`[SCHEDULE JOB ${jobId}] Error parsing date:`, error);
-          // Leave the date as is if parsing fails
-        }
-      }
-    }
-    
-    // If there's a separate date field (schedule_date), use that instead
-    if (processedData.schedule_date) {
-      console.log(`[SCHEDULE JOB ${jobId}] Using schedule_date field:`, processedData.schedule_date);
-      processedData.scheduled_date = processedData.schedule_date;
-    }
-    
-    // Log the final processed data being sent to the server
-    console.log(`[SCHEDULE JOB ${jobId}] Sending to server:`, 
-      JSON.parse(JSON.stringify(processedData)));
-    
-    const response = await retryWithAuth(
-      async () => await api.post(`/jobs/${jobId}/schedule`, processedData),
-      [],
-      2
-    );
-    
-    // Log the response
-    console.log(`[SCHEDULE JOB ${jobId}] Server response:`, response.data);
-    
-    // Process the returned job to fix date handling
-    const job = response.data;
-    
-    if (job.scheduled_date) {
-      // Parse the date preserving the day
-      const parsedDate = parseDatePreservingDay(job.scheduled_date);
+      logDateOperation('GET SINGLE JOB', id, originalDate, `Job #${id} date processing`);
       
-      // Store original date and add parsed version
-      job._original_scheduled_date = job.scheduled_date;
-      job._parsed_date_obj = parsedDate;
-      job.formatted_date = formatDateForDisplay(parsedDate);
-      
-      console.log(`[SCHEDULE JOB ${jobId}] Fixed response date:`, {
-        originalFromServer: job._original_scheduled_date,
-        parsedDate: job._parsed_date_obj,
+      console.log(`[GET JOB] Date processing complete for job #${id}:`, {
+        originalFromServer: originalDate,
+        parsedDate: parsedDate,
         formattedForDisplay: job.formatted_date
       });
     }
     
     return job;
-  } catch (error) {
-    console.error(`Error scheduling job ${jobId}:`, error);
-    logAuthenticationError('SCHEDULE_JOB', error);
     
-    // Enhanced error logging
+  } catch (error) {
+    console.error(`[GET JOB] Failed to retrieve job #${id}:`, error);
+    
+    logAuthError('GET_JOB', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
+    // Provide specific error messages for different scenarios
+    if (error.response?.status === 404) {
+      throw new Error(`Job #${id} not found. It may have been deleted or you may not have access to it.`);
+    } else if (error.response?.status === 403) {
+      throw new Error(`Access denied for job #${id}. You may not have permission to view this job.`);
+    } else {
+      throw error;
+    }
+  }
+};
+
+/**
+ * Enhanced job scheduling with comprehensive date handling and error management
+ * 
+ * @param {number|string} jobId - The job ID to schedule
+ * @param {Object} scheduleData - The scheduling information
+ * @returns {Promise<Object>} Promise resolving to the scheduled job
+ */
+export const scheduleJob = async (jobId, scheduleData) => {
+  console.log(`[SCHEDULE JOB] Starting scheduling process for job #${jobId}...`);
+  console.log('[SCHEDULE JOB] Original scheduling data:', JSON.parse(JSON.stringify(scheduleData)));
+  
+  try {
+    // Create a deep copy for processing to avoid modifying original data
+    const processedData = JSON.parse(JSON.stringify(scheduleData));
+    
+    // Enhanced date processing with multiple format support
+    if (processedData.scheduled_date) {
+      const originalDate = processedData.scheduled_date;
+      
+      console.log(`[SCHEDULE JOB] Processing date for job #${jobId}:`, {
+        originalValue: originalDate,
+        originalType: typeof originalDate,
+        isDateObject: originalDate instanceof Date
+      });
+      
+      // Handle different date input formats
+      if (originalDate instanceof Date) {
+        processedData.scheduled_date = formatDateToYYYYMMDD(originalDate);
+        console.log(`[SCHEDULE JOB] Converted Date object to YYYY-MM-DD format:`, processedData.scheduled_date);
+        
+      } else if (typeof originalDate === 'string') {
+        // Handle ISO format strings
+        if (originalDate.includes('T') || originalDate.includes('Z') || originalDate.includes('+')) {
+          const parsedDate = new Date(originalDate);
+          processedData.scheduled_date = formatDateToYYYYMMDD(parsedDate);
+          console.log(`[SCHEDULE JOB] Converted ISO string to YYYY-MM-DD format:`, processedData.scheduled_date);
+          
+        } else if (originalDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Already in YYYY-MM-DD format
+          console.log(`[SCHEDULE JOB] Date already in correct YYYY-MM-DD format:`, originalDate);
+          
+        } else {
+          // Try to parse other string formats
+          try {
+            const parsedDate = new Date(originalDate);
+            if (!isNaN(parsedDate.getTime())) {
+              processedData.scheduled_date = formatDateToYYYYMMDD(parsedDate);
+              console.log(`[SCHEDULE JOB] Parsed and converted string date:`, processedData.scheduled_date);
+            } else {
+              console.warn(`[SCHEDULE JOB] Could not parse date string: ${originalDate}`);
+            }
+          } catch (dateError) {
+            console.error(`[SCHEDULE JOB] Date parsing error:`, dateError);
+          }
+        }
+      }
+    }
+    
+    // Handle alternative date field names
+    if (processedData.schedule_date && !processedData.scheduled_date) {
+      processedData.scheduled_date = processedData.schedule_date;
+      console.log(`[SCHEDULE JOB] Using schedule_date field:`, processedData.scheduled_date);
+    }
+    
+    console.log(`[SCHEDULE JOB] Final processed data for job #${jobId}:`, processedData);
+    
+    // Make the scheduling request with retry logic
+    const response = await retryWithAuth(
+      async () => {
+        console.log(`[SCHEDULE JOB] Making API request to schedule job #${jobId}...`);
+        return await api.post(`/jobs/${jobId}/schedule`, processedData);
+      },
+      [],
+      2 // Allow 2 retry attempts
+    );
+    
+    console.log(`[SCHEDULE JOB] Successfully scheduled job #${jobId}:`, response.data);
+    
+    // Process the response to fix date handling
+    const scheduledJob = response.data;
+    
+    if (scheduledJob.scheduled_date) {
+      const parsedDate = parseDatePreservingDay(scheduledJob.scheduled_date);
+      scheduledJob._original_scheduled_date = scheduledJob.scheduled_date;
+      scheduledJob._parsed_date_obj = parsedDate;
+      scheduledJob.formatted_date = formatDateForDisplay(parsedDate);
+      
+      console.log(`[SCHEDULE JOB] Processed response date for job #${jobId}:`, {
+        originalFromServer: scheduledJob._original_scheduled_date,
+        parsedDate: scheduledJob._parsed_date_obj,
+        formattedForDisplay: scheduledJob.formatted_date
+      });
+    }
+    
+    return scheduledJob;
+    
+  } catch (error) {
+    console.error(`[SCHEDULE JOB] Failed to schedule job #${jobId}:`, error);
+    
+    logAuthError('SCHEDULE_JOB', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
+    // Enhanced error logging for debugging
     if (error.response) {
-      console.error(`[SCHEDULE JOB ${jobId}] Server response error:`, {
+      console.error(`[SCHEDULE JOB] Server responded with error:`, {
         status: error.response.status,
-        data: error.response.data
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers
       });
     }
     
@@ -587,157 +703,165 @@ export const scheduleJob = async (jobId, scheduleData) => {
 };
 
 /**
- * Update job status with enhanced authentication error handling and debugging
- * @param {number|string} jobId - The job ID
+ * Enhanced job status update with comprehensive authentication and error handling
+ * 
+ * @param {number|string} jobId - The job ID to update
  * @param {Object} statusData - The status data to update
  * @returns {Promise<Object>} Promise resolving to the updated job
  */
 export const updateJobStatus = async (jobId, statusData) => {
+  console.log(`[UPDATE JOB STATUS] Starting status update for job #${jobId}...`);
+  console.log('[UPDATE JOB STATUS] Status data:', statusData);
+  
   try {
-    console.log(`[UPDATE JOB STATUS] Changing job #${jobId} status:`, statusData);
-    console.log(`[UPDATE JOB STATUS] Request details:`, {
-      url: `/jobs/${jobId}/status`,
-      method: 'PUT',
-      data: statusData,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Test authentication before making the request
+    // Pre-authentication check for status updates
+    console.log('[UPDATE JOB STATUS] Verifying authentication before status update...');
     const authTest = await testAuthentication();
+    
     if (!authTest.authenticated) {
-      console.error('[UPDATE JOB STATUS] Authentication test failed before request:', authTest);
+      console.error('[UPDATE JOB STATUS] Authentication check failed:', authTest);
       throw new Error('Not authenticated. Please log in again.');
     }
     
-    console.log('[UPDATE JOB STATUS] Authentication test passed, proceeding with request...');
+    console.log('[UPDATE JOB STATUS] Authentication verified, proceeding with status update...');
     
+    // Make the status update request with retry logic
     const response = await retryWithAuth(
       async () => {
-        // Add additional debug logging for the actual request
-        console.log('[UPDATE JOB STATUS] Making API request...');
+        console.log(`[UPDATE JOB STATUS] Making API request to update job #${jobId} status...`);
         
-        // Verify the api object and its configuration
-        console.log('[UPDATE JOB STATUS] API configuration check:', {
-          apiExists: !!api,
-          apiBaseURL: api?.defaults?.baseURL,
-          apiTimeout: api?.defaults?.timeout,
-          withCredentials: api?.defaults?.withCredentials,
-          headers: api?.defaults?.headers
+        // Log API configuration for debugging
+        console.log('[UPDATE JOB STATUS] API request configuration:', {
+          endpoint: `/jobs/${jobId}/status`,
+          method: 'PUT',
+          data: statusData,
+          baseURL: api.defaults?.baseURL,
+          withCredentials: api.defaults?.withCredentials
         });
         
         const result = await api.put(`/jobs/${jobId}/status`, statusData);
         
-        console.log('[UPDATE JOB STATUS] API request successful:', {
+        console.log(`[UPDATE JOB STATUS] Status update successful for job #${jobId}:`, {
           status: result.status,
           statusText: result.statusText,
-          dataReceived: !!result.data
+          newJobStatus: result.data?.status
         });
         
         return result;
       },
       [],
-      2 // Allow 2 retries for status updates
+      2 // Allow 2 retry attempts
     );
     
-    // Fix date handling in the response
-    const job = response.data;
+    // Process the response to handle dates
+    const updatedJob = response.data;
     
-    if (job.scheduled_date) {
-      // Parse the date preserving the day
-      const parsedDate = parseDatePreservingDay(job.scheduled_date);
-      
-      // Store original date and add parsed version
-      job._original_scheduled_date = job.scheduled_date;
-      job._parsed_date_obj = parsedDate;
-      job.formatted_date = formatDateForDisplay(parsedDate);
+    if (updatedJob.scheduled_date) {
+      const parsedDate = parseDatePreservingDay(updatedJob.scheduled_date);
+      updatedJob._original_scheduled_date = updatedJob.scheduled_date;
+      updatedJob._parsed_date_obj = parsedDate;
+      updatedJob.formatted_date = formatDateForDisplay(parsedDate);
     }
     
-    console.log(`[UPDATE JOB STATUS] Server response with fixed dates:`, job);
+    console.log(`[UPDATE JOB STATUS] Job #${jobId} status updated successfully:`, {
+      jobId: updatedJob.id,
+      newStatus: updatedJob.status,
+      formattedDate: updatedJob.formatted_date
+    });
     
-    return job;
+    return updatedJob;
+    
   } catch (error) {
-    console.error(`Error updating job ${jobId} status:`, error);
-    logAuthenticationError('UPDATE_JOB_STATUS', error);
+    console.error(`[UPDATE JOB STATUS] Failed to update job #${jobId} status:`, error);
     
-    // Provide more specific error messages based on the error type
+    logAuthError('UPDATE_JOB_STATUS', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
+    // Provide specific error messages based on error type
     if (error.response?.status === 401) {
-      const errorMessage = 'Authentication failed. Your session may have expired. Please log out and log back in.';
-      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
-      throw new Error(errorMessage);
+      throw new Error('Authentication failed. Your session may have expired. Please log out and log back in.');
     } else if (error.response?.status === 403) {
-      const errorMessage = 'Access denied. You may not have permission to update job status.';
-      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
-      throw new Error(errorMessage);
+      throw new Error('Access denied. You may not have permission to update job status.');
     } else if (error.response?.status === 404) {
-      const errorMessage = `Job #${jobId} not found.`;
-      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
-      throw new Error(errorMessage);
+      throw new Error(`Job #${jobId} not found or may have been deleted.`);
     } else if (!error.response) {
-      const errorMessage = 'Network error. Please check your connection and try again.';
-      console.error(`[UPDATE JOB STATUS] ${errorMessage}`);
-      throw new Error(errorMessage);
+      throw new Error('Network error. Please check your connection and try again.');
+    } else {
+      throw error;
     }
-    
-    throw error;
   }
 };
 
 /**
- * Complete a door for a job
+ * Enhanced door completion with comprehensive error handling
+ * 
  * @param {number|string} jobId - The job ID
- * @param {number|string} doorId - The door ID
+ * @param {number|string} doorId - The door ID to complete
  * @param {Object} completionData - The door completion data
  * @returns {Promise<Object>} Promise resolving to the completion data
  */
 export const completeDoor = async (jobId, doorId, completionData) => {
+  console.log(`[COMPLETE DOOR] Starting door completion for door #${doorId} on job #${jobId}...`);
+  console.log('[COMPLETE DOOR] Completion data:', completionData);
+  
   try {
-    console.log(`[COMPLETE DOOR] Completing door #${doorId} for job #${jobId}:`, completionData);
-    
     const response = await retryWithAuth(
-      async () => await api.post(`/jobs/${jobId}/doors/${doorId}/complete`, completionData),
+      async () => {
+        console.log(`[COMPLETE DOOR] Making API request for door #${doorId} completion...`);
+        return await api.post(`/jobs/${jobId}/doors/${doorId}/complete`, completionData);
+      },
       [],
-      2
+      2 // Allow 2 retry attempts
     );
     
-    console.log(`[COMPLETE DOOR] Server response:`, response.data);
-    
+    console.log(`[COMPLETE DOOR] Door #${doorId} completed successfully for job #${jobId}:`, response.data);
     return response.data;
+    
   } catch (error) {
-    console.error(`Error completing door ${doorId} for job ${jobId}:`, error);
-    logAuthenticationError('COMPLETE_DOOR', error);
+    console.error(`[COMPLETE DOOR] Failed to complete door #${doorId} for job #${jobId}:`, error);
+    
+    logAuthError('COMPLETE_DOOR', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
     throw error;
   }
 };
 
 /**
- * Get scheduled jobs for a date range
+ * Enhanced scheduled jobs retrieval with comprehensive date range handling
+ * 
  * @param {string|Date} startDate - Start date for range
  * @param {string|Date} endDate - End date for range
  * @param {string|null} region - Optional region filter
  * @returns {Promise<Array>} Promise resolving to array of scheduled jobs
  */
 export const getScheduledJobs = async (startDate, endDate, region = null) => {
+  console.log('[GET SCHEDULED JOBS] Starting scheduled jobs retrieval...');
+  
   try {
-    // Format dates consistently
-    let formattedStartDate, formattedEndDate;
+    // Format dates consistently for API request
+    const formattedStartDate = startDate instanceof Date ? formatDateToYYYYMMDD(startDate) : startDate;
+    const formattedEndDate = endDate instanceof Date ? formatDateToYYYYMMDD(endDate) : endDate;
     
-    if (startDate instanceof Date) {
-      formattedStartDate = formatDateToYYYYMMDD(startDate);
-    } else {
-      formattedStartDate = startDate;
-    }
-    
-    if (endDate instanceof Date) {
-      formattedEndDate = formatDateToYYYYMMDD(endDate);
-    } else {
-      formattedEndDate = endDate;
-    }
-    
-    console.log('[GET SCHEDULED JOBS] Fetching for date range:', {
-      original: { startDate, endDate },
-      formatted: { formattedStartDate, formattedEndDate }
+    console.log('[GET SCHEDULED JOBS] Date range processing:', {
+      originalRange: { startDate, endDate },
+      formattedRange: { formattedStartDate, formattedEndDate },
+      region: region
     });
     
+    // Build query parameters
     const params = {
       start_date: formattedStartDate,
       end_date: formattedEndDate,
@@ -749,18 +873,18 @@ export const getScheduledJobs = async (startDate, endDate, region = null) => {
     }
     
     const response = await retryWithAuth(
-      async () => await api.get('/jobs', { params }),
+      async () => {
+        console.log('[GET SCHEDULED JOBS] Making API request with params:', params);
+        return await api.get('/jobs', { params });
+      },
       [],
-      2
+      2 // Allow 2 retry attempts
     );
     
-    // Process the dates in each job to fix timezone issues
-    const processedJobs = response.data.map(job => {
+    // Process the jobs to handle date formatting
+    const scheduledJobs = response.data.map(job => {
       if (job.scheduled_date) {
-        // Parse the date preserving the day
         const parsedDate = parseDatePreservingDay(job.scheduled_date);
-        
-        // Store original date and add parsed version
         job._original_scheduled_date = job.scheduled_date;
         job._parsed_date_obj = parsedDate;
         job.formatted_date = formatDateForDisplay(parsedDate);
@@ -768,47 +892,51 @@ export const getScheduledJobs = async (startDate, endDate, region = null) => {
       return job;
     });
     
-    // Log the results
-    console.log('[GET SCHEDULED JOBS] Results with fixed dates:', 
-      processedJobs.map(job => ({
-        id: job.id,
-        jobNumber: job.job_number,
-        originalDate: job._original_scheduled_date,
-        parsedDate: job._parsed_date_obj,
-        formattedDate: job.formatted_date
-      }))
-    );
+    console.log('[GET SCHEDULED JOBS] Successfully retrieved and processed scheduled jobs:', {
+      totalJobs: scheduledJobs.length,
+      dateRange: `${formattedStartDate} to ${formattedEndDate}`,
+      region: region || 'all regions'
+    });
     
-    return processedJobs;
+    return scheduledJobs;
+    
   } catch (error) {
-    console.error('Error getting scheduled jobs:', error);
-    logAuthenticationError('GET_SCHEDULED_JOBS', error);
+    console.error('[GET SCHEDULED JOBS] Failed to retrieve scheduled jobs:', error);
+    
+    logAuthError('GET_SCHEDULED_JOBS', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
     throw error;
   }
 };
 
 /**
- * Get jobs scheduled for a specific date
+ * Enhanced jobs retrieval for specific date with comprehensive filtering
+ * 
  * @param {string|Date} date - The date to get jobs for
  * @param {string|null} region - Optional region filter
  * @returns {Promise<Array>} Promise resolving to array of jobs for that date
  */
 export const getJobsForDate = async (date, region = null) => {
+  console.log('[GET JOBS FOR DATE] Starting date-specific job retrieval...');
+  
   try {
     // Format date consistently
-    let formattedDate;
+    const formattedDate = date instanceof Date ? formatDateToYYYYMMDD(date) : date;
     
-    if (date instanceof Date) {
-      formattedDate = formatDateToYYYYMMDD(date);
-    } else {
-      formattedDate = date;
-    }
-    
-    console.log('[GET JOBS FOR DATE] Fetching for date:', {
-      original: date,
-      formatted: formattedDate
+    console.log('[GET JOBS FOR DATE] Processing request for date:', {
+      originalDate: date,
+      formattedDate: formattedDate,
+      region: region
     });
     
+    // Build query parameters
     const params = {
       scheduled_date: formattedDate,
       status: 'scheduled'
@@ -819,18 +947,18 @@ export const getJobsForDate = async (date, region = null) => {
     }
     
     const response = await retryWithAuth(
-      async () => await api.get('/jobs', { params }),
+      async () => {
+        console.log('[GET JOBS FOR DATE] Making API request with params:', params);
+        return await api.get('/jobs', { params });
+      },
       [],
-      2
+      2 // Allow 2 retry attempts
     );
     
-    // Process the dates in each job to fix timezone issues
-    const processedJobs = response.data.map(job => {
+    // Process the jobs to handle date formatting
+    const dateJobs = response.data.map(job => {
       if (job.scheduled_date) {
-        // Parse the date preserving the day
         const parsedDate = parseDatePreservingDay(job.scheduled_date);
-        
-        // Store original date and add parsed version
         job._original_scheduled_date = job.scheduled_date;
         job._parsed_date_obj = parsedDate;
         job.formatted_date = formatDateForDisplay(parsedDate);
@@ -838,57 +966,89 @@ export const getJobsForDate = async (date, region = null) => {
       return job;
     });
     
-    // Log the results
-    console.log('[GET JOBS FOR DATE] Results with fixed dates:', 
-      processedJobs.map(job => ({
-        id: job.id,
-        jobNumber: job.job_number,
-        originalDate: job._original_scheduled_date,
-        parsedDate: job._parsed_date_obj,
-        formattedDate: job.formatted_date
-      }))
-    );
+    console.log('[GET JOBS FOR DATE] Successfully retrieved jobs for date:', {
+      date: formattedDate,
+      totalJobs: dateJobs.length,
+      region: region || 'all regions'
+    });
     
-    return processedJobs;
+    return dateJobs;
+    
   } catch (error) {
-    console.error(`Error getting jobs for date ${date}:`, error);
-    logAuthenticationError('GET_JOBS_FOR_DATE', error);
+    console.error(`[GET JOBS FOR DATE] Failed to retrieve jobs for date ${date}:`, error);
+    
+    logAuthError('GET_JOBS_FOR_DATE', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
     throw error;
   }
 };
 
 /**
- * Cancel a job by calling the dedicated cancel endpoint
+ * Enhanced job cancellation with comprehensive error handling and authentication
+ * 
  * @param {number} jobId - The ID of the job to cancel
  * @param {Object} cancelData - Optional data containing cancellation details
  * @param {string} cancelData.reason - Optional reason for cancellation
  * @returns {Promise<Object>} - The API response with cancelled job data
  */
 export const cancelJob = async (jobId, cancelData = {}) => {
+  console.log(`[CANCEL JOB] Starting cancellation process for job #${jobId}...`);
+  console.log('[CANCEL JOB] Cancellation data:', cancelData);
+  
   try {
-    console.log(`[CANCEL JOB] Cancelling job #${jobId}:`, cancelData);
-    
-    // Test authentication first
+    // Pre-authentication check for job cancellation
+    console.log('[CANCEL JOB] Verifying authentication before cancellation...');
     const authTest = await testAuthentication();
+    
     if (!authTest.authenticated) {
+      console.error('[CANCEL JOB] Authentication check failed:', authTest);
       throw new Error('Not authenticated. Please log in again.');
     }
     
+    console.log('[CANCEL JOB] Authentication verified, proceeding with cancellation...');
+    
+    // Make the cancellation request with retry logic
     const response = await retryWithAuth(
       async () => {
-        // Use api instance instead of direct fetch
+        console.log(`[CANCEL JOB] Making API request to cancel job #${jobId}...`);
         const result = await api.post(`/jobs/${jobId}/cancel`, cancelData);
         return result.data;
       },
       [],
-      2
+      2 // Allow 2 retry attempts
     );
-
+    
     console.log(`[CANCEL JOB] Job #${jobId} cancelled successfully:`, response);
     return response;
+    
   } catch (error) {
-    console.error('Error in cancelJob service:', error);
-    logAuthenticationError('CANCEL_JOB', error);
-    throw error;
+    console.error(`[CANCEL JOB] Failed to cancel job #${jobId}:`, error);
+    
+    logAuthError('CANCEL_JOB', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      errorData: error.response?.data,
+      requestUrl: error.config?.url,
+      requestMethod: error.config?.method,
+      message: error.message
+    });
+    
+    // Provide specific error messages for cancellation scenarios
+    if (error.response?.status === 404) {
+      throw new Error(`Job #${jobId} not found or may have already been cancelled.`);
+    } else if (error.response?.status === 403) {
+      throw new Error(`Access denied. You may not have permission to cancel job #${jobId}.`);
+    } else if (error.response?.status === 409) {
+      throw new Error(`Job #${jobId} cannot be cancelled in its current state.`);
+    } else {
+      throw error;
+    }
   }
 };
