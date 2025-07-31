@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -47,6 +47,10 @@ function App() {
   const [logoutComplete, setLogoutComplete] = useState(false);
   const logoutTimeoutRef = useRef(null);
   
+  // ✅ ADD: Initialization tracking to prevent multiple calls
+  const initializationRef = useRef(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  
   // Password change modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordData, setPasswordData] = useState({
@@ -63,16 +67,25 @@ function App() {
   const [passwordStrength, setPasswordStrength] = useState(0);
 
   /**
+   * ✅ FIXED: Wrap in useCallback to prevent infinite re-renders
    * Initialize authentication system with comprehensive error handling
    * Checks for existing valid sessions and manages app startup flow
    * Enhanced to respect logout state and prevent unwanted re-authentication
    */
-  const initializeAuthentication = async () => {
+  const initializeAuthentication = useCallback(async () => {
+    // Prevent multiple simultaneous initializations
+    if (initializationRef.current || authInitialized) {
+      console.log('🚫 [AUTH] Initialization already completed or in progress');
+      return;
+    }
+
+    initializationRef.current = true;
+
     try {
       setIsAuthLoading(true);
       setAuthError(null);
       
-      console.log('Initializing authentication...');
+      console.log('🚀 [AUTH] Initializing authentication...');
       
       // COMPREHENSIVE LOGOUT STATE CHECKING - Block authentication if any logout condition is true
       const logoutConditions = [
@@ -83,10 +96,11 @@ function App() {
       ];
       
       if (logoutConditions.some(condition => condition)) {
-        console.log('Skipping authentication check - logout state detected');
+        console.log('⏭️ [AUTH] Skipping authentication check - logout state detected');
         setIsAuthenticated(false);
         setCurrentUser(null);
         setIsAuthLoading(false);
+        setAuthInitialized(true);
         return;
       }
       
@@ -95,10 +109,11 @@ function App() {
       if (logoutTimestamp) {
         const timeSinceLogout = Date.now() - parseInt(logoutTimestamp);
         if (timeSinceLogout < 20000) { // Extended to 20 seconds
-          console.log('Skipping authentication check - recent logout detected (timestamp)');
+          console.log('⏭️ [AUTH] Skipping authentication check - recent logout detected (timestamp)');
           setIsAuthenticated(false);
           setCurrentUser(null);
           setIsAuthLoading(false);
+          setAuthInitialized(true);
           return;
         }
         // Remove very old timestamp
@@ -108,21 +123,23 @@ function App() {
       // Use the enhanced authService methods that include blocking logic
       const storedUser = authService.getStoredUser();
       if (!storedUser) {
-        console.log('No stored user data found');
+        console.log('📝 [AUTH] No stored user data found');
         setIsAuthenticated(false);
         setCurrentUser(null);
         setIsAuthLoading(false);
+        setAuthInitialized(true);
         return;
       }
       
-      console.log('Found stored user data, validating session...');
+      console.log('📦 [AUTH] Found stored user data, validating session...');
       
       // Double-check that we're not in logout state before server validation
       if (authService.isAuthenticationBlocked()) {
-        console.log('Authentication blocked by service - aborting session validation');
+        console.log('🚫 [AUTH] Authentication blocked by service - aborting session validation');
         setIsAuthenticated(false);
         setCurrentUser(null);
         setIsAuthLoading(false);
+        setAuthInitialized(true);
         return;
       }
       
@@ -131,7 +148,7 @@ function App() {
       if (isValidSession && !authService.isAuthenticationBlocked()) {
         const userData = await authService.getCurrentUser();
         if (userData && !authService.isAuthenticationBlocked()) {
-          console.log('Valid session confirmed, user authenticated');
+          console.log('✅ [AUTH] Valid session confirmed, user authenticated');
           setCurrentUser(userData);
           setIsAuthenticated(true);
           
@@ -147,12 +164,12 @@ function App() {
             });
           }
         } else {
-          console.log('Session validation failed - no user data');
+          console.log('❌ [AUTH] Session validation failed - no user data');
           setIsAuthenticated(false);
           setCurrentUser(null);
         }
       } else {
-        console.log('Session validation failed - clearing data');
+        console.log('❌ [AUTH] Session validation failed - clearing data');
         // Session expired - clear data and require re-login
         authService.clearAuthData();
         setIsAuthenticated(false);
@@ -167,7 +184,7 @@ function App() {
         }
       }
     } catch (error) {
-      console.error('Authentication initialization failed:', error);
+      console.error('❌ [AUTH] Authentication initialization failed:', error);
       // On any error, clear auth data for security
       authService.clearAuthData();
       setIsAuthenticated(false);
@@ -183,52 +200,57 @@ function App() {
       }
     } finally {
       setIsAuthLoading(false);
+      setAuthInitialized(true);
+      initializationRef.current = false;
     }
-  };
+  }, [isLoggingOut, logoutComplete]); // ✅ Only depend on logout states
 
   /**
-   * Initialize authentication check on app startup
+   * ✅ FIXED: Initialize authentication only once on mount
    * Only runs once and respects logout state
    */
   useEffect(() => {
-    // Only initialize authentication once on mount, not during logout
-    if (!isLoggingOut && !logoutComplete) {
+    if (!authInitialized && !isLoggingOut && !logoutComplete) {
+      console.log('🔄 [AUTH] Starting initial authentication check');
       initializeAuthentication();
     }
-}, [initializeAuthentication, isLoggingOut, logoutComplete]); // Add missing dependencies
+  }, [authInitialized, isLoggingOut, logoutComplete, initializeAuthentication]);
 
   /**
-   * Clear logout state after a delay - but keep it longer to prevent issues
+   * ✅ FIXED: Clear logout state after a delay - but keep it longer to prevent issues
    */
   useEffect(() => {
     if (logoutComplete) {
       // Clear logout complete flag after 20 seconds (longer protection)
       const timeout = setTimeout(() => {
+        console.log('🔄 [AUTH] Clearing logout complete flag');
         setLogoutComplete(false);
+        setAuthInitialized(false); // Allow re-initialization after logout
       }, 20000);
       
       return () => clearTimeout(timeout);
     }
   }, [logoutComplete]);
 
-
   /**
-   * Handle successful login with proper state management and user feedback
+   * ✅ FIXED: Handle successful login with proper state management and user feedback
    * @param {Object} userData - User data returned from successful authentication
    */
-  const handleLoginSuccess = (userData) => {
+  const handleLoginSuccess = useCallback((userData) => {
     try {
       // CRITICAL: Check if login should be blocked due to recent logout
       if (isLoggingOut || logoutComplete || authService.isAuthenticationBlocked()) {
-        console.log('Login attempt blocked - logout state detected, ignoring login success');
+        console.log('🚫 [LOGIN] Login attempt blocked - logout state detected, ignoring login success');
         return;
       }
       
-      console.log('Handling login success for user:', userData.username);
+      console.log('✅ [LOGIN] Handling login success for user:', userData.username);
       
       // Clear any logout state flags when legitimately logging in
       setIsLoggingOut(false);
       setLogoutComplete(false);
+      setAuthInitialized(true); // Mark as initialized
+      
       if (logoutTimeoutRef.current) {
         clearTimeout(logoutTimeoutRef.current);
         logoutTimeoutRef.current = null;
@@ -250,29 +272,30 @@ function App() {
       });
       
       // Log successful login for security monitoring
-      console.log(`User ${userData.username} authenticated successfully at ${new Date().toISOString()}`);
+      console.log(`✅ [LOGIN] User ${userData.username} authenticated successfully at ${new Date().toISOString()}`);
       
     } catch (error) {
-      console.error('Login success handler error:', error);
+      console.error('❌ [LOGIN] Login success handler error:', error);
       setAuthError("Login successful but there was an issue. Please refresh the page.");
       toast.error("Login successful but there was an issue. Please refresh the page.", {
         position: "bottom-right",
         autoClose: 5000,
       });
     }
-  };
+  }, [isLoggingOut, logoutComplete]);
 
   /**
-   * Handle user logout with comprehensive cleanup and user feedback
+   * ✅ IMPROVED: Handle user logout with comprehensive cleanup and user feedback
    * Ensures all user data is properly cleared from application state
    * Enhanced to prevent immediate re-authentication after logout
    */
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
-      console.log('Starting logout process...');
+      console.log('🚪 [LOGOUT] Starting logout process...');
       
       // Set logout state immediately to prevent any re-authentication
       setIsLoggingOut(true);
+      setAuthInitialized(false); // Reset initialization flag
       
       // Clear React state immediately to prevent auto-re-login
       setCurrentUser(null);
@@ -287,12 +310,12 @@ function App() {
         autoClose: 2000,
       });
 
-      console.log('Calling authService.logout()...');
+      console.log('🔄 [LOGOUT] Calling authService.logout()...');
       
       // Call service logout which will handle server communication and data clearing
       const logoutResult = await authService.logout();
       
-      console.log('Logout result:', logoutResult);
+      console.log('📄 [LOGOUT] Logout result:', logoutResult);
       
       if (logoutResult.success) {
         // Success message
@@ -302,7 +325,7 @@ function App() {
         });
         
         if (logoutResult.serverError) {
-          console.warn('Logout completed with server error:', logoutResult.serverError);
+          console.warn('⚠️ [LOGOUT] Logout completed with server error:', logoutResult.serverError);
         }
       } else {
         toast.warn("Signed out locally. You may need to sign in again.", {
@@ -315,7 +338,7 @@ function App() {
       setLogoutComplete(true);
       
     } catch (error) {
-      console.error('Logout failed:', error);
+      console.error('❌ [LOGOUT] Logout failed:', error);
       
       // Force logout even if server request fails for security
       authService.clearAuthData();
@@ -336,11 +359,11 @@ function App() {
     } finally {
       // Clear logout in progress flag after a delay
       logoutTimeoutRef.current = setTimeout(() => {
-        console.log('Clearing logout in progress flag');
+        console.log('🔄 [LOGOUT] Clearing logout in progress flag');
         setIsLoggingOut(false);
       }, 2000);
     }
-  };
+  }, []);
 
   /**
    * Calculate password strength for user feedback
