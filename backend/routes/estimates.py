@@ -96,7 +96,7 @@ def create_estimate():
         estimate = Estimate(
             customer_id=data['customer_id'],
             site_id=site_id,
-            status=data.get('status', 'draft'),
+            status=data.get('status', 'pending'),
             estimated_hours=data.get('estimated_hours', 0),
             doors_data=json.dumps(data.get('doors_data', []))
         )
